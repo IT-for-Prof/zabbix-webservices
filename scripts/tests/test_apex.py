@@ -97,8 +97,7 @@ def test_psl_extractor_cache_disabled(web_check_module, capfd, caplog, monkeypat
     assert captured.out == "", f"unexpected stdout: {captured.out!r}"
     assert captured.err == "", f"unexpected stderr: {captured.err!r}"
     assert caplog.records == [], (
-        f"tldextract.cache emitted {len(caplog.records)} log record(s): "
-        f"{[r.getMessage() for r in caplog.records]}"
+        f"tldextract.cache emitted {len(caplog.records)} log record(s): {[r.getMessage() for r in caplog.records]}"
     )
     # Structural intent: tldextract's DiskCache must be disabled.
     assert web_check_module._PSL_EXTRACTOR is not None
