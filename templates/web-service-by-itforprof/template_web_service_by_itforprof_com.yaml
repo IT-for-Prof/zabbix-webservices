@@ -1,0 +1,1578 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: bd327ca2dab24c4aa6ba757655aa052f
+    name: Templates/Applications
+  templates:
+  - uuid: 42159b48c68348b89c1ddea1fe82b57e
+    template: Web service by itforprof.com
+    name: Web service by itforprof.com
+    description: |
+      Full-stack web-service monitoring template for Zabbix 7.0.
+      Replaces legacy "Template Website metrics (itmicus.ru)" without
+      abandoned PyPI deps. Six layers, single host, single template:
+
+        1. HTTP availability  — native web scenario.
+        2. TLS + certificate  — externalscript `web_check.py cert`.
+        3. Domain WHOIS       — externalscript `web_check.py whois`
+                                (apex-deduped via 24h FS cache).
+        4. Network diagnostics — native simple checks (TCP)..
+        5. Deep TLS scan      — externalscript `web_check.py tls-scan`
+                                + LLD for weak-protocol findings.
+        6. HTTP/3 availability— externalscript `web_check.py http3`
+                                (Alt-Svc detection + QUIC handshake, aioquic).
+
+      All checks execute from the host's monitored_by (server or proxy),
+      so request egress matches the rest of the host's monitoring.
+
+      Design rationale and full taxonomy: docs/architecture.md.
+      Validation matrix:               docs/validation.md.
+
+      Author:  Konstantin Tyutyunnik / Константин Тютюнник
+      Site:    https://itforprof.com
+      Repo:    https://github.com/IT-for-Prof/zabbix-webservices
+      Issues:  https://github.com/IT-for-Prof/zabbix-webservices/issues
+      Credits: replaces the conceptually-similar Zabbix template
+               `Template Website metrics (itmicus.ru)` by itmicus —
+               https://github.com/itmicus/zabbix/tree/master/Template%20Web%20Site.
+               No code was copied; macro names are kept compatible for
+               in-place migration via scripts/migrate-from-itmicus.py.
+      License: MIT (c) 2025-2026 Konstantin Tyutyunnik
+    vendor:
+      name: itforprof.com
+      version: 7.0-2.2.2
+    groups:
+    - name: Templates/Applications
+    macros:
+    - macro: '{$WEB_SERVICE.URL}'
+      description: Full URL to monitor, e.g. https://example.com/healthz. REQUIRED.
+    - macro: '{$WEB_SERVICE.PHRASE}'
+      description: Substring/regex expected on the response body. Optional - leave empty to skip phrase check.
+    - macro: '{$WEB_SERVICE.PHRASE.FLAGS}'
+      value: (?i)
+      description: PCRE flag prefix applied to {$WEB_SERVICE.PHRASE}. Default '(?i)' = case-insensitive. Set to empty string for case-sensitive matching, or '(?s)' for dotall, etc.
+    - macro: '{$WEB_SERVICE.TIMEOUT}'
+      value: '15'
+      description: HTTP request timeout in seconds.
+    - macro: '{$WEB_SERVICE.EXPECTED_CODE}'
+      value: '200'
+      description: HTTP status code(s) considered healthy. Comma-separated, ranges supported (e.g. "200,204,301-302").
+    - macro: '{$WEB_SERVICE.USER_AGENT}'
+      value: Zabbix-WebService-by-itforprof/2.0
+      description: User-Agent header for the web scenario.
+    - macro: '{$WEB_SERVICE.CHECK.INTERVAL}'
+      value: 1m
+      description: How often the web scenario runs.
+    - macro: '{$WEB_SERVICE.CERT.CHECK.INTERVAL}'
+      value: 5m
+      description: How often the TLS-cert master item runs.
+    - macro: '{$WEB_SERVICE.WHOIS.CHECK.INTERVAL}'
+      value: 1h
+      description: How often the WHOIS master item runs (mostly cache hits).
+    - macro: '{$WEB_SERVICE.WHOIS.CACHE.TTL}'
+      value: '86400'
+      description: WHOIS cache TTL in seconds (passed to web_check.py whois --ttl).
+    - macro: '{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}'
+      value: 1d
+      description: How often the deep TLS scan runs.
+    - macro: '{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}'
+      value: 5m
+      description: How often the HTTP/3 master item runs.
+    - macro: '{$WEB_SERVICE.HTTP3.TIMEOUT}'
+      value: '8'
+      description: Combined HEAD + QUIC handshake timeout in seconds.
+    - macro: '{$WEB_SERVICE.HTTP3.SLOW_MS}'
+      value: '1000'
+      description: QUIC handshake WARNING threshold in milliseconds. Default 1000ms tolerates intercontinental UDP+QUIC handshake. Drop to 250 for LAN.
+    - macro: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
+      value: 5m
+      description: How often diagnostic simple-check items run.
+    - macro: '{$WEB_SERVICE.SLOW.WARN}'
+      value: '10'
+      description: Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
+    - macro: '{$WEB_SERVICE.NODATA.PERIOD}'
+      value: 10m
+      description: Period of no-data before the No-data trigger fires (web scenario item).
+    - macro: '{$WEB_SERVICE.CERT.WARN_DAYS}'
+      value: '30'
+      description: Cert expiry INFO trigger threshold (days).
+    - macro: '{$WEB_SERVICE.CERT.NOTICE_DAYS}'
+      value: '14'
+      description: Cert expiry WARNING trigger threshold (days).
+    - macro: '{$WEB_SERVICE.CERT.CRIT_DAYS}'
+      value: '7'
+      description: Cert expiry HIGH trigger threshold (days).
+    - macro: '{$WEB_SERVICE.CERT.MIN_KEY_RSA}'
+      value: '2048'
+      description: Minimum acceptable RSA key size (bits).
+    - macro: '{$WEB_SERVICE.CERT.MIN_KEY_ECDSA}'
+      value: '256'
+      description: Minimum acceptable ECDSA key size (bits).
+    - macro: '{$WEB_SERVICE.WHOIS.WARN_DAYS}'
+      value: '30'
+      description: Domain expires within N days WARNING trigger threshold.
+    - macro: '{$WEB_SERVICE.WHOIS.NOTICE_DAYS}'
+      value: '7'
+      description: Domain expires within N days AVERAGE trigger threshold.
+    - macro: '{$WEB_SERVICE.WHOIS.CRIT_DAYS}'
+      value: '1'
+      description: Domain expires within N days HIGH trigger threshold.
+    - macro: '{$WEB_SERVICE.HOST}'
+      description: Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
+    - macro: '{$WEB_SERVICE.TCP.SLOW_SEC}'
+      value: '3'
+      description: net.tcp.service.perf WARNING threshold in seconds. Default 3s tolerates intercontinental TCP+TLS handshake (~300-800ms typical) plus headroom. Drop to 1 for LAN/regional monitoring.
+    tags:
+    - tag: class
+      value: web-service
+    httptests:
+    - uuid: f41f42e32d1e4deca035b04fae2d3281
+      name: Web service
+      delay: '{$WEB_SERVICE.CHECK.INTERVAL}'
+      agent: '{$WEB_SERVICE.USER_AGENT}'
+      steps:
+      - name: GET
+        url: '{$WEB_SERVICE.URL}'
+        timeout: '{$WEB_SERVICE.TIMEOUT}'
+        status_codes: '{$WEB_SERVICE.EXPECTED_CODE}'
+        required: '{$WEB_SERVICE.PHRASE.FLAGS}{$WEB_SERVICE.PHRASE}'
+        follow_redirects: 'YES'
+        retrieve_mode: BODY
+      tags:
+      - tag: scope
+        value: availability
+    items:
+    - uuid: e2bf4e622bc04bfdab7d9283c478663b
+      name: 'Cert: probe (master JSON)'
+      type: EXTERNAL
+      key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      delay: '{$WEB_SERVICE.CERT.CHECK.INTERVAL}'
+      history: 7d
+      trends: '0'
+      value_type: TEXT
+      description: 'Runs `web_check.py cert <url>` on the host''s monitored_by.
+
+        Output is a JSON object consumed by the dependent items below
+
+        (subject/issuer/SANs/fingerprint/days-to-expire/chain_status/...).
+
+        Always exits 0; failures encode as {"ok": false, "error_code": ...}.
+
+        '
+      tags:
+      - tag: scope
+        value: tls
+      - tag: layer
+        value: '2'
+      triggers:
+      - uuid: be5d249ccc8a4058ab24198c61ec5eec
+        expression: last(/Web service by itforprof.com/web.test.fail[Web service])<>0
+        name: Web service is failing
+        event_name: 'Web service failed: {$WEB_SERVICE.URL} — {HOST.NAME} ({HOST.HOST})'
+        opdata: 'HTTP {?last(/Web service by itforprof.com/web.test.rspcode[Web service,GET])} | err: {?last(/Web service by itforprof.com/web.test.error[Web service])}'
+        priority: HIGH
+        description: 'The web scenario reports a failed step. Covers all hard failures:
+
+          non-matching HTTP status code, missing required phrase, timeout,
+
+          DNS resolution error, TLS handshake failure, or connection refused.
+
+          '
+        tags:
+        - tag: scope
+          value: availability
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Web service no data received
+          expression: nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=1
+      - uuid: ab9b1814328d4275b1c568d64f213acc
+        expression: avg(/Web service by itforprof.com/web.test.time[Web service,GET,resp],10m)>{$WEB_SERVICE.SLOW.WARN}
+        name: Web service slow response time
+        event_name: 'Web service slow: avg {ITEM.LASTVALUE1} over 10m (threshold {$WEB_SERVICE.SLOW.WARN}s) — {$WEB_SERVICE.URL} on {HOST.NAME} ({HOST.HOST})'
+        opdata: 'avg(10m): {ITEM.LASTVALUE1}s'
+        priority: WARNING
+        description: 'Average response time over the last 10 minutes exceeds the
+
+          {$WEB_SERVICE.SLOW.WARN} threshold.
+
+          '
+        dependencies:
+        - name: Web service is failing
+          expression: last(/Web service by itforprof.com/web.test.fail[Web service])<>0
+        tags:
+        - tag: scope
+          value: performance
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+      - uuid: ab645603a19146d1b7eb21c8d7b8d9a8
+        expression: nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=1
+        name: Web service no data received
+        event_name: 'Web service: no data for {$WEB_SERVICE.NODATA.PERIOD} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: AVERAGE
+        description: The web scenario item has not received fresh data for the configured period.
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+      - uuid: 2c7f847016824c66bb27c2198d39c5a6
+        expression: nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
+        name: Cert externalscript no data received
+        event_name: 'web_check.py cert: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: AVERAGE
+        description: 'The cert master item has not received a fresh value for 15m
+
+          (3× its default delay). The externalscript is not executing at all —
+
+          check `/usr/lib/zabbix/externalscripts/web_check.py` exists and is
+
+          executable on this host''s monitored_by, and that the venv at
+
+          /opt/web_check/venv is intact.
+
+          '
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+    - uuid: 72a084cb2bf74a22b893bd98dc8e1e20
+      name: 'Cert: days to expire'
+      type: DEPENDENT
+      key: web_check.cert.days_to_expire
+      value_type: FLOAT
+      units: d
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.days_to_expire
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: d89b15901e1d4a1f959ea8cf60705fdd
+        expression: last(/Web service by itforprof.com/web_check.cert.days_to_expire)<0
+        name: Cert expired
+        event_name: TLS cert expired ({ITEM.LASTVALUE1} past not_after) — {$WEB_SERVICE.URL} on {HOST.HOST}
+        priority: DISASTER
+        manual_close: 'YES'
+        description: The current TLS certificate is past its not_after date.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
+      - uuid: 3089073dc0214f2aa481077338c2ea9c
+        expression: 'last(/Web service by itforprof.com/web_check.cert.days_to_expire)>=0 and
+
+          last(/Web service by itforprof.com/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.CRIT_DAYS}
+
+          '
+        name: Cert expires within {$WEB_SERVICE.CERT.CRIT_DAYS} days
+        priority: HIGH
+        manual_close: 'YES'
+        description: The TLS certificate will expire soon. Rotate now.
+        dependencies:
+        - name: Cert expired
+          expression: last(/Web service by itforprof.com/web_check.cert.days_to_expire)<0
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        event_name: TLS cert expires in {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.CRIT_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}
+      - uuid: 99fbafa657f04362baed2fb2ede69416
+        expression: 'last(/Web service by itforprof.com/web_check.cert.days_to_expire)>={$WEB_SERVICE.CERT.CRIT_DAYS} and
+
+          last(/Web service by itforprof.com/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.NOTICE_DAYS}
+
+          '
+        name: Cert expires within {$WEB_SERVICE.CERT.NOTICE_DAYS} days
+        priority: WARNING
+        manual_close: 'YES'
+        description: The TLS certificate will expire within the WARNING threshold.
+        dependencies:
+        - name: Cert expires within {$WEB_SERVICE.CERT.CRIT_DAYS} days
+          expression: 'last(/Web service by itforprof.com/web_check.cert.days_to_expire)>=0 and
+
+            last(/Web service by itforprof.com/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.CRIT_DAYS}
+
+            '
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        event_name: TLS cert expires in {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.NOTICE_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}
+      - uuid: 373407925a4d4be782b5e09df0ddbef3
+        expression: 'last(/Web service by itforprof.com/web_check.cert.days_to_expire)>={$WEB_SERVICE.CERT.NOTICE_DAYS} and
+
+          last(/Web service by itforprof.com/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.WARN_DAYS}
+
+          '
+        name: Cert expires within {$WEB_SERVICE.CERT.WARN_DAYS} days
+        priority: INFO
+        manual_close: 'YES'
+        description: 'Heads-up: cert renewal window approaching.'
+        dependencies:
+        - name: Cert expires within {$WEB_SERVICE.CERT.NOTICE_DAYS} days
+          expression: 'last(/Web service by itforprof.com/web_check.cert.days_to_expire)>={$WEB_SERVICE.CERT.CRIT_DAYS} and
+
+            last(/Web service by itforprof.com/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.NOTICE_DAYS}
+
+            '
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        event_name: TLS cert expires in {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.WARN_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}
+    - uuid: 33c8787e706e49ddb454078027b3c146
+      name: 'Cert: not_after'
+      type: DEPENDENT
+      key: web_check.cert.not_after
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.not_after
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 82ac239585b84ff99954de8d9e1eaf6c
+      name: 'Cert: subject CN'
+      type: DEPENDENT
+      key: web_check.cert.subject_cn
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.subject_cn
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 47ffd433b4d34c09868bec7b30994a9d
+      name: 'Cert: issuer CN'
+      type: DEPENDENT
+      key: web_check.cert.issuer_cn
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.issuer_cn
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 0f01bf0210ad41efbf7fba6ffefed76a
+      name: 'Cert: issuer organization'
+      type: DEPENDENT
+      key: web_check.cert.issuer_org
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.issuer_org
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 37197e1c4d3b4e82849f0e95b303495a
+      name: 'Cert: serial'
+      type: DEPENDENT
+      key: web_check.cert.serial
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.serial
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 42e744755d7d4d2cb70cbf34abe99d2c
+      name: 'Cert: SANs'
+      type: DEPENDENT
+      key: web_check.cert.sans
+      value_type: TEXT
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.sans
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: c91e0d34102c45faa5d6b393b11e7f40
+      name: 'Cert: SHA-256 fingerprint'
+      type: DEPENDENT
+      key: web_check.cert.fingerprint_sha256
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.fingerprint_sha256
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: cc2dd9ddb02a418192df1a3fe94696ce
+        expression: change(/Web service by itforprof.com/web_check.cert.fingerprint_sha256)=1
+        name: Cert rotated
+        priority: INFO
+        description: The SHA-256 fingerprint changed since the last poll — a new cert was deployed. Informational; usually expected (Let's Encrypt renews every ~60 days).
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
+        event_name: TLS cert rotated (new fingerprint {ITEM.LASTVALUE1}) — {$WEB_SERVICE.URL} on {HOST.HOST}
+        manual_close: 'YES'
+      - uuid: d03134c8f17c4610ace39c55e9d74e52
+        expression: 'change(/Web service by itforprof.com/web_check.cert.fingerprint_sha256)=1 and
+
+          last(/Web service by itforprof.com/web_check.cert.days_to_expire)<14
+
+          '
+        name: Cert rotated unexpectedly (was about to expire)
+        priority: HIGH
+        description: 'The cert fingerprint changed but the days_to_expire reading just
+
+          before rotation was already under 14d. That can mean the previous
+
+          cert expired before rotation (brief outage window) — investigate.
+
+          '
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
+        event_name: TLS cert rotated with <14d remaining — {$WEB_SERVICE.URL} on {HOST.HOST}
+        manual_close: 'YES'
+    - uuid: 127abf2af8b342839bba3ac01406154f
+      name: 'Cert: signature algorithm'
+      type: DEPENDENT
+      key: web_check.cert.signature_algorithm
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.signature_algorithm
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: 986270e029c946f5a15a3e38d5a07012
+        expression: find(/Web service by itforprof.com/web_check.cert.signature_algorithm,,"regexp","(?i)(sha1|md5)")=1
+        name: Cert weak signature algorithm
+        event_name: 'TLS cert signed with weak algorithm: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: WARNING
+        description: The leaf certificate is signed with SHA-1 or MD5 — modern clients distrust both.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
+    - uuid: b1a520ca067d4c58b4c562a3916bf061
+      name: 'Cert: public key algorithm'
+      type: DEPENDENT
+      key: web_check.cert.public_key_algorithm
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.public_key_algorithm
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: bd83f5d086ed47da9a98085754ef44d7
+        expression: "(last(/Web service by itforprof.com/web_check.cert.public_key_algorithm)=\"rsa\" and\n last(/Web service by itforprof.com/web_check.cert.public_key_bits)<{$WEB_SERVICE.CERT.MIN_KEY_RSA})\
+          \ or\n(last(/Web service by itforprof.com/web_check.cert.public_key_algorithm)=\"ecdsa\" and\n last(/Web service by itforprof.com/web_check.cert.public_key_bits)<{$WEB_SERVICE.CERT.MIN_KEY_ECDSA})\n"
+        name: Cert weak public key
+        event_name: 'TLS cert weak key: {ITEM.LASTVALUE1} {ITEM.LASTVALUE2} bits — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: WARNING
+        description: Certificate public key is shorter than the configured minimum for its algorithm.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
+    - uuid: 6e5952b6bda549bfa6a39fe2653b0a35
+      name: 'Cert: public key bits'
+      type: DEPENDENT
+      key: web_check.cert.public_key_bits
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.public_key_bits
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 650dc0f0ad394dab9678ef360be37895
+      name: 'Cert: hostname covered'
+      type: DEPENDENT
+      key: web_check.cert.hostname_covered
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.hostname_covered
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      valuemap:
+        name: 'web_check: boolean'
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: bd59e70b81c04f8380b94653733122c2
+        expression: last(/Web service by itforprof.com/web_check.cert.hostname_covered)=0
+        name: Cert hostname not covered
+        priority: HIGH
+        description: The current certificate has no SAN/CN that matches the host being monitored.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
+        event_name: TLS cert SAN/CN does not cover {$WEB_SERVICE.URL} on {HOST.HOST}
+    - uuid: 038f1513187148d1bb3a754dc68badba
+      name: 'Cert: chain status'
+      type: DEPENDENT
+      key: web_check.cert.chain_status
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.chain_status
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: 76b90018e9cf46b08854af457b8ffb3f
+        expression: last(/Web service by itforprof.com/web_check.cert.chain_status)="untrusted"
+        name: Cert chain untrusted
+        event_name: TLS cert chain {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}
+        priority: HIGH
+        description: TLS chain validation failed (untrusted CA, expired chain, etc.).
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
+    - uuid: 506d85fe17d8447e9362a208d9d40425
+      name: 'Cert: check ok'
+      type: DEPENDENT
+      key: web_check.cert.ok
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.ok
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 10m
+      valuemap:
+        name: 'web_check: boolean'
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: eb8c56ba600a467983c16043eb8489b4
+        expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
+        name: Cert check failing
+        event_name: web_check.py cert reports ok=false — {$WEB_SERVICE.URL} on {HOST.HOST}
+        priority: INFO
+        description: The cert externalscript itself failed (DNS, TCP, parse) — investigate via the master item JSON.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert externalscript no data received
+          expression: nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
+        manual_close: 'YES'
+    - uuid: be754f869d0b45a993d05c958eb27579
+      name: 'TLS: negotiated protocol (live)'
+      type: DEPENDENT
+      key: web_check.tls.protocol
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.tls.protocol
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: 2663f333229244828dcabb48b57a6f2b
+        expression: find(/Web service by itforprof.com/web_check.tls.protocol,,"regexp","^(SSLv3|TLSv1|TLSv1\\.0|TLSv1\\.1)$")=1
+        name: TLS protocol weak (currently negotiating)
+        event_name: 'Live TLS negotiated weak protocol: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: WARNING
+        description: 'The live cert-master handshake just negotiated a deprecated TLS
+
+          protocol (SSLv3 / TLSv1.0 / TLSv1.1). Distinct from Layer 5''s
+
+          "TLS weak protocol" LLD trigger which reflects what''s *negotiable*
+
+          at all; this one fires when our client is actually getting one of
+
+          those on every poll, indicating a default-protocol misconfig.
+
+          '
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
+    - uuid: 2f5c2064deab4cf79c8c580fa94009af
+      name: 'TLS: negotiated cipher (live)'
+      type: DEPENDENT
+      key: web_check.tls.cipher
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.tls.cipher
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 4c4ab42635d14639b0f19027ea5252d2
+      name: 'TLS: handshake time'
+      type: DEPENDENT
+      key: web_check.tls.handshake_ms
+      value_type: FLOAT
+      units: ms
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.tls.handshake_ms
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 57c7205ed16c4ca8abd9652b46cd2f63
+      name: 'WHOIS: probe (master JSON)'
+      type: EXTERNAL
+      key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      delay: '{$WEB_SERVICE.WHOIS.CHECK.INTERVAL}'
+      history: 14d
+      trends: '0'
+      value_type: TEXT
+      description: 'Runs `web_check.py whois <url>` on the host''s monitored_by.
+
+        Output is JSON consumed by the dependent items below.
+
+        Apex-deduped: many hosts on the same root domain share one
+
+        registry round-trip per {$WEB_SERVICE.WHOIS.CACHE.TTL} seconds.
+
+        Hungarian (.hu) registry omits expiry — those hosts get
+
+        `provider_no_expiry: true` and the expiry triggers stay silent.
+
+        '
+      tags:
+      - tag: scope
+        value: whois
+      - tag: layer
+        value: '3'
+      triggers:
+      - uuid: c42cd47849e84a7da6dcfd11500b2569
+        expression: nodata(/Web service by itforprof.com/web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"],3h)=1
+        name: WHOIS externalscript no data received
+        event_name: 'web_check.py whois: no fresh value in 3h — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: AVERAGE
+        description: 'The WHOIS master item has not received a fresh value for 3h
+
+          (3× its default 1h delay). Externalscript not executing.
+
+          '
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+      - uuid: 057de41c671349f696b5c252b44d6ad0
+        expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<0 and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        name: Domain expired
+        event_name: 'Domain {ITEM.LASTVALUE3} expired ({ITEM.LASTVALUE2} past) (host: {HOST.HOST})'
+        priority: DISASTER
+        manual_close: 'YES'
+        description: The registered apex {ITEM.LASTVALUE3} for this host is past its expiry date.
+        tags:
+        - tag: scope
+          value: whois
+        - tag: apex
+          value: '{ITEM.LASTVALUE3}'
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: WHOIS check failing
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
+      - uuid: d729f61ad62f4a83b920be54d2dfcae3
+        expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.CRIT_DAYS}
+          and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        name: Domain expires within {$WEB_SERVICE.WHOIS.CRIT_DAYS} day(s)
+        event_name: 'Domain {ITEM.LASTVALUE4} expires in {ITEM.LASTVALUE2} (host: {HOST.HOST})'
+        priority: HIGH
+        manual_close: 'YES'
+        description: Apex {ITEM.LASTVALUE4} expires very soon (within {$WEB_SERVICE.WHOIS.CRIT_DAYS}d). Renew immediately.
+        dependencies:
+        - name: Domain expired
+          expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<0 and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        tags:
+        - tag: scope
+          value: whois
+        - tag: apex
+          value: '{ITEM.LASTVALUE4}'
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+      - uuid: e55e244dd58745d488534c31628a7a58
+        expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>={$WEB_SERVICE.WHOIS.CRIT_DAYS} and last(/Web
+          service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.NOTICE_DAYS} and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        name: Domain expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS} days
+        event_name: 'Domain {ITEM.LASTVALUE4} expires in {ITEM.LASTVALUE2} (host: {HOST.HOST})'
+        priority: AVERAGE
+        manual_close: 'YES'
+        description: Apex {ITEM.LASTVALUE4} expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS}d.
+        dependencies:
+        - name: Domain expires within {$WEB_SERVICE.WHOIS.CRIT_DAYS} day(s)
+          expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.CRIT_DAYS}
+            and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        tags:
+        - tag: scope
+          value: whois
+        - tag: apex
+          value: '{ITEM.LASTVALUE4}'
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+      - uuid: 5c7a37086368497e9a7033397e04e117
+        expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>={$WEB_SERVICE.WHOIS.NOTICE_DAYS} and
+          last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.WARN_DAYS} and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        name: Domain expires within {$WEB_SERVICE.WHOIS.WARN_DAYS} days
+        event_name: 'Domain {ITEM.LASTVALUE4} expires in {ITEM.LASTVALUE2} (host: {HOST.HOST})'
+        priority: WARNING
+        manual_close: 'YES'
+        description: Apex {ITEM.LASTVALUE4} expires within {$WEB_SERVICE.WHOIS.WARN_DAYS}d.
+        dependencies:
+        - name: Domain expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS} days
+          expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>={$WEB_SERVICE.WHOIS.CRIT_DAYS} and
+            last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.NOTICE_DAYS} and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        tags:
+        - tag: scope
+          value: whois
+        - tag: apex
+          value: '{ITEM.LASTVALUE4}'
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+    - uuid: ee511932fb464462b7c1116bf970770f
+      name: 'WHOIS: days to expire'
+      type: DEPENDENT
+      key: web_check.whois.days_to_expire
+      value_type: FLOAT
+      units: d
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.days_to_expire
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 6h
+      tags:
+      - tag: scope
+        value: whois
+    - uuid: 8771aedd28b74bf9869a4038888c3c50
+      name: 'WHOIS: expires at'
+      type: DEPENDENT
+      key: web_check.whois.expires_at
+      value_type: CHAR
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.expires_at
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: whois
+    - uuid: b4ef8384017e4c76acea630f06ec2731
+      name: 'WHOIS: registrar'
+      type: DEPENDENT
+      key: web_check.whois.registrar
+      value_type: CHAR
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.registrar
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: whois
+      triggers:
+      - uuid: 2a36c6738f704d8ab1a87736d294e0b9
+        expression: change(/Web service by itforprof.com/web_check.whois.registrar)=1 and length(last(/Web service by itforprof.com/web_check.whois.registrar))>0
+        name: Domain registrar changed
+        priority: WARNING
+        description: Registrar string changed. Verify legitimacy of any domain transfer.
+        tags:
+        - tag: scope
+          value: whois
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: WHOIS check failing
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
+        event_name: 'Registrar changed: {?last(/Web service by itforprof.com/web_check.whois.registrar,#2)} → {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        manual_close: 'YES'
+    - uuid: bcf3b03fc3e54110bd88de0585999709
+      name: 'WHOIS: name servers'
+      type: DEPENDENT
+      key: web_check.whois.name_servers
+      value_type: TEXT
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.name_servers
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: whois
+      triggers:
+      - uuid: 17ab53ac72ba4068993da7b57037a22b
+        expression: change(/Web service by itforprof.com/web_check.whois.name_servers)=1 and length(last(/Web service by itforprof.com/web_check.whois.name_servers))>0
+        name: Domain name servers changed
+        priority: INFO
+        description: NS records changed at the registry level. Often legitimate (e.g. moving to Cloudflare).
+        tags:
+        - tag: scope
+          value: whois
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: WHOIS check failing
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
+        event_name: 'Name servers changed: {?last(/Web service by itforprof.com/web_check.whois.name_servers,#2)} → {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        manual_close: 'YES'
+    - uuid: 0b69d2c9586e4a82aeeaadcc5b16e54f
+      name: 'WHOIS: DNSSEC'
+      type: DEPENDENT
+      key: web_check.whois.dnssec
+      value_type: CHAR
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.dnssec
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: whois
+      triggers:
+      - uuid: 04a755e85b394a3f983efd7f81268a22
+        expression: change(/Web service by itforprof.com/web_check.whois.dnssec)=1 and last(/Web service by itforprof.com/web_check.whois.dnssec)="unsigned"
+        name: Domain DNSSEC removed
+        priority: WARNING
+        description: DNSSEC went from signed to unsigned at the registry — investigate.
+        tags:
+        - tag: scope
+          value: whois
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: WHOIS check failing
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
+        event_name: DNSSEC went unsigned at registry — {$WEB_SERVICE.URL} on {HOST.HOST}
+        manual_close: 'YES'
+    - uuid: 2e72e2a48dce4650b79992953d2feca6
+      name: 'WHOIS: cache age'
+      type: DEPENDENT
+      key: web_check.whois.cache_age_seconds
+      value_type: UNSIGNED
+      units: s
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cache_age_seconds
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      tags:
+      - tag: scope
+        value: whois
+    - uuid: d23d751959fe416cbcfcdfbfdcb81497
+      name: 'WHOIS: apex domain'
+      type: DEPENDENT
+      key: web_check.whois.apex
+      value_type: CHAR
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      description: Registered apex extracted via PSL — shared across all hosts under the same root domain. Referenced by WHOIS expiry triggers so alerts show the apex (not just the host) and can be deduped
+        by tag.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.apex
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: whois
+    - uuid: fccf5fce053344b48f583cdd70d88a41
+      name: 'WHOIS: data source'
+      type: DEPENDENT
+      key: web_check.whois.source
+      value_type: CHAR
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.source
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: whois
+    - uuid: 3addad2834f8422dbb09846ef686aa19
+      name: 'WHOIS: check ok'
+      type: DEPENDENT
+      key: web_check.whois.ok
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.ok
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      valuemap:
+        name: 'web_check: boolean'
+      tags:
+      - tag: scope
+        value: whois
+      triggers:
+      - uuid: b57234018c8e4d2f841c20eeda67e4f8
+        expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
+        name: WHOIS check failing
+        priority: INFO
+        description: web_check.py whois reports ok=false. Likely a transient registry hiccup or a TLD we don't parse — check the master JSON.
+        tags:
+        - tag: scope
+          value: whois
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: WHOIS externalscript no data received
+          expression: nodata(/Web service by itforprof.com/web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"],3h)=1
+        event_name: web_check.py whois reports ok=false — {$WEB_SERVICE.URL} on {HOST.HOST}
+        manual_close: 'YES'
+    - uuid: 9c73e6fbdccf49eaa3c9266f340ad871
+      name: 'WHOIS: provider has no expiry data'
+      type: DEPENDENT
+      key: web_check.whois.provider_no_expiry
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      description: True for ccTLDs like .hu where the registry intentionally omits expiry. Used to gate the WHOIS-expiry triggers.
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.provider_no_expiry
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      valuemap:
+        name: 'web_check: boolean'
+      tags:
+      - tag: scope
+        value: whois
+    - uuid: 117107c9c4c0479aa9825347cea751b9
+      name: 'Diag: TCP 443 performance'
+      type: SIMPLE
+      key: net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443]
+      delay: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
+      value_type: FLOAT
+      units: s
+      tags:
+      - tag: scope
+        value: diag
+      triggers:
+      - uuid: fd0ada034a644ca3bf0086101c92395a
+        expression: last(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443])=0
+        name: TCP 443 connect failed
+        priority: HIGH
+        description: TCP/443 to the monitored host is refused or unreachable.
+        tags:
+        - tag: scope
+          value: diag
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        event_name: TCP/443 connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
+        manual_close: 'YES'
+      - uuid: ff15f34c63b247c8a7334a465c45bd73
+        expression: avg(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],30m)>{$WEB_SERVICE.TCP.SLOW_SEC}
+        name: TCP 443 connect slow
+        priority: WARNING
+        description: TCP/443 average connect time over 10m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold
+          via the macro on hosts behind a CDN with intentionally-distant POPs.
+        dependencies:
+        - name: TCP 443 connect failed
+          expression: last(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443])=0
+        tags:
+        - tag: scope
+          value: diag
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        event_name: 'TCP/443 to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
+        manual_close: 'YES'
+    - uuid: ccec84b433b442b7a9a94f9f409248c3
+      name: 'Diag: TCP 80 performance'
+      type: SIMPLE
+      key: net.tcp.service.perf[http,{$WEB_SERVICE.HOST},80]
+      delay: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
+      value_type: FLOAT
+      units: s
+      tags:
+      - tag: scope
+        value: diag
+    - uuid: 8ec55f72623544019b7b162928286550
+      name: 'TLS scan: matrix (master JSON)'
+      type: EXTERNAL
+      key: web_check.py["tls-scan","{$WEB_SERVICE.URL}"]
+      delay: '{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}'
+      history: 30d
+      trends: '0'
+      value_type: TEXT
+      description: 'Runs `web_check.py tls-scan <url>` daily. Returns supported
+
+        TLS-protocol set + weak-cipher matches as JSON. The LLD rule
+
+        below drives one item-prototype/trigger-prototype pair per
+
+        weak finding (deprecated protocol or weak cipher).
+
+        '
+      tags:
+      - tag: scope
+        value: tls-scan
+      - tag: layer
+        value: '5'
+      triggers:
+      - uuid: f83607e740cb4fea8a7690ac784e8d63
+        expression: nodata(/Web service by itforprof.com/web_check.py["tls-scan","{$WEB_SERVICE.URL}"],3d)=1
+        name: TLS scan externalscript no data received
+        event_name: 'web_check.py tls-scan: no fresh value in 3 days — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: INFO
+        description: 'The TLS-scan master item has not received a fresh value for 3 days
+
+          (3× its default 1d delay). Externalscript not executing.
+
+          '
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+    - uuid: 4ff2ca946d4844e9a030b157dc5e16c7
+      name: 'TLS scan: supported protocols'
+      type: DEPENDENT
+      key: web_check.tls_scan.supported_protocols
+      value_type: TEXT
+      master_item:
+        key: web_check.py["tls-scan","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.supported_protocols
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No tls-scan data: web_check.py tls-scan returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 7d
+      tags:
+      - tag: scope
+        value: tls-scan
+    - uuid: cea730238f714db4af859aa39aca1a60
+      name: 'TLS scan: weak finding count'
+      type: DEPENDENT
+      key: web_check.tls_scan.weak_count
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["tls-scan","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.weak_count
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No tls-scan data: web_check.py tls-scan returned error envelope (see master item JSON).'
+      tags:
+      - tag: scope
+        value: tls-scan
+    - uuid: 4a9c1b0e8b2d4f1c8e3a7b6c5d4e3f21
+      name: 'HTTP/3: probe (master JSON)'
+      type: EXTERNAL
+      key: web_check.py["http3","{$WEB_SERVICE.URL}"]
+      delay: '{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}'
+      history: 14d
+      trends: '0'
+      value_type: TEXT
+      description: 'Runs `web_check.py http3 <url>` on the host''s monitored_by.
+
+        Two-step probe: HEAD request reads Alt-Svc; if h3 is advertised
+
+        a QUIC handshake (ALPN=h3) is attempted on UDP/port. Returns
+
+        alt_svc_advertised, h3_reachable, handshake_ms, alpn, quic_version.
+
+        Hosts that do not advertise h3 stay silent (no triggers fire).'
+      tags:
+      - tag: scope
+        value: http3
+      - tag: layer
+        value: '6'
+      triggers:
+      - uuid: 4df09b7121514ffc853a17a40a13ba32
+        expression: last(/Web service by itforprof.com/web_check.http3.alt_svc_advertised)=1 and last(/Web service by itforprof.com/web_check.http3.reachable)=0
+        name: HTTP/3 advertised but unreachable
+        event_name: 'HTTP/3 advertised but unreachable: {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: HIGH
+        description: 'The server advertises HTTP/3 in its Alt-Svc header but our QUIC
+
+          handshake from this proxy fails. Causes: UDP/443 dropped on the
+
+          path, server-side QUIC stack misconfigured, or CDN regression.
+
+          Cross-check with the network-diagnostic items.'
+        tags:
+        - tag: scope
+          value: http3
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: HTTP/3 check failing
+          expression: last(/Web service by itforprof.com/web_check.http3.ok)=0
+      - uuid: 4cc0745f57df4d9788d521f5006b444c
+        expression: avg(/Web service by itforprof.com/web_check.http3.handshake_ms,1h)>{$WEB_SERVICE.HTTP3.SLOW_MS} and avg(/Web service by itforprof.com/web_check.http3.handshake_ms,1h)>0
+        name: HTTP/3 handshake slow
+        event_name: 'HTTP/3 handshake to {$WEB_SERVICE.URL} slow: avg {ITEM.LASTVALUE1} over 1h (threshold {$WEB_SERVICE.HTTP3.SLOW_MS}ms) — {HOST.NAME} ({HOST.HOST})'
+        priority: WARNING
+        description: QUIC handshake average over 1h exceeds {$WEB_SERVICE.HTTP3.SLOW_MS}ms. http3 master polls every 5m so 1h gives a stable rolling sample.
+        tags:
+        - tag: scope
+          value: http3
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: HTTP/3 advertised but unreachable
+          expression: last(/Web service by itforprof.com/web_check.http3.alt_svc_advertised)=1 and last(/Web service by itforprof.com/web_check.http3.reachable)=0
+      - uuid: 1b8861a5003f4f2082c745335694954a
+        expression: last(/Web service by itforprof.com/web_check.http3.ok)=0
+        name: HTTP/3 check failing
+        event_name: web_check.py http3 reports ok=false — {$WEB_SERVICE.URL} on {HOST.HOST}
+        priority: INFO
+        description: The http3 externalscript itself failed (bad URL, etc). Investigate via master item.
+        tags:
+        - tag: scope
+          value: http3
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: HTTP/3 externalscript no data received
+          expression: nodata(/Web service by itforprof.com/web_check.py["http3","{$WEB_SERVICE.URL}"],15m)=1
+        manual_close: 'YES'
+      - uuid: 5b621e14f97041a1bee7eb7502b88080
+        expression: nodata(/Web service by itforprof.com/web_check.py["http3","{$WEB_SERVICE.URL}"],15m)=1
+        name: HTTP/3 externalscript no data received
+        event_name: 'web_check.py http3: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: AVERAGE
+        description: 'The HTTP/3 master item has not received a fresh value for 15m
+
+          (3× its default 5m delay). Externalscript not executing.'
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+    - uuid: 5b8a2c1f9c3e4012a4b8c7d6e5f43210
+      name: 'HTTP/3: Alt-Svc advertises h3'
+      type: DEPENDENT
+      key: web_check.http3.alt_svc_advertised
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["http3","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.alt_svc_advertised
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No HTTP/3 data: web_check.py http3 returned error envelope or h3 not advertised.'
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: http3
+      valuemap:
+        name: 'web_check: boolean'
+    - uuid: 2477368de1754de89c9613f8925a9794
+      name: 'HTTP/3: reachable via QUIC'
+      type: DEPENDENT
+      key: web_check.http3.reachable
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["http3","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.h3_reachable
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No HTTP/3 data: web_check.py http3 returned error envelope or h3 not advertised.'
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: http3
+      valuemap:
+        name: 'web_check: boolean'
+    - uuid: a02d42490189480a81727d4efd940020
+      name: 'HTTP/3: QUIC handshake time'
+      type: DEPENDENT
+      key: web_check.http3.handshake_ms
+      value_type: FLOAT
+      master_item:
+        key: web_check.py["http3","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.handshake_ms
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No HTTP/3 data: web_check.py http3 returned error envelope or h3 not advertised.'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: http3
+      units: ms
+    - uuid: a61ea242e2014d60a5096d039af1c9e5
+      name: 'HTTP/3: negotiated ALPN'
+      type: DEPENDENT
+      key: web_check.http3.alpn
+      value_type: CHAR
+      master_item:
+        key: web_check.py["http3","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.alpn
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No HTTP/3 data: web_check.py http3 returned error envelope or h3 not advertised.'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: http3
+    - uuid: e7455b43380349f5b027229387d77205
+      name: 'HTTP/3: QUIC version'
+      type: DEPENDENT
+      key: web_check.http3.quic_version
+      value_type: CHAR
+      master_item:
+        key: web_check.py["http3","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.quic_version
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No HTTP/3 data: web_check.py http3 returned error envelope or h3 not advertised.'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: http3
+    - uuid: 6b2ee44044be4b389279b971b069a680
+      name: 'HTTP/3: check ok'
+      type: DEPENDENT
+      key: web_check.http3.ok
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["http3","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.ok
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No HTTP/3 data: web_check.py http3 returned error envelope or h3 not advertised.'
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 10m
+      tags:
+      - tag: scope
+        value: http3
+      valuemap:
+        name: 'web_check: boolean'
+    discovery_rules:
+    - uuid: 9cfbb8fb495b48d79c267e58b9e1bc2a
+      name: TLS findings discovery
+      type: EXTERNAL
+      key: web_check.py["discover-tls","{$WEB_SERVICE.URL}"]
+      delay: '{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}'
+      description: 'Emits one LLD entry per weak protocol/cipher reported by tls-scan.
+
+        Macros: {#TLS_FINDING}, {#TLS_FINDING.CATEGORY}, {#TLS_FINDING.SEVERITY}.
+
+        '
+      lifetime: 7d
+      item_prototypes:
+      - uuid: bfa90adeee7345cda61815a8e3cb4b62
+        name: 'TLS scan finding: {#TLS_FINDING}'
+        type: DEPENDENT
+        key: web_check.tls_scan.finding[{#TLS_FINDING}]
+        value_type: CHAR
+        master_item:
+          key: web_check.py["tls-scan","{$WEB_SERVICE.URL}"]
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.weak_findings[?(@.name == "{#TLS_FINDING}")].severity.first()
+          error_handler: CUSTOM_ERROR
+          error_handler_params: 'No tls-scan data: web_check.py tls-scan returned error envelope (see master item JSON).'
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 7d
+        tags:
+        - tag: scope
+          value: tls-scan
+        - tag: tls.finding
+          value: '{#TLS_FINDING}'
+        - tag: tls.category
+          value: '{#TLS_FINDING.CATEGORY}'
+        trigger_prototypes:
+        - uuid: 232029b8b19f431896d533781cda191b
+          expression: length(last(/Web service by itforprof.com/web_check.tls_scan.finding[{#TLS_FINDING}]))>0
+          name: 'TLS weak {#TLS_FINDING.CATEGORY}: {#TLS_FINDING}'
+          event_name: 'TLS weak {#TLS_FINDING.CATEGORY} negotiable: {#TLS_FINDING} on {$WEB_SERVICE.URL} ({HOST.HOST})'
+          priority: WARNING
+          description: 'The daily TLS scan negotiated a deprecated protocol or weak
+
+            cipher family. Investigate the server''s TLS configuration.
+
+            '
+          tags:
+          - tag: scope
+            value: tls-scan
+          - tag: tls.finding
+            value: '{#TLS_FINDING}'
+          - tag: url
+            value: '{$WEB_SERVICE.URL}'
+          dependencies:
+          - name: TLS scan externalscript no data received
+            expression: nodata(/Web service by itforprof.com/web_check.py["tls-scan","{$WEB_SERVICE.URL}"],3d)=1
+    valuemaps:
+    - uuid: 09b3d107743842c3b05d7beccbb7b5be
+      name: 'web_check: boolean'
+      mappings:
+      - value: '0'
+        newvalue: 'no'
+      - value: '1'
+        newvalue: 'yes'

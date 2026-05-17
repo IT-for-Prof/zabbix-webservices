@@ -1,0 +1,26 @@
+name: yaml-validate
+
+on:
+  pull_request:
+    paths:
+      - 'templates/**/*.yaml'
+      - 'templates/**/*.yml'
+      - '.github/workflows/yaml-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'templates/**/*.yaml'
+      - 'templates/**/*.yml'
+
+jobs:
+  yamllint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yamllint
+        run: pip install --quiet yamllint
+      - name: Lint template YAML
+        run: |
+          yamllint \
+            -d "{extends: default, rules: {line-length: {max: 300}, indentation: {spaces: 2, indent-sequences: consistent}, document-start: disable, truthy: {check-keys: false}, comments: disable}}" \
+            templates/

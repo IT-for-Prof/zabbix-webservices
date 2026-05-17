@@ -1,0 +1,3 @@
+pytest >= 8
+pytest-httpserver >= 1.0
+trustme >= 1.1

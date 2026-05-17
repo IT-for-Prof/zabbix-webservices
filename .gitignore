@@ -1,0 +1,29 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.idea/
+.vscode/
+
+# Python tooling caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Tooling artifacts (codebase-intelligence / agent assistants)
+.gitnexus/
+.serena/
+.claude/
+AGENTS.md
+CLAUDE.md
+.coverage
+
+# Local dev / MCP configs — point at a developer's local Zabbix MCP
+# bridge, not relevant to anyone consuming this repo.
+.mcp.json
+opencode.json

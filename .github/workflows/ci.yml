@@ -1,0 +1,85 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+
+defaults:
+  run:
+    working-directory: scripts
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install --quiet 'ruff==0.9.6'
+      - run: ruff check .
+      - run: ruff format --check .
+
+  typecheck:
+    name: mypy (web_check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install --quiet 'mypy==1.13.0' 'cryptography>=41' 'asyncwhois>=1.1.12' 'tldextract>=5.1.2'
+      - run: mypy --strict --ignore-missing-imports --python-version 3.11 externalscripts/web_check.py
+
+  test:
+    name: pytest (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install --quiet -r tests/requirements-test.txt
+      - run: pip install --quiet 'cryptography>=41' 'asyncwhois>=1.1.12' 'tldextract>=5.1.2'
+      - run: pytest -q
+
+  release:
+    name: attach release artifact
+    if: github.event_name == 'release'
+    needs: [lint, typecheck, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build single-file artifact
+        run: |
+          mkdir -p ../dist
+          cp externalscripts/web_check.py ../dist/web_check.py
+          cp deploy/install.sh ../dist/install.sh
+          cp deploy/requirements.in ../dist/requirements.in
+          cp deploy/requirements.lock ../dist/requirements.lock
+          (cd .. && tar -czf "dist/web_check-${GITHUB_REF_NAME}.tar.gz" \
+              -C scripts externalscripts/web_check.py deploy/install.sh \
+                         deploy/requirements.in deploy/requirements.lock \
+                         pyproject.toml)
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/web_check.py
+            dist/install.sh
+            dist/requirements.in
+            dist/requirements.lock
+            dist/web_check-${{ github.ref_name }}.tar.gz

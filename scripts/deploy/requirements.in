@@ -1,0 +1,7 @@
+# Pinned via `uv pip compile requirements.in -o requirements.lock`
+# Bump tops here; CI re-compiles the lock.
+
+aioquic >= 1.0, < 2.0             # QUIC + HTTP/3 (Layer 6: http3 subcommand)
+asyncwhois >= 1.1.12, < 2.0       # RDAP + port-43 WHOIS, RFC 7480-compliant
+cryptography >= 41.0.7, < 50.0    # X.509 parsing for cert metadata
+tldextract >= 5.1.2, < 6.0        # PSL-driven apex extraction

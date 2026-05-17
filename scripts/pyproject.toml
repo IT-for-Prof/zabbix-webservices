@@ -1,0 +1,45 @@
+# Tooling config for the scripts/ workspace. Keeps `ruff` and `pytest`
+# consistent across local + CI without a setup.py — this is *not* an
+# installable package, just an externalscript + helpers.
+
+[tool.ruff]
+# 120 matches what Black/Ruff converged on across many large Python codebases
+# in 2025+. Tighter than that pushes legitimately-readable type-hinted lines
+# into ugly continuations.
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Conservative selection — what we'd reasonably want enforced on a small
+# externalscript. ALL is too noisy and includes plenty of opinionated
+# stylistic checks that don't matter here.
+select = [
+    "E", "F", "W",      # pycodestyle + pyflakes
+    "B",                # flake8-bugbear
+    "SIM",              # flake8-simplify
+    "PERF",             # perf antipatterns
+    "S",                # flake8-bandit (security)
+    "C901",             # cyclomatic complexity (hard cap)
+    "PLR0912", "PLR0915",  # too many branches / statements
+    "I",                # import sorting
+    "UP",               # pyupgrade
+]
+ignore = [
+    "S101",     # `assert` is fine in test code
+    "SIM108",   # ternary-vs-if-else is a stylistic pick we make on context
+    "SIM117",   # nested `with` is often the most readable form
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "PLR2004", "S603", "E501"]   # test conventions + long fixtures
+"migrate-from-itmicus.py" = [
+    "S310", "BLE001", "RET504", "B007",      # legacy patterns we deliberately keep
+    "ANN", "D",                              # not strictly typed; this is a one-shot CLI
+    "C901", "PLR0912", "PLR0915", "PLR2004", # main() is a linear migration script — branching it kills readability
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-ra"

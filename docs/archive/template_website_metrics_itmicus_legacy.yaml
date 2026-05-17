@@ -1,0 +1,544 @@
+# ARCHIVED — original legacy template export, captured 2026-05-14 right before deletion.
+# Replaced by templates/web-service-by-itforprof/ (v7.0-2.1.0). Kept here for forensics only.
+#
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: 829cbc956f47422eb0801ee351dd88a8
+      template: 'Template Website metrics'
+      name: 'Template Website metrics (itmicus.ru)'
+      description: 'Website monitoring: domain name, SSL certificate, website availability version 1.0'
+      groups:
+        - name: Templates
+      items:
+        - uuid: 2febac58029d48d88dd0e3b92b27c016
+          name: 'Web "{$WEBSITE_METRICS_URL}" run tests'
+          type: EXTERNAL
+          key: 'website_metrics.py["--testsite",{$WEBSITE_METRICS_URL},"--testphrase",{$WEBSITE_METRICS_PHRASE},"--timeout",{$WEBSITE_METRICS_TIMEOUT},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          tags:
+            - tag: Application
+              value: 'Web site'
+        - uuid: d837f6c4b3594af8b17a20051a33e058
+          name: 'Web "{$WEBSITE_METRICS_URL}" response code'
+          type: DEPENDENT
+          key: website_metrics.test.code
+          delay: '0'
+          history: 1w
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.test_code
+          master_item:
+            key: 'website_metrics.py["--testsite",{$WEBSITE_METRICS_URL},"--testphrase",{$WEBSITE_METRICS_PHRASE},"--timeout",{$WEBSITE_METRICS_TIMEOUT},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+          tags:
+            - tag: Application
+              value: 'Web site'
+          triggers:
+            - uuid: d7f074803f234ec7ab5e446d847035a8
+              expression: 'last(/Template Website metrics/website_metrics.test.code,#3)<>200 and last(/Template Website metrics/website_metrics.test.code,#2)<>200 and last(/Template Website metrics/website_metrics.test.code)<>200'
+              name: 'Web site "{$WEBSITE_METRICS_URL}" is down code not 200'
+              priority: HIGH
+            - uuid: 091469b05257404ebed5164640b7ac4d
+              expression: 'nodata(/Template Website metrics/website_metrics.test.code,10m)=1'
+              name: 'Web site "{$WEBSITE_METRICS_URL}" Nodata'
+              priority: AVERAGE
+              dependencies:
+                - name: 'Web site "{$WEBSITE_METRICS_URL}" is down'
+                  expression: 'sum(/Template Website metrics/website_metrics.test.status,#3)=0'
+                  recovery_expression: 'sum(/Template Website metrics/website_metrics.test.status,#3)=1'
+        - uuid: 6d4370336c2a493899addce84ff53205
+          name: 'Web "{$WEBSITE_METRICS_URL}" message'
+          type: DEPENDENT
+          key: website_metrics.test.message
+          delay: '0'
+          history: 1w
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.test_message
+          master_item:
+            key: 'website_metrics.py["--testsite",{$WEBSITE_METRICS_URL},"--testphrase",{$WEBSITE_METRICS_PHRASE},"--timeout",{$WEBSITE_METRICS_TIMEOUT},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+          tags:
+            - tag: Application
+              value: 'Web site'
+        - uuid: a20d9f3ebb044c3483e996e00a207d2a
+          name: 'Web "{$WEBSITE_METRICS_URL}" test phrase'
+          type: DEPENDENT
+          key: website_metrics.test.phrase_status
+          delay: '0'
+          history: 1w
+          valuemap:
+            name: 'Template website status'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.test_phrase_status
+          master_item:
+            key: 'website_metrics.py["--testsite",{$WEBSITE_METRICS_URL},"--testphrase",{$WEBSITE_METRICS_PHRASE},"--timeout",{$WEBSITE_METRICS_TIMEOUT},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+          tags:
+            - tag: Application
+              value: 'Web site'
+          triggers:
+            - uuid: 2d36e5db3e024cc1b4b569571e838a94
+              expression: 'sum(/Template Website metrics/website_metrics.test.phrase_status,#3)=0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'sum(/Template Website metrics/website_metrics.test.phrase_status,#3)=3'
+              name: 'Web site "{$WEBSITE_METRICS_URL}" test phrase failed'
+              priority: HIGH
+              description: 'There is no Test phrase on site.'
+              dependencies:
+                - name: 'Web site "{$WEBSITE_METRICS_URL}" Nodata'
+                  expression: 'nodata(/Template Website metrics/website_metrics.test.code,10m)=1'
+        - uuid: 1e24af9738bb4c33a6583da809343679
+          name: 'Web "{$WEBSITE_METRICS_URL}" download speed'
+          type: DEPENDENT
+          key: website_metrics.test.speed
+          delay: '0'
+          history: 1w
+          units: bps
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.test_speed
+          master_item:
+            key: 'website_metrics.py["--testsite",{$WEBSITE_METRICS_URL},"--testphrase",{$WEBSITE_METRICS_PHRASE},"--timeout",{$WEBSITE_METRICS_TIMEOUT},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+          tags:
+            - tag: Application
+              value: 'Web site'
+        - uuid: 59f914f7c5ca461c8dd13cd4c6aa8a5a
+          name: 'Web "{$WEBSITE_METRICS_URL}" test status'
+          type: DEPENDENT
+          key: website_metrics.test.status
+          delay: '0'
+          history: 1w
+          valuemap:
+            name: 'Template website status'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.test_status
+          master_item:
+            key: 'website_metrics.py["--testsite",{$WEBSITE_METRICS_URL},"--testphrase",{$WEBSITE_METRICS_PHRASE},"--timeout",{$WEBSITE_METRICS_TIMEOUT},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+          tags:
+            - tag: Application
+              value: 'Web site'
+            - tag: Application
+              value: 'Website metrics overview'
+          triggers:
+            - uuid: 546719dce9f84772a7ee2ca0bb0a0b2d
+              expression: 'sum(/Template Website metrics/website_metrics.test.status,#3)=0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'sum(/Template Website metrics/website_metrics.test.status,#3)=1'
+              name: 'Web site "{$WEBSITE_METRICS_URL}" is down'
+              priority: HIGH
+              description: 'There is no response from website.'
+        - uuid: ae6add419bc74623ad21d54c2f4e6b45
+          name: 'Web "{$WEBSITE_METRICS_URL}" response time'
+          type: DEPENDENT
+          key: website_metrics.test.time
+          delay: '0'
+          history: 1w
+          value_type: FLOAT
+          units: s
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.test_time
+          master_item:
+            key: 'website_metrics.py["--testsite",{$WEBSITE_METRICS_URL},"--testphrase",{$WEBSITE_METRICS_PHRASE},"--timeout",{$WEBSITE_METRICS_TIMEOUT},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+          tags:
+            - tag: Application
+              value: 'Web site'
+          triggers:
+            - uuid: 23c8348fbb1c4ca29c74ba0ead2c37c6
+              expression: 'avg(/Template Website metrics/website_metrics.test.time,10m)>{$WEBSITE_METRICS_TIMEOUT}'
+              name: 'Web site "{$WEBSITE_METRICS_URL}" high average response time > {$WEBSITE_METRICS_TIMEOUT} sec'
+              priority: WARNING
+              description: 'High average response time of website.'
+              dependencies:
+                - name: 'Web site "{$WEBSITE_METRICS_URL}" Nodata'
+                  expression: 'nodata(/Template Website metrics/website_metrics.test.code,10m)=1'
+      discovery_rules:
+        - uuid: 0ca2cefc1dc442ccaa160da7074d67a5
+          name: 'Domain name discovery'
+          type: EXTERNAL
+          key: 'website_metrics.py["--discoverydomain",{$WEBSITE_METRICS_URL},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+          delay: 1d
+          lifetime: 1w
+          enabled_lifetime_type: DISABLE_NEVER
+          item_prototypes:
+            - uuid: 0ba960d5e9a74dd4b5d95702eaf6710e
+              name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" creation date'
+              type: DEPENDENT
+              key: 'website_metrics.domain.creationdate[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}]'
+              delay: '0'
+              history: 1w
+              value_type: TEXT
+              trends: '0'
+              description: 'Domain name creation date.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.domain_creationdate
+              master_item:
+                key: 'website_metrics.py["--testdomain",{#WEBSITE_METRICS_LLD_DOMAIN_NAME},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: 'Domain name'
+            - uuid: 58fac36022b948e5b553c8aeac20c5c6
+              name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" days to expire'
+              type: DEPENDENT
+              key: 'website_metrics.domain.daystoexpire[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}]'
+              delay: '0'
+              history: 1w
+              trends: 90d
+              units: d
+              description: 'End of Domain name registration in days.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.domain_daystoexpire
+              master_item:
+                key: 'website_metrics.py["--testdomain",{#WEBSITE_METRICS_LLD_DOMAIN_NAME},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: 'Domain name'
+                - tag: Application
+                  value: 'Website metrics overview'
+              trigger_prototypes:
+                - uuid: 8bdf246a725743c2805373449c959740
+                  expression: 'last(/Template Website metrics/website_metrics.domain.daystoexpire[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}])=0'
+                  name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" is expired'
+                  priority: DISASTER
+                - uuid: 8b0980aaa43447e2937766ea981844c4
+                  expression: 'last(/Template Website metrics/website_metrics.domain.daystoexpire[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}])=1'
+                  name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" is expiring to 1 day'
+                  priority: HIGH
+                  dependencies:
+                    - name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" is expired'
+                      expression: 'last(/Template Website metrics/website_metrics.domain.daystoexpire[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}])=0'
+                - uuid: d7e413ee9a5a43e18bfa8475f91b505a
+                  expression: 'last(/Template Website metrics/website_metrics.domain.daystoexpire[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}])<=7'
+                  name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" is expiring to 7 days ({ITEM.LASTVALUE1} left)'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" is expiring to 1 day'
+                      expression: 'last(/Template Website metrics/website_metrics.domain.daystoexpire[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}])=1'
+                - uuid: 3efc876cca23476bb7fd2fa46341a30a
+                  expression: 'last(/Template Website metrics/website_metrics.domain.daystoexpire[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}])<=30'
+                  name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" is expiring to 30 days ({ITEM.LASTVALUE1} left)'
+                  priority: INFO
+                  dependencies:
+                    - name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" is expiring to 7 days ({ITEM.LASTVALUE1} left)'
+                      expression: 'last(/Template Website metrics/website_metrics.domain.daystoexpire[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}])<=7'
+            - uuid: 28ec2f768663425687aae176052f7c14
+              name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" expire date'
+              type: DEPENDENT
+              key: 'website_metrics.domain.expiredate[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}]'
+              delay: '0'
+              history: 1w
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.domain_expiredate
+              master_item:
+                key: 'website_metrics.py["--testdomain",{#WEBSITE_METRICS_LLD_DOMAIN_NAME},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: 'Domain name'
+            - uuid: d24d5b5bf83f4301be20a9a318a7cb96
+              name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" registrar'
+              type: DEPENDENT
+              key: 'website_metrics.domain.registrar[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}]'
+              delay: '0'
+              history: 1w
+              value_type: TEXT
+              trends: '0'
+              description: 'Network information center who registered this Domain name.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.domain_registrar
+              master_item:
+                key: 'website_metrics.py["--testdomain",{#WEBSITE_METRICS_LLD_DOMAIN_NAME},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: 'Domain name'
+            - uuid: 09424fa7b72e45b6a9874ae64d0ce0f1
+              name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" status'
+              type: DEPENDENT
+              key: 'website_metrics.domain.status[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}]'
+              delay: '0'
+              history: 1w
+              trends: 1w
+              valuemap:
+                name: 'Template website status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.domain_status
+              master_item:
+                key: 'website_metrics.py["--testdomain",{#WEBSITE_METRICS_LLD_DOMAIN_NAME},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: 'Domain name'
+                - tag: Application
+                  value: 'Website metrics overview'
+              trigger_prototypes:
+                - uuid: af706ceb7fd64fb39b93c878836c3bc2
+                  expression: 'sum(/Template Website metrics/website_metrics.domain.status[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}],#3)=0'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'sum(/Template Website metrics/website_metrics.domain.status[{#WEBSITE_METRICS_LLD_DOMAIN_NAME}],#3)=1'
+                  name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" is invalid'
+                  priority: HIGH
+            - uuid: 60eebcfb7e954825a97517bef681cd5b
+              name: 'Domain "{#WEBSITE_METRICS_LLD_DOMAIN_NAME}" run check'
+              type: EXTERNAL
+              key: 'website_metrics.py["--testdomain",{#WEBSITE_METRICS_LLD_DOMAIN_NAME},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              delay: 1d
+              history: '0'
+              value_type: TEXT
+              trends: '0'
+              description: 'Fake item for periodical run of tests.'
+              tags:
+                - tag: Application
+                  value: 'Domain name'
+        - uuid: 39436cc20a0541c48c636bcc5bdee182
+          name: 'SSL certificate discovery'
+          type: EXTERNAL
+          key: 'website_metrics.py["--discoveryssl",{$WEBSITE_METRICS_URL},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+          delay: 1d
+          lifetime: 1w
+          enabled_lifetime_type: DISABLE_NEVER
+          item_prototypes:
+            - uuid: 4140c4fd13554205a57039c4fa235f1d
+              name: 'SSL "{#WEBSITE_METRICS_LLD_SSL_URL}" run check'
+              type: EXTERNAL
+              key: 'website_metrics.py["--testssl",{#WEBSITE_METRICS_LLD_SSL_URL},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              delay: 1h
+              history: '0'
+              value_type: TEXT
+              trends: '0'
+              description: 'Fake item for periodical run of tests.'
+              tags:
+                - tag: Application
+                  value: SSL
+            - uuid: 111eee80e3e74106acab2089801895e3
+              name: 'SSL "{#WEBSITE_METRICS_LLD_SSL_URL}" days to expire'
+              type: DEPENDENT
+              key: 'website_metrics.ssl.daystoexpire[{#WEBSITE_METRICS_LLD_SSL_URL}]'
+              delay: '0'
+              history: 1w
+              trends: 90d
+              units: d
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ssl_daystoexpire
+              master_item:
+                key: 'website_metrics.py["--testssl",{#WEBSITE_METRICS_LLD_SSL_URL},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: SSL
+                - tag: Application
+                  value: 'Website metrics overview'
+              trigger_prototypes:
+                - uuid: f405c6a01d854ba390015f931efade4e
+                  expression: 'last(/Template Website metrics/website_metrics.ssl.daystoexpire[{#WEBSITE_METRICS_LLD_SSL_URL}])=0'
+                  name: 'Certificate "{#WEBSITE_METRICS_LLD_SSL_URL}" is expired'
+                  priority: DISASTER
+                - uuid: c5cee12016604c2f904f9c51404b4a62
+                  expression: 'last(/Template Website metrics/website_metrics.ssl.daystoexpire[{#WEBSITE_METRICS_LLD_SSL_URL}])=1'
+                  name: 'Certificate "{#WEBSITE_METRICS_LLD_SSL_URL}" is expiring to 1 day'
+                  priority: HIGH
+                  dependencies:
+                    - name: 'Certificate "{#WEBSITE_METRICS_LLD_SSL_URL}" is expired'
+                      expression: 'last(/Template Website metrics/website_metrics.ssl.daystoexpire[{#WEBSITE_METRICS_LLD_SSL_URL}])=0'
+                - uuid: e04a4125b10345a68e18c81b0b9486bc
+                  expression: 'last(/Template Website metrics/website_metrics.ssl.daystoexpire[{#WEBSITE_METRICS_LLD_SSL_URL}])<=7'
+                  name: 'Certificate "{#WEBSITE_METRICS_LLD_SSL_URL}" is expiring to 7 days ({ITEM.LASTVALUE1} left)'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'Certificate "{#WEBSITE_METRICS_LLD_SSL_URL}" is expiring to 1 day'
+                      expression: 'last(/Template Website metrics/website_metrics.ssl.daystoexpire[{#WEBSITE_METRICS_LLD_SSL_URL}])=1'
+                - uuid: 39b1d7580c9341c19c9fb26da8c70266
+                  expression: 'last(/Template Website metrics/website_metrics.ssl.daystoexpire[{#WEBSITE_METRICS_LLD_SSL_URL}])<=30'
+                  name: 'Certificate "{#WEBSITE_METRICS_LLD_SSL_URL}" is expiring to 30 days ({ITEM.LASTVALUE1} left)'
+                  status: DISABLED
+                  priority: INFO
+                  dependencies:
+                    - name: 'Certificate "{#WEBSITE_METRICS_LLD_SSL_URL}" is expiring to 7 days ({ITEM.LASTVALUE1} left)'
+                      expression: 'last(/Template Website metrics/website_metrics.ssl.daystoexpire[{#WEBSITE_METRICS_LLD_SSL_URL}])<=7'
+            - uuid: 0cfa9dc423cf4023ae16f9af38ccb734
+              name: 'SSL "{#WEBSITE_METRICS_LLD_SSL_URL}" expire date'
+              type: DEPENDENT
+              key: 'website_metrics.ssl.expiredate[{#WEBSITE_METRICS_LLD_SSL_URL}]'
+              delay: '0'
+              history: 1w
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ssl_expiredate
+              master_item:
+                key: 'website_metrics.py["--testssl",{#WEBSITE_METRICS_LLD_SSL_URL},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: SSL
+            - uuid: 437bc6c0ebfc4b60b711ca7d384c7e9c
+              name: 'SSL "{#WEBSITE_METRICS_LLD_SSL_URL}" Issued by'
+              type: DEPENDENT
+              key: 'website_metrics.ssl.issuedby[{#WEBSITE_METRICS_LLD_SSL_URL}]'
+              delay: '0'
+              history: 1w
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ssl_issuedby
+              master_item:
+                key: 'website_metrics.py["--testssl",{#WEBSITE_METRICS_LLD_SSL_URL},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: SSL
+            - uuid: 72cff4468a19414dae3435631addb4dd
+              name: 'SSL "{#WEBSITE_METRICS_LLD_SSL_URL}" Issued date'
+              type: DEPENDENT
+              key: 'website_metrics.ssl.issueddate[{#WEBSITE_METRICS_LLD_SSL_URL}]'
+              delay: '0'
+              history: 1w
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ssl_issueddate
+              master_item:
+                key: 'website_metrics.py["--testssl",{#WEBSITE_METRICS_LLD_SSL_URL},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: SSL
+            - uuid: d58e8da2746b4e1883f90a6630f63e5d
+              name: 'SSL "{#WEBSITE_METRICS_LLD_SSL_URL}" serial number'
+              type: DEPENDENT
+              key: 'website_metrics.ssl.serialnumber[{#WEBSITE_METRICS_LLD_SSL_URL}]'
+              delay: '0'
+              history: 1w
+              value_type: TEXT
+              trends: '0'
+              description: 'Unique serial number of SSL certificate.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ssl_serialnumber
+              master_item:
+                key: 'website_metrics.py["--testssl",{#WEBSITE_METRICS_LLD_SSL_URL},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: SSL
+              trigger_prototypes:
+                - uuid: 1228ec1e9c07481ab310b278cf87539f
+                  expression: 'change(/Template Website metrics/website_metrics.ssl.serialnumber[{#WEBSITE_METRICS_LLD_SSL_URL}])=1'
+                  name: 'Certificate "{#WEBSITE_METRICS_LLD_SSL_URL}" was changed'
+                  priority: INFO
+            - uuid: 25a2206ceae54a00b1f2b110db9487b9
+              name: 'SSL "{#WEBSITE_METRICS_LLD_SSL_URL}" status'
+              type: DEPENDENT
+              key: 'website_metrics.ssl.status[{#WEBSITE_METRICS_LLD_SSL_URL}]'
+              delay: '0'
+              history: 1w
+              trends: 1w
+              valuemap:
+                name: 'Template website status'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.ssl_status
+              master_item:
+                key: 'website_metrics.py["--testssl",{#WEBSITE_METRICS_LLD_SSL_URL},"--debug",{$WEBSITE_METRICS_DEBUG}]'
+              tags:
+                - tag: Application
+                  value: SSL
+                - tag: Application
+                  value: 'Website metrics overview'
+              trigger_prototypes:
+                - uuid: caf52754a3994dd485b445ca1f52f2d1
+                  expression: 'sum(/Template Website metrics/website_metrics.ssl.status[{#WEBSITE_METRICS_LLD_SSL_URL}],#3)=0'
+                  name: 'Certificate "{#WEBSITE_METRICS_LLD_SSL_URL}" is invalid'
+                  priority: HIGH
+      macros:
+        - macro: '{$WEBSITE_METRICS_DEBUG}'
+          value: 'False'
+        - macro: '{$WEBSITE_METRICS_PHRASE}'
+        - macro: '{$WEBSITE_METRICS_TIMEOUT}'
+          value: '30'
+        - macro: '{$WEBSITE_METRICS_TIMEOUT_RECOVERY}'
+          value: '1'
+        - macro: '{$WEBSITE_METRICS_URL}'
+      dashboards:
+        - uuid: e9b76694299a47ba9410c6683e9ebd1d
+          name: 'Web site test'
+          pages:
+            - widgets:
+                - type: graph
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'Template Website metrics'
+                        name: 'Website response time'
+                    - type: STRING
+                      name: reference
+                      value: AAACG
+                - type: graph
+                  'y': '5'
+                  width: '72'
+                  height: '5'
+                  fields:
+                    - type: GRAPH
+                      name: graphid
+                      value:
+                        host: 'Template Website metrics'
+                        name: 'Website speed'
+                    - type: STRING
+                      name: reference
+                      value: AAACH
+      valuemaps:
+        - uuid: 69636a08ab114326aa7020a95d39ee1e
+          name: 'Template website status'
+          mappings:
+            - value: '0'
+              newvalue: Failed
+            - value: '1'
+              newvalue: OK
+  graphs:
+    - uuid: 4851135303684445bc047d561e69e8ab
+      name: 'Website response time'
+      graph_items:
+        - drawtype: FILLED_REGION
+          color: 1A7C11
+          item:
+            host: 'Template Website metrics'
+            key: website_metrics.test.time
+    - uuid: ae8001fdc98f415580300e1c247d03d9
+      name: 'Website speed'
+      graph_items:
+        - drawtype: FILLED_REGION
+          color: 1A7C11
+          item:
+            host: 'Template Website metrics'
+            key: website_metrics.test.speed
