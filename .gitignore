@@ -19,6 +19,8 @@ venv/
 .gitnexus/
 .serena/
 .claude/
+.agents/
+.codex/
 AGENTS.md
 CLAUDE.md
 .coverage
