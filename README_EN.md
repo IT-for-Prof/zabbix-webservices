@@ -69,8 +69,8 @@ What the script does (must run as root, idempotent — re-run to upgrade):
    the system Python is left untouched;
 3. creates a venv at `/opt/web_check/venv/` with pinned deps from
    [`scripts/deploy/requirements.lock`](scripts/deploy/requirements.lock);
-4. drops `web_check.py` into `/usr/lib/zabbix/externalscripts/` (owner
-   `zabbix:zabbix`, mode `0750`);
+4. drops `web_check.py` into the configured Zabbix `ExternalScripts`
+   directory (owner `zabbix:zabbix`, mode `0750`);
 5. creates the WHOIS cache directory `/opt/web_check/data/cache/`;
 6. runs `web_check.py self-test` as a smoke check.
 
@@ -80,10 +80,17 @@ a tag or commit SHA:
 curl -fsSL https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/<TAG_OR_SHA>/scripts/deploy/install.sh | sudo REF=<TAG_OR_SHA> sh
 ```
 
+If your Zabbix config is in a non-standard location or the directory cannot
+be detected, pass it explicitly:
+```
+curl -fsSL https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/main/scripts/deploy/install.sh | sudo ZABBIX_CONF=/custom/zabbix_server.conf sh
+curl -fsSL https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/main/scripts/deploy/install.sh | sudo EXTERNAL_DIR=/real/path sh
+```
+
 To re-verify at any time:
 ```
-sudo -u zabbix /usr/lib/zabbix/externalscripts/web_check.py self-test
-sudo -u zabbix /usr/lib/zabbix/externalscripts/web_check.py --version
+sudo -u zabbix /path/from/ExternalScripts/web_check.py self-test
+sudo -u zabbix /path/from/ExternalScripts/web_check.py --version
 ```
 
 Then import the template YAML in the Zabbix UI (Configuration →

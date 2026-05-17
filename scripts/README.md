@@ -3,7 +3,7 @@
 | Script | Purpose | Idempotent | Has `--dry-run` |
 |--------|---------|:---:|:---:|
 | [`migrate-from-itmicus.py`](migrate-from-itmicus.py) | Link `Web service by itforprof.com` to each web-host, translate `{$WEBSITE_METRICS_URL/PHRASE/TIMEOUT}` → `{$WEB_SERVICE.*}`, derive `{$WEB_SERVICE.HOST}` from URL, unlink `Template Website metrics`. | ✓ | ✓ (default; `--apply` to write) |
-| [`externalscripts/web_check.py`](externalscripts/web_check.py) | Externalscript for cert / WHOIS / TLS-scan / discover-tls / self-test. Single-file, deployed to `/usr/lib/zabbix/externalscripts/` via [`deploy/install.sh`](deploy/install.sh). Always emits valid JSON, exits 0; errors encoded as `{"ok": false, "error_code": …}`. | ✓ | n/a |
+| [`externalscripts/web_check.py`](externalscripts/web_check.py) | Externalscript for cert / WHOIS / TLS-scan / discover-tls / self-test. Single-file, deployed to the configured Zabbix `ExternalScripts` directory via [`deploy/install.sh`](deploy/install.sh). Always emits valid JSON, exits 0; errors encoded as `{"ok": false, "error_code": …}`. | ✓ | n/a |
 | [`_zabbix_client.py`](_zabbix_client.py) | Shared API helper (token auth, retries, env loading). Imported by `migrate-from-itmicus.py`. | — | — |
 
 ## Deploy `web_check.py` to a monitor node
@@ -16,10 +16,13 @@ curl -fsSL https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/main
 
 Installs a Python 3.12 venv at `/opt/web_check/venv` (uv-managed, pinned via
 [`deploy/requirements.lock`](deploy/requirements.lock); host Python untouched)
-and drops the script at `/usr/lib/zabbix/externalscripts/web_check.py` owned
-`zabbix:zabbix`, mode `0750`.
+and drops the script into the configured Zabbix `ExternalScripts` directory
+owned `zabbix:zabbix`, mode `0750`. Use
+`ZABBIX_CONF=/custom/zabbix_server.conf` for a non-standard config path, or
+override with `EXTERNAL_DIR=/real/path` if auto-detection cannot find the right
+directory.
 
-Smoke test: `sudo -u zabbix /usr/lib/zabbix/externalscripts/web_check.py self-test`.
+Smoke test: `sudo -u zabbix /path/from/ExternalScripts/web_check.py self-test`.
 
 ## Configuration (for the migrate script)
 

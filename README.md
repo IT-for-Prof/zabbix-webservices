@@ -70,8 +70,8 @@ wget -qO- https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/main/
    зависимости системного Python не трогаются;
 3. создаёт venv в `/opt/web_check/venv/` с pinned-зависимостями из
    [`scripts/deploy/requirements.lock`](scripts/deploy/requirements.lock);
-4. кладёт `web_check.py` в `/usr/lib/zabbix/externalscripts/` (владелец
-   `zabbix:zabbix`, режим `0750`);
+4. кладёт `web_check.py` в настроенный каталог Zabbix `ExternalScripts`
+   (владелец `zabbix:zabbix`, режим `0750`);
 5. создаёт каталог кэша `/opt/web_check/data/cache/`;
 6. прогоняет `web_check.py self-test` как smoke-проверку.
 
@@ -81,10 +81,17 @@ wget -qO- https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/main/
 curl -fsSL https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/<TAG_OR_SHA>/scripts/deploy/install.sh | sudo REF=<TAG_OR_SHA> sh
 ```
 
+Если конфиг Zabbix лежит в нестандартном месте или каталог не удалось
+определить автоматически, передайте его явно:
+```
+curl -fsSL https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/main/scripts/deploy/install.sh | sudo ZABBIX_CONF=/custom/zabbix_server.conf sh
+curl -fsSL https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/main/scripts/deploy/install.sh | sudo EXTERNAL_DIR=/real/path sh
+```
+
 Проверить вручную в любой момент:
 ```
-sudo -u zabbix /usr/lib/zabbix/externalscripts/web_check.py self-test
-sudo -u zabbix /usr/lib/zabbix/externalscripts/web_check.py --version
+sudo -u zabbix /path/from/ExternalScripts/web_check.py self-test
+sudo -u zabbix /path/from/ExternalScripts/web_check.py --version
 ```
 
 После этого импортируйте YAML шаблона в интерфейсе Zabbix
