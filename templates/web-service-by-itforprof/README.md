@@ -104,6 +104,12 @@ By scope:
 Cert-expiry triggers cascade DISASTER → HIGH (<7d) → WARNING (<14d) → INFO
 (<30d) with `dependencies` so only the most severe fires.
 
+For internal endpoints signed by a corporate CA, the "Cert chain untrusted"
+trigger means the monitor node running `web_check.py cert` does not trust that
+CA yet, or the endpoint is not serving the required intermediate certificates.
+Install the corporate root/intermediate CA into the Zabbix server/proxy trust
+store and keep TLS verification enabled.
+
 WHOIS-expiry triggers are gated on `web_check.whois.provider_no_expiry` —
 Hungarian (`.hu`) registries omit expiry by policy; those hosts stay silent
 on the "Domain expires" series but still alert on cert expiry.

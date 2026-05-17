@@ -664,7 +664,13 @@ zabbix_export:
         name: Cert chain untrusted
         event_name: TLS cert chain {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}
         priority: HIGH
-        description: TLS chain validation failed (untrusted CA, expired chain, etc.).
+        description: 'TLS chain validation failed.
+
+          For internal/self-hosted services signed by a corporate CA, install the
+          corporate root/intermediate CA certificates into the trust store on the
+          Zabbix server/proxy that monitors this host, then restart/retry the
+          web_check.py cert check. Also verify the web server sends the leaf plus
+          any required intermediate certificates.'
         tags:
         - tag: scope
           value: tls

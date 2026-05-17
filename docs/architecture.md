@@ -276,6 +276,14 @@ clamped to 0 and lost diagnostic information.
 Severity hierarchy uses Zabbix trigger *dependencies* (lower severities depend
 on higher), so an "expired" event suppresses the "<7d" through "<30d" cascade.
 
+For internal services signed by a private or corporate CA,
+`cert.chain_status="untrusted"` usually means the Zabbix server/proxy running
+`web_check.py` does not trust that CA yet, or the endpoint is missing an
+intermediate certificate.
+Install the corporate root/intermediate CA certificates into the monitor node's
+OS/Python trust store and make the web server present the leaf plus any required
+intermediates. Do not disable verification for production checks.
+
 ## Layer 3 — Domain WHOIS (externalscript, apex-deduped via FS cache)
 
 **Library choice:** `asyncwhois` 1.1.12 (Oct 2025), MIT-licensed,
