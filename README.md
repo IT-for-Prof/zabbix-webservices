@@ -99,6 +99,26 @@ sudo -u zabbix /path/from/ExternalScripts/web_check.py --version
 (`configuration.import`). Шаблон лежит в
 [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/).
 
+## Таймаут external checks
+
+`web_check.py` на медленных WHOIS / RDAP может работать до ~25 с.
+Дефолтный `timeout_external_check=3s` убьёт его раньше — поднимите до
+30 с в UI (Administration → General → Timeouts → Item type timeouts →
+External check) либо одним API-вызовом:
+
+```
+curl -fsS -H "Content-Type: application/json-rpc" \
+     -H "Authorization: Bearer $ZBX_TOKEN" \
+     -d '{"jsonrpc":"2.0","method":"settings.update","params":{"timeout_external_check":"30s"},"id":1}' \
+     "$ZBX_URL/api_jsonrpc.php"
+```
+
+`Timeout` в `zabbix_server.conf` (1–30 с) трогать не нужно: в Zabbix 7.0
+он относится только к agent / proxy / web service / SNMP / icmpping,
+external checks из-под него вынесли в UI-матрицу 1–600 с на тип
+элемента. Перезагрузка сервера не требуется — изменение применяется
+сразу.
+
 ## Требования
 
 - Zabbix server / proxy 7.0+; агенты не нужны (шаблон использует Web

@@ -98,6 +98,26 @@ Templates → Import) or via the API (`configuration.import`). The
 template lives in
 [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/).
 
+## External-check timeout
+
+`web_check.py` can take up to ~25 s on slow WHOIS / RDAP. Zabbix's
+default `timeout_external_check=3s` will kill it well before that —
+raise it to 30 s in the UI (Administration → General → Timeouts → Item
+type timeouts → External check), or with one API call:
+
+```
+curl -fsS -H "Content-Type: application/json-rpc" \
+     -H "Authorization: Bearer $ZBX_TOKEN" \
+     -d '{"jsonrpc":"2.0","method":"settings.update","params":{"timeout_external_check":"30s"},"id":1}' \
+     "$ZBX_URL/api_jsonrpc.php"
+```
+
+`Timeout` in `zabbix_server.conf` (1–30 s) does not need to be touched:
+in Zabbix 7.0 it only governs agent / proxy / web service / SNMP /
+icmpping — external checks were moved to the per-item-type UI matrix
+(1–600 s). No server reload is required; the change takes effect
+immediately.
+
 ## Requirements
 
 - Zabbix server / proxy 7.0+; agents irrelevant (template uses Web
