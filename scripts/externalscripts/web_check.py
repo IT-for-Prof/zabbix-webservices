@@ -56,7 +56,7 @@ warnings.filterwarnings(
     module=r"web_check.*",
 )
 
-__version__ = "2.1.4"
+__version__ = "2.1.5"
 SCHEMA_VERSION = 1
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
@@ -164,14 +164,14 @@ def url_host(url: str, *, force_tls: bool = False) -> tuple[str | None, int]:
 _PSL_EXTRACTOR: Any = None  # lazy-init; set on first call
 
 
-def registered_apex(host: str) -> str | None:
-    """Extract the registered apex (e.g. mon.itforprof.com → itforprof.com).
+def _get_psl_extractor() -> Any:
+    """Return the module-level offline TLDExtract, constructing it lazily.
 
-    Uses tldextract's bundled snapshot — never makes network calls.
-    Returns None if the host has no PSL apex (e.g. unparseable, raw IP,
-    or a TLD not in the snapshot). Raises ImportError if tldextract is
-    not installed — callers should distinguish "missing dependency" from
-    "unresolved apex" envelopes.
+    Exposed as a helper so callers other than `registered_apex` (notably
+    `_query_whois`, which threads it into `asyncwhois.whois(...)` to
+    prevent asyncwhois from constructing its OWN default TLDExtract and
+    re-triggering the cache-write hazard documented above) can obtain
+    the same correctly-configured instance.
     """
     global _PSL_EXTRACTOR
     if _PSL_EXTRACTOR is None:
@@ -182,7 +182,19 @@ def registered_apex(host: str) -> str | None:
             fallback_to_snapshot=True,
             cache_dir=None,
         )
-    parts = _PSL_EXTRACTOR(host)
+    return _PSL_EXTRACTOR
+
+
+def registered_apex(host: str) -> str | None:
+    """Extract the registered apex (e.g. mon.itforprof.com → itforprof.com).
+
+    Uses tldextract's bundled snapshot — never makes network calls.
+    Returns None if the host has no PSL apex (e.g. unparseable, raw IP,
+    or a TLD not in the snapshot). Raises ImportError if tldextract is
+    not installed — callers should distinguish "missing dependency" from
+    "unresolved apex" envelopes.
+    """
+    parts = _get_psl_extractor()(host)
     if not parts.domain or not parts.suffix:
         return None
     return f"{parts.domain}.{parts.suffix}".lower()
@@ -905,6 +917,16 @@ def _query_whois(apex: str) -> dict[str, Any]:
     except ImportError as e:
         return error_envelope("missing_dependency", f"asyncwhois not importable: {e}", apex=apex)
 
+    # Thread our offline+no-cache extractor through to asyncwhois. Without
+    # this kwarg, asyncwhois constructs its OWN `TLDExtract()` with library
+    # defaults (network-fetched PSL, default `$HOME/.cache/python-tldextract`
+    # cache_dir) — the exact bug we silenced for our own extractor in 2.1.4.
+    # Observed on production hosts with `zabbix_home=/nonexistent`: a
+    # `[Errno 13] Permission denied` warning leaks from asyncwhois's
+    # internal extractor into stderr and the Zabbix externalscript handler
+    # folds it into the JSON envelope, breaking dependent JSONPath items.
+    extractor = _get_psl_extractor()
+
     tld = tld_of(apex)
     deadline = time.monotonic() + 10.0  # hard cap, total budget
     backoffs = [0.5, 1.5]  # only between retries; no sleep after last attempt
@@ -915,7 +937,7 @@ def _query_whois(apex: str) -> dict[str, Any]:
         if time.monotonic() >= deadline:
             return error_envelope("whois_timeout", f"deadline exceeded after {attempt} attempts: {last_err}", apex=apex)
         try:
-            raw, parsed = asyncwhois.whois(apex)
+            raw, parsed = asyncwhois.whois(apex, tldextract_obj=extractor)
             break
         except Exception as e:  # noqa: BLE001 — asyncwhois surfaces a wide error variety
             last_err = f"{type(e).__name__}: {e}"

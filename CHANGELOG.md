@@ -4,6 +4,27 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.2 / web_check 2.1.5] - 2026-05-17
+
+### web_check.py 2.1.5 — retire the tldextract cache-write bug class by threading our offline extractor through asyncwhois
+- **Fix:** `asyncwhois.whois(apex, tldextract_obj=_get_psl_extractor())`.
+  Without `tldextract_obj=`, asyncwhois constructs its own `TLDExtract()`
+  with library defaults (network-fetched PSL, default
+  `$HOME/.cache/python-tldextract` cache_dir) — the exact bug we
+  silenced for our own extractor in 2.1.4. Caught during the 2.1.4
+  production rollout: on a proxy where the zabbix user's `$HOME` was
+  `/nonexistent` (systemd-managed account), the warning still leaked
+  from asyncwhois's internal extractor and corrupted the WHOIS JSON
+  envelope even after 2.1.4 was deployed. Other hosts masked the
+  symptom because they had a writable `/var/lib/zabbix/.cache/` (either
+  natively or via the operator's manual workaround).
+- **Refactor:** extracted the lazy-init of `_PSL_EXTRACTOR` into a
+  helper `_get_psl_extractor()` so any future caller threading the
+  extractor into another library reuses the same configured singleton
+  rather than re-constructing it.
+- Verified post-deploy on the proxy that exhibited the leak: WHOIS
+  output is now JSON-only, no stderr emission.
+
 ## [7.0-2.2.2 / web_check 2.1.4] - 2026-05-17
 
 ### web_check.py 2.1.4 — silence tldextract cache-write warning leaking into the WHOIS JSON envelope

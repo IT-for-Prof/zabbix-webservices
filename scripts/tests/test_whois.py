@@ -108,3 +108,41 @@ def test_check_whois_cache_hit(monkeypatch, web_check_module, tmp_cache):
     assert called == []
     assert out["registrar"] == "REG"
     assert out["cache_age_seconds"] >= 0
+
+
+def test_query_whois_threads_offline_extractor_into_asyncwhois(monkeypatch, web_check_module):
+    """Regression for the asyncwhois-internal-TLDExtract leak (2.1.5).
+
+    `_query_whois` MUST pass our offline `_PSL_EXTRACTOR` to
+    `asyncwhois.whois(...)` via the `tldextract_obj=` kwarg. Without it,
+    asyncwhois constructs its own default `TLDExtract()` which (a) fetches
+    the PSL over HTTP on first use and (b) tries to write to
+    `$HOME/.cache/python-tldextract/` — both of which trip the bug we
+    silenced for our own extractor in 2.1.4. The symptom was observed on
+    a production proxy where `zabbix_home=/nonexistent` after the 2.1.4
+    rollout: the warning still leaked from asyncwhois.
+    """
+    pytest = __import__("pytest")
+    try:
+        import asyncwhois
+    except ImportError:
+        pytest.skip("asyncwhois not installed in this environment")
+
+    captured: dict = {}
+
+    def fake_whois(domain, **kwargs):
+        captured["domain"] = domain
+        captured["kwargs"] = kwargs
+        # Minimal shape that downstream `_normalize_whois` can consume.
+        return ("", {"expiration_date": None, "registrar": "", "name_servers": []})
+
+    monkeypatch.setattr(asyncwhois, "whois", fake_whois)
+
+    web_check_module._query_whois("itforprof.com")
+
+    assert "tldextract_obj" in captured["kwargs"], (
+        "asyncwhois.whois must receive tldextract_obj=our extractor; "
+        "without it, asyncwhois constructs its own default TLDExtract and "
+        "re-introduces the cache-write/network-fetch hazard."
+    )
+    assert captured["kwargs"]["tldextract_obj"] is web_check_module._get_psl_extractor()
