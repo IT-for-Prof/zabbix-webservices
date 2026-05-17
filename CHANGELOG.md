@@ -4,6 +4,47 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.2 / web_check 2.1.4] - 2026-05-17
+
+### web_check.py 2.1.4 — silence tldextract cache-write warning leaking into the WHOIS JSON envelope
+- **Fix:** `TLDExtract` is now constructed with `cache_dir=None`. Previously,
+  even though `suffix_list_urls=()` disabled the network fetch, tldextract's
+  `DiskCache` still attempted to write the parsed PSL into
+  `$HOME/.cache/python-tldextract/`. The zabbix user's `$HOME`
+  (`/var/lib/zabbix/`) is root-owned with no writable `.cache/`, so
+  tldextract emitted a `[Errno 13] Permission denied` warning via the
+  stdlib `logging` module (logger `tldextract.cache`, default destination
+  stderr). In our deployment the Zabbix externalscript handler captured
+  stderr alongside stdout into the master item's lastvalue — the JSON
+  payload arrived with a multi-line warning prefix, and every dependent
+  JSONPath-preprocessed WHOIS item failed to parse. Registrar /
+  days_to_expire / NS-list items showed as unsupported across all
+  monitored web hosts.
+- Disabling the disk cache is safe here: the on-disk cache only memoised
+  the parsed PSL across processes; with `suffix_list_urls=()` there is
+  nothing remote to memoise, and re-parsing the bundled snapshot per
+  externalscript invocation is negligible. The snapshot is loaded
+  in-memory from the wheel on the first call and memoised on the
+  extractor for the lifetime of the process.
+- New regression test `tests/test_apex.py::test_psl_extractor_cache_disabled`
+  asserts (a) the extractor's `DiskCache.enabled` is False and (b)
+  resolving an apex emits nothing on stdout or stderr. Future maintainers
+  who drop `cache_dir=None` will fail this test.
+- No installer change required — the fix is fully contained in the script,
+  surviving any future change to the zabbix user's home directory layout.
+- The comment block around `_PSL_EXTRACTOR` now documents BOTH tldextract
+  default-behavior hazards (network fetch AND cache write) so the next
+  maintainer doesn't reintroduce the trap.
+- `docs/architecture.md` status banner version reference bumped to match.
+
+### Known follow-up
+- `asyncwhois.whois(apex)` (called in `_query_whois`) constructs its own
+  internal `TLDExtract()` with library defaults if no `tldextract_obj=` is
+  passed — i.e. exactly the bug we just fixed, latent. Threading our
+  `_PSL_EXTRACTOR` through to asyncwhois retires the bug class locally.
+  Tracked separately; not blocking this release because the observed
+  field corruption was from our own extractor call, not asyncwhois's.
+
 ## [7.0-2.2.2 / web_check 2.1.3] - 2026-05-14
 
 Initial public release. Cumulative changelog of all in-tree work prior

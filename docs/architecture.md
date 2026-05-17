@@ -1,7 +1,7 @@
 # Architecture
 
 > Status: in production. Template `7.0-2.2.2`, externalscript
-> `web_check.py` 2.1.3, installer, and migration script all shipped and
+> `web_check.py` 2.1.4, installer, and migration script all shipped and
 > running on 5 Zabbix server/proxy nodes; 59 hosts migrated from
 > `Template Website metrics (itmicus.ru)` on 2026-05-14.
 

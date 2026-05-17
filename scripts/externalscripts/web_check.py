@@ -56,7 +56,7 @@ warnings.filterwarnings(
     module=r"web_check.*",
 )
 
-__version__ = "2.1.3"
+__version__ = "2.1.4"
 SCHEMA_VERSION = 1
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
@@ -135,13 +135,32 @@ def url_host(url: str, *, force_tls: bool = False) -> tuple[str | None, int]:
     return host, port
 
 
-# Module-level tldextract instance configured for OFFLINE-only lookup. By
-# default tldextract fetches the Public Suffix List from publicsuffix.org on
-# first use; under zabbix:zabbix that's a network call (with HOME often
-# unwritable) per Zabbix-server restart. We pass `suffix_list_urls=()` and
-# `fallback_to_snapshot=True` so it uses ONLY the snapshot bundled in the
-# tldextract release. Refresh the snapshot quarterly by bumping tldextract
-# in requirements.in.
+# Module-level (lazy-init) tldextract instance, configured for OFFLINE-only
+# lookup. Two separate hazards in tldextract's defaults trip up the
+# zabbix:zabbix externalscript runtime; both must be neutralised:
+#
+#   1. Network fetch. By default tldextract pulls the Public Suffix List
+#      from publicsuffix.org on first use. `suffix_list_urls=()` plus
+#      `fallback_to_snapshot=True` forces use of the snapshot bundled in
+#      the tldextract wheel — no network. Refresh the snapshot quarterly
+#      by bumping tldextract in requirements.in.
+#
+#   2. Cache write. Even with the network disabled, tldextract's
+#      `DiskCache` still writes the parsed PSL into
+#      `$XDG_CACHE_HOME/python-tldextract/` (defaulting to
+#      `$HOME/.cache/python-tldextract/`). The zabbix user's `$HOME` is
+#      typically `/var/lib/zabbix/`, which is owned by root and lacks a
+#      writable `.cache/`. The write fails and tldextract emits a
+#      `[Errno 13] Permission denied` record via stdlib `logging` (logger
+#      `tldextract.cache`, default destination stderr). In our Zabbix
+#      deployment the externalscript handler captures stderr alongside
+#      stdout into the master item's lastvalue — every dependent
+#      JSONPath-preprocessed item then fails to parse the
+#      warning-prefixed envelope. `cache_dir=None` disables the cache
+#      entirely (`DiskCache.enabled = bool(cache_dir)` ⇒ False); the
+#      bundled PSL snapshot is loaded in-memory from the wheel on the
+#      first call and memoised on the extractor for the lifetime of the
+#      process — fine for a short-lived per-call externalscript.
 _PSL_EXTRACTOR: Any = None  # lazy-init; set on first call
 
 
@@ -158,7 +177,11 @@ def registered_apex(host: str) -> str | None:
     if _PSL_EXTRACTOR is None:
         import tldextract  # raises ImportError if missing — caller handles
 
-        _PSL_EXTRACTOR = tldextract.TLDExtract(suffix_list_urls=(), fallback_to_snapshot=True)
+        _PSL_EXTRACTOR = tldextract.TLDExtract(
+            suffix_list_urls=(),
+            fallback_to_snapshot=True,
+            cache_dir=None,
+        )
     parts = _PSL_EXTRACTOR(host)
     if not parts.domain or not parts.suffix:
         return None
