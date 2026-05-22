@@ -986,7 +986,7 @@ zabbix_export:
         dependencies:
         - name: WHOIS check failing
           expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
-        event_name: 'Registrar changed: {?last(/Web service by itforprof.com/web_check.whois.registrar,#2)} → {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        event_name: 'Registrar changed to {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
         manual_close: 'YES'
     - uuid: bcf3b03fc3e54110bd88de0585999709
       name: 'WHOIS: name servers'
@@ -1021,7 +1021,7 @@ zabbix_export:
         dependencies:
         - name: WHOIS check failing
           expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
-        event_name: 'Name servers changed: {?last(/Web service by itforprof.com/web_check.whois.name_servers,#2)} → {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        event_name: 'Name servers changed to {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
         manual_close: 'YES'
     - uuid: 0b69d2c9586e4a82aeeaadcc5b16e54f
       name: 'WHOIS: DNSSEC'
