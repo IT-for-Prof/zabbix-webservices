@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.2.2
+      version: 7.0-2.2.3
     groups:
     - name: Templates/Applications
     macros:

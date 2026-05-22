@@ -4,6 +4,34 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.3 / web_check 2.1.5] - 2026-05-22
+
+### Template 7.0-2.2.3 — fix three trigger macros rendering `*UNKNOWN*` on linked hosts
+- **Root cause.** `event_name`/`opdata` expression macros referenced items by the
+  **literal template host** — `{?last(/Web service by itforprof.com/…)}`. Unlike a
+  trigger *expression* (whose item refs rebind to the host via functionids on
+  template linkage), a literal `/host/key` inside an expression macro is **not**
+  rebound; it keeps pointing at the template, which stores no history, so it
+  resolved to the literal string `*UNKNOWN*` on all 55 linked hosts. Surfaced by
+  the event `Registrar changed: *UNKNOWN* → RU-CENTER-RU` on `millystyle.ru`.
+- **`Domain registrar changed` / `Domain name servers changed` event_names** —
+  dropped the previous→new `{?last(…,#2)} →` form (introduced in 2.2.2 below) for
+  current-value-only, host-bound macros: `Registrar changed to {ITEM.LASTVALUE1} — …`
+  / `Name servers changed to {ITEM.LASTVALUE1} — …`. The prior value stays available
+  in item history (`prevvalue`) and the trigger comment.
+- **`Web service is failing` opdata** — switched to the empty-host relative form
+  `HTTP {?last(//web.test.rspcode[Web service,GET])} | err: {?last(//web.test.error[Web service])}`.
+  `//key` resolves to the trigger's own host at evaluation time (the form Zabbix's
+  stock templates use), so it rebinds correctly per host.
+- **Rule of thumb.** On templated triggers, expression macros must use the empty-host
+  `{?func(//key,…)}` form, never the literal template name; host-bound reference
+  macros (`{ITEM.LASTVALUE<N>}`, `{HOST.HOST}`) are always safe. The before→new
+  display *is* achievable with `{?last(//…,#2)} → {ITEM.LASTVALUE1}` if wanted later.
+- Applied live on prod (`mon.itforprof.com`, Zabbix 7.0.26) via `trigger.update` on
+  template triggers 96117 / 96118 / 96100. The server `vendor_version` is left at
+  `7.0-2.2.2` (out-of-band hotfix); this 2.2.3 YAML carries the same change for the
+  next `configuration.import`.
+
 ## [7.0-2.2.2 / web_check 2.1.5] - 2026-05-17
 
 ### web_check.py 2.1.5 — retire the tldextract cache-write bug class by threading our offline extractor through asyncwhois
