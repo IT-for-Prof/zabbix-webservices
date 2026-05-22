@@ -132,7 +132,7 @@ immediately.
 ## Versioning
 
 Each template carries `vendor: { name: itforprof.com, version: <zabbix-major>-<semver> }`,
-currently `7.0-2.2.2`. Bump rules:
+currently `7.0-2.2.3`. Bump rules:
 
 - patch (`2.2.0` → `2.2.1`) — bugfix, no item/trigger schema changes
 - minor (`2.2.0` → `2.3.0`) — new items/triggers, backwards-compatible
