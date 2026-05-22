@@ -169,7 +169,7 @@ zabbix_export:
         expression: last(/Web service by itforprof.com/web.test.fail[Web service])<>0
         name: Web service is failing
         event_name: 'Web service failed: {$WEB_SERVICE.URL} — {HOST.NAME} ({HOST.HOST})'
-        opdata: 'HTTP {?last(/Web service by itforprof.com/web.test.rspcode[Web service,GET])} | err: {?last(/Web service by itforprof.com/web.test.error[Web service])}'
+        opdata: 'HTTP {?last(//web.test.rspcode[Web service,GET])} | err: {?last(//web.test.error[Web service])}'
         priority: HIGH
         description: 'The web scenario reports a failed step. Covers all hard failures:
 
