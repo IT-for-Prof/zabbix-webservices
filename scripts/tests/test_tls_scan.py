@@ -107,6 +107,30 @@ def test_tls_scan_unreachable_returns_envelope(monkeypatch, web_check_module):
     assert scan["supported_protocols"] == []
 
 
+def test_try_protocol_emits_no_deprecation_warning(web_check_module):
+    """Probing deprecated TLSv1/TLSv1.1 must not surface a DeprecationWarning.
+
+    web_check.py runs as a Zabbix EXTERNAL check, and Zabbix merges the
+    script's stderr into the item value. A DeprecationWarning leaking from
+    `ctx.minimum_version = ssl.TLSVersion.TLSv1` therefore gets prepended to the
+    JSON, breaking the dependent items' JSONPath preprocessing and making the
+    `web_check.tls_scan.*` items UNSUPPORTED fleet-wide (so weak-TLS never
+    alerts). The probe must stay silent regardless of any module-scoped filter.
+    """
+    import ssl
+    import warnings
+
+    for version in (ssl.TLSVersion.TLSv1, ssl.TLSVersion.TLSv1_1):
+        with warnings.catch_warnings():
+            # Reset filters and promote DeprecationWarning to an error so this
+            # fails loudly if the assignment warns — defeats any module= filter.
+            # No network needed: the deprecation fires at assignment time,
+            # before the connect (which refuses on the closed discard port :9).
+            warnings.simplefilter("error", DeprecationWarning)
+            ok, _cipher = web_check_module._try_protocol("127.0.0.1", 9, version, 0.2)
+        assert ok is False  # nothing listening; the assertion that matters is "no warning raised"
+
+
 def test_tls_scan_records_weak_cipher_when_family_negotiates(monkeypatch, web_check_module):
     """If `_try_weak_cipher_family` reports a hit, the scan must surface it as a finding."""
     # Pretend the server supports TLS 1.2 (so the cipher-probe stage runs) but

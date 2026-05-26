@@ -4,6 +4,35 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.3 / web_check 2.1.6] - 2026-05-26
+
+### web_check.py 2.1.6 — silence TLSv1/1.1 `DeprecationWarning` so `tls-scan` JSON stays parseable (weak-TLS alerting was dead fleet-wide)
+- **Symptom.** On every host the `web_check.tls_scan.*` dependent items sat
+  UNSUPPORTED, so the weak-TLS triggers never fired — servers silently offering
+  TLSv1.0/1.1 (e.g. `rdgw01.voffice24.com`) raised no alert.
+- **Root cause.** Probing the legacy protocols pins `ctx.minimum_version =
+  ssl.TLSVersion.TLSv1` / `TLSv1_1` in `_try_protocol`. On Python 3.12 that
+  assignment emits a `DeprecationWarning` to **stderr** (4 lines per scan). Zabbix
+  external checks merge stderr into the item value, so the warning text gets
+  prepended to the JSON. The master item (`value_type: TEXT`) tolerates the noise,
+  but the dependent items' `JSONPATH $.…` preprocessing then can't parse it and,
+  via their `CUSTOM_ERROR` handler, go UNSUPPORTED.
+- **Why the prior guard missed it.** The module-scoped
+  `warnings.filterwarnings(…, module=r"web_check.*")` only matches when the file is
+  imported as module `web_check` (i.e. under pytest); at runtime the externalscript
+  runs as `__main__`, so the regex never matched and the warning leaked anyway.
+  Worse, it *masked* the warning in CI, hiding the regression. Removed it.
+- **Fix.** Wrap the two version assignments in `warnings.catch_warnings()` +
+  `warnings.simplefilter("ignore", DeprecationWarning)`, exactly as `rdp_check.py`
+  does. Verified end to end: `tls-scan` now writes 0 bytes to stderr and clean JSON
+  to stdout.
+- **Regression test.** `test_try_protocol_emits_no_deprecation_warning` promotes a
+  leaked `DeprecationWarning` to an error (resetting filters so a module-scoped
+  guard can't mask it) and asserts the probe stays silent.
+- No template/item/trigger schema change → template stays `7.0-2.2.3`.
+- **Action required:** redeploy `web_check.py` to all nodes for the fix to take
+  effect; the dependent items recover on the next `tls-scan` cycle.
+
 ## [7.0-2.2.3 / web_check 2.1.5] - 2026-05-22
 
 ### Template 7.0-2.2.3 — fix three trigger macros rendering `*UNKNOWN*` on linked hosts

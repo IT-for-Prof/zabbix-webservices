@@ -44,19 +44,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-# Zabbix externalscripts capture stdout AND stderr into the item value, so any
-# DeprecationWarning leaking from probing `ssl.TLSVersion.TLSv1` / `TLSv1_1`
-# during `tls-scan` corrupts the JSON. Silence them — narrowly, by `module=`
-# pattern, so genuine deprecation warnings from dependencies (asyncwhois,
-# aioquic, cryptography future-removals) STILL surface during `self-test` and
-# in CI, but TLSv1.0/1.1 probing in this module stays quiet at run time.
-warnings.filterwarnings(
-    "ignore",
-    category=DeprecationWarning,
-    module=r"web_check.*",
-)
-
-__version__ = "2.1.5"
+__version__ = "2.1.6"
 SCHEMA_VERSION = 1
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
@@ -626,8 +614,16 @@ def _try_protocol(host: str, port: int, version: ssl.TLSVersion, timeout: float)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        ctx.minimum_version = version
-        ctx.maximum_version = version
+        # Pinning TLSv1 / TLSv1.1 is the whole point here — but assigning those
+        # deprecated `ssl.TLSVersion` members emits a DeprecationWarning. Zabbix
+        # merges this external-check's stderr into the item value, so a leaked
+        # warning prepends non-JSON text and breaks the dependent tls_scan.*
+        # items' JSONPath preprocessing (→ UNSUPPORTED fleet-wide). Silence it
+        # locally, exactly as rdp_check.py does.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            ctx.minimum_version = version
+            ctx.maximum_version = version
         _seclevel0(ctx)
     except (ssl.SSLError, ValueError):
         return False, ""
