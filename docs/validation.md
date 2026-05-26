@@ -79,6 +79,14 @@ Stop-on-fail group. If these assumptions don't hold, the design is wrong.
   2. Two dependent items: `$.a.b` (int) and `$.c` (text).
 - **Pass criteria:** First gets value `42`, second gets `hello`.
 - **Result:** pending (see findings log)
+- **Caveat (validated in prod, 2.1.4 + 2.1.6):** JSONPath extraction succeeds
+  only if the master item's value is *clean* JSON. Zabbix folds the external
+  script's `stderr` into the value, so any text a library leaks to stderr
+  prepends non-JSON to the payload and **every** dependent item here goes
+  UNSUPPORTED — even though stdout alone is valid. Confirmed on
+  `rdgw01.voffice24.com`: web_check 2.1.5 leaked a TLSv1 `DeprecationWarning`
+  (656 B on stderr) → unparseable value; 2.1.6 → 0 B stderr, `weak_count:2`
+  parses cleanly. See architecture.md → "Error model".
 
 ### A5. LLD from external item creates prototype items + triggers
 
