@@ -717,6 +717,23 @@ failures encode themselves into the JSON (`{"ok": false, "error_code":
 items don't go UNSUPPORTED, and triggers like "WHOIS check failing" can
 fire cleanly.
 
+**Critical invariant — stderr must stay empty.** Zabbix external checks fold
+the script's *standard error* into the item value alongside stdout (Zabbix
+docs: "the return value of an external check is a standard output together
+with a standard error"). So anything a library writes to stderr — a stdlib
+`logging` warning, a `DeprecationWarning` — prepends non-JSON text to the
+payload. The TEXT master item tolerates it, but every dependent item's
+JSONPath preprocessing then fails to parse and goes UNSUPPORTED, even though
+stdout itself is valid JSON. This bug class has bitten twice: tldextract's
+cache-write `logging` warning (2.1.4, fixed with `cache_dir=None`) and the
+`ssl.TLSVersion.TLSv1`/`TLSv1_1` `DeprecationWarning` from the tls-scan probe
+(2.1.6, fixed with a local `warnings.catch_warnings()` in `_try_protocol`).
+Two rules for maintainers: (1) any new third-party call on a hot path must be
+checked for stderr noise (run the subcommand under `python -W error` and
+confirm `2>` is empty); (2) a module-scoped `warnings.filterwarnings(module=…)`
+is **not** a fix — the externalscript runs as `__main__` at runtime, so the
+`module=` regex never matches; suppress locally at the call site instead.
+
 ### Dependencies
 
 - Standard library, plus three third-party packages — all actively

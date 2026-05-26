@@ -124,8 +124,9 @@ def test_try_protocol_emits_no_deprecation_warning(web_check_module):
         with warnings.catch_warnings():
             # Reset filters and promote DeprecationWarning to an error so this
             # fails loudly if the assignment warns — defeats any module= filter.
-            # No network needed: the deprecation fires at assignment time,
-            # before the connect (which refuses on the closed discard port :9).
+            # The warning fires at the version assignment, before the connect, so
+            # the probe to the closed discard port :9 just fails harmlessly; the
+            # load-bearing check is "no warning raised", not the connection result.
             warnings.simplefilter("error", DeprecationWarning)
             ok, _cipher = web_check_module._try_protocol("127.0.0.1", 9, version, 0.2)
         assert ok is False  # nothing listening; the assertion that matters is "no warning raised"
