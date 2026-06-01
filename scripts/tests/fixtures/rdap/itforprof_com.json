@@ -1,0 +1,372 @@
+{
+  "entities": [
+    {
+      "entities": [
+        {
+          "objectClassName": "entity",
+          "roles": [
+            "abuse"
+          ],
+          "vcardArray": [
+            "vcard",
+            [
+              [
+                "version",
+                {},
+                "text",
+                "4.0"
+              ],
+              [
+                "fn",
+                {},
+                "text",
+                "Abuse contact"
+              ],
+              [
+                "tel",
+                {
+                  "type": [
+                    "voice"
+                  ]
+                },
+                "uri",
+                "tel:+74955801111"
+              ],
+              [
+                "email",
+                {
+                  "type": "work"
+                },
+                "text",
+                "abuse@reg.ru"
+              ]
+            ]
+          ]
+        }
+      ],
+      "handle": "1606",
+      "objectClassName": "entity",
+      "publicIds": [
+        {
+          "identifier": "1606",
+          "type": "IANA Registrar ID"
+        }
+      ],
+      "roles": [
+        "registrar"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "fn",
+            {},
+            "text",
+            "Registrar of Domain Names REG.RU LLC"
+          ],
+          [
+            "adr",
+            {
+              "type": "work"
+            },
+            "text",
+            [
+              "",
+              "",
+              "Proezd Berezovoy roschi str. 12, floor 2, room 4",
+              "Moscow",
+              "Moscow",
+              "125476",
+              ""
+            ]
+          ],
+          [
+            "tel",
+            {
+              "type": [
+                "voice"
+              ]
+            },
+            "uri",
+            "tel:+74955801111"
+          ],
+          [
+            "email",
+            {
+              "type": "work"
+            },
+            "text",
+            "info@reg.ru"
+          ]
+        ]
+      ]
+    },
+    {
+      "handle": "jtuqkztnnng9eqbi",
+      "links": [
+        {
+          "href": "https://rdap.reg.com/rdap/entity/jtuqkztnnng9eqbi",
+          "rel": "self",
+          "type": "application/rdap+json",
+          "value": "https://rdap.reg.com/rdap/entity/jtuqkztnnng9eqbi"
+        }
+      ],
+      "objectClassName": "entity",
+      "remarks": [
+        {
+          "description": [
+            "Some of the data in this object has been removed"
+          ],
+          "title": "REDACTED FOR PRIVACY",
+          "type": "object redacted due to authorization"
+        }
+      ],
+      "roles": [
+        "registrant"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "contact-uri",
+            {},
+            "uri",
+            "https://www.reg.ru/whois/admin_contact?dname=jtuqkztnnng9eqbi"
+          ]
+        ]
+      ]
+    },
+    {
+      "handle": "fqelff-h4w11u2xs",
+      "links": [
+        {
+          "href": "https://rdap.reg.com/rdap/entity/fqelff-h4w11u2xs",
+          "rel": "self",
+          "type": "application/rdap+json",
+          "value": "https://rdap.reg.com/rdap/entity/fqelff-h4w11u2xs"
+        }
+      ],
+      "objectClassName": "entity",
+      "remarks": [
+        {
+          "description": [
+            "Some of the data in this object has been removed"
+          ],
+          "title": "REDACTED FOR PRIVACY",
+          "type": "object redacted due to authorization"
+        }
+      ],
+      "roles": [
+        "administrative"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "contact-uri",
+            {},
+            "uri",
+            "https://www.reg.ru/whois/admin_contact?dname=fqelff-h4w11u2xs"
+          ]
+        ]
+      ]
+    },
+    {
+      "handle": "b-691lmtrtm4rucr",
+      "links": [
+        {
+          "href": "https://rdap.reg.com/rdap/entity/b-691lmtrtm4rucr",
+          "rel": "self",
+          "type": "application/rdap+json",
+          "value": "https://rdap.reg.com/rdap/entity/b-691lmtrtm4rucr"
+        }
+      ],
+      "objectClassName": "entity",
+      "remarks": [
+        {
+          "description": [
+            "Some of the data in this object has been removed"
+          ],
+          "title": "REDACTED FOR PRIVACY",
+          "type": "object redacted due to authorization"
+        }
+      ],
+      "roles": [
+        "technical"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "contact-uri",
+            {},
+            "uri",
+            "https://www.reg.ru/whois/admin_contact?dname=b-691lmtrtm4rucr"
+          ]
+        ]
+      ]
+    },
+    {
+      "handle": "ndeov0nuc8ijwv18",
+      "links": [
+        {
+          "href": "https://rdap.reg.com/rdap/entity/ndeov0nuc8ijwv18",
+          "rel": "self",
+          "type": "application/rdap+json",
+          "value": "https://rdap.reg.com/rdap/entity/ndeov0nuc8ijwv18"
+        }
+      ],
+      "objectClassName": "entity",
+      "remarks": [
+        {
+          "description": [
+            "Some of the data in this object has been removed"
+          ],
+          "title": "REDACTED FOR PRIVACY",
+          "type": "object redacted due to authorization"
+        }
+      ],
+      "roles": [
+        "billing"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "contact-uri",
+            {},
+            "uri",
+            "https://www.reg.ru/whois/admin_contact?dname=ndeov0nuc8ijwv18"
+          ]
+        ]
+      ]
+    }
+  ],
+  "events": [
+    {
+      "eventAction": "registration",
+      "eventDate": "2016-03-21T07:52:09Z"
+    },
+    {
+      "eventAction": "last changed",
+      "eventDate": "2026-03-07T01:58:14Z"
+    },
+    {
+      "eventAction": "expiration",
+      "eventDate": "2027-03-21T07:52:09Z"
+    },
+    {
+      "eventAction": "last update of RDAP database",
+      "eventDate": "2026-06-01T12:34:01Z"
+    }
+  ],
+  "handle": "2014177339_DOMAIN_COM-VRSN",
+  "ldhName": "itforprof.com",
+  "links": [
+    {
+      "href": "https://rdap.reg.com/rdap/domain/itforprof.com",
+      "rel": "self",
+      "type": "application/rdap+json",
+      "value": "https://rdap.reg.com/rdap/domain/itforprof.com"
+    }
+  ],
+  "nameservers": [
+    {
+      "ldhName": "ns1.reg.ru",
+      "objectClassName": "nameserver"
+    },
+    {
+      "ldhName": "ns2.reg.ru",
+      "objectClassName": "nameserver"
+    }
+  ],
+  "notices": [
+    {
+      "description": [
+        "Terms of Use page."
+      ],
+      "links": [
+        {
+          "href": "https://www.reg.ru/whois/servpol",
+          "rel": "related",
+          "type": "text/html",
+          "value": "https://www.reg.ru/whois/servpol"
+        }
+      ],
+      "title": "Terms of Use"
+    },
+    {
+      "description": [
+        "For more information on domain status codes, please visit https://icann.org/epp"
+      ],
+      "links": [
+        {
+          "href": "https://icann.org/epp",
+          "rel": "related",
+          "type": "text/html",
+          "value": "https://icann.org/epp"
+        }
+      ],
+      "title": "Status Codes"
+    },
+    {
+      "description": [
+        "URL of the ICANN RDDS Inaccuracy Complaint Form: https://icann.org/wicf"
+      ],
+      "links": [
+        {
+          "href": "https://icann.org/wicf",
+          "rel": "related",
+          "type": "text/html",
+          "value": "https://icann.org/wicf"
+        }
+      ],
+      "title": "RDDS Inaccuracy Complaint Form"
+    }
+  ],
+  "objectClassName": "domain",
+  "port43": "whois.reg.com",
+  "rdapConformance": [
+    "rdap_level_0",
+    "icann_rdap_response_profile_0",
+    "icann_rdap_technical_implementation_guide_0",
+    "icann_rdap_technical_implementation_guide_1",
+    "icann_rdap_response_profile_1"
+  ],
+  "secureDNS": {
+    "delegationSigned": false
+  },
+  "status": [
+    "client transfer prohibited"
+  ]
+}
