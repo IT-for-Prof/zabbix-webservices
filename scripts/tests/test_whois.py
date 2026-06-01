@@ -101,7 +101,7 @@ def test_query_whois_incomplete_gtld_returns_supported_error_payload(monkeypatch
     def fake_whois(domain, **kwargs):
         return ("Domain Name: SEAREGION.COM\nRegistrar WHOIS Server: whois.reg.ru\n", {"registrar": "REG.RU"})
 
-    def fake_rdap(domain):
+    def fake_rdap(domain, **kw):
         raise NotImplementedError("No RDAP server found")
 
     monkeypatch.setitem(sys.modules, "asyncwhois", types.SimpleNamespace(whois=fake_whois, rdap=fake_rdap))

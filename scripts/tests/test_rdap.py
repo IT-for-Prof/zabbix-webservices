@@ -137,7 +137,7 @@ def _fake_asyncwhois(*, rdap=None, whois=None):
 
 def test_query_registration_prefers_rdap(monkeypatch, web_check_module):
     raw = (FIX / "hss_center.json").read_text(encoding="utf-8")
-    fake = _fake_asyncwhois(rdap=lambda apex: (raw, {}))
+    fake = _fake_asyncwhois(rdap=lambda apex, **kw: (raw, {}))
     monkeypatch.setitem(sys.modules, "asyncwhois", fake)
     out = web_check_module._query_registration("hss.center")
     assert out["ok"] is True
@@ -147,7 +147,7 @@ def test_query_registration_prefers_rdap(monkeypatch, web_check_module):
 
 
 def test_query_registration_falls_back_to_whois_when_no_rdap(monkeypatch, web_check_module):
-    def rdap_no_server(apex):
+    def rdap_no_server(apex, **kw):
         raise NotImplementedError("No RDAP server found for .RU domains")
 
     def whois_ok(apex, **kwargs):
@@ -162,7 +162,7 @@ def test_query_registration_falls_back_to_whois_when_no_rdap(monkeypatch, web_ch
 
 
 def test_query_registration_rdap_without_expiry_falls_back(monkeypatch, web_check_module):
-    def rdap_no_expiry(apex):
+    def rdap_no_expiry(apex, **kw):
         return ('{"events": [], "nameservers": []}', {})
 
     def whois_ok(apex, **kwargs):
@@ -177,7 +177,7 @@ def test_query_registration_rdap_without_expiry_falls_back(monkeypatch, web_chec
 
 
 def test_query_registration_both_incomplete_returns_whois_incomplete(monkeypatch, web_check_module):
-    def rdap_no_expiry(apex):
+    def rdap_no_expiry(apex, **kw):
         return ('{"events": [], "nameservers": []}', {})
 
     def whois_no_expiry(apex, **kwargs):
@@ -193,7 +193,7 @@ def test_query_registration_both_incomplete_returns_whois_incomplete(monkeypatch
 
 
 def test_query_registration_whois_transport_error_surfaces(monkeypatch, web_check_module):
-    def rdap_no_server(apex):
+    def rdap_no_server(apex, **kw):
         raise NotImplementedError("No RDAP server found")
 
     def whois_boom(apex, **kwargs):
@@ -256,3 +256,26 @@ def test_query_rdap_threads_bounded_client_and_closes_it(monkeypatch, web_check_
     assert out["expires_at"].startswith("2026-10-10")
     assert seen.get("whodap_client") is sentinel  # bounded client threaded through
     assert closed["v"] is True  # http client always closed
+    # Must thread our offline extractor so asyncwhois never builds its own
+    # default TLDExtract (which writes the PSL cache to a non-writable dir
+    # under the daemon's HOME-unset env and corrupts the item value via stderr).
+    assert seen.get("tldextract_obj") is web_check_module._get_psl_extractor()
+
+
+def test_query_rdap_unbounded_fallback_still_threads_extractor(monkeypatch, web_check_module):
+    """Even on the unbounded fallback path (no whodap client) the offline
+    extractor must be passed to asyncwhois.rdap."""
+    raw = (FIX / "hss_center.json").read_text(encoding="utf-8")
+    monkeypatch.setattr(web_check_module, "_rdap_whodap_client", lambda timeout: (None, None))
+    seen = {}
+
+    def fake_rdap(apex, **kwargs):
+        seen.update(kwargs)
+        return (raw, {})
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", _fake_asyncwhois(rdap=fake_rdap))
+    out = web_check_module._query_rdap("hss.center", web_check_module.time.monotonic() + 10.0)
+
+    assert out is not None
+    assert "whodap_client" not in seen  # unbounded path
+    assert seen.get("tldextract_obj") is web_check_module._get_psl_extractor()

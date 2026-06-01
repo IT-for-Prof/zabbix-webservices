@@ -1098,10 +1098,17 @@ def _query_rdap(apex: str, deadline: float) -> dict[str, Any] | None:
 
     whodap_client, http_client = _rdap_whodap_client(min(4.0, remaining))
     try:
+        # Thread our offline cache_dir=None extractor exactly as the WHOIS path
+        # does. Otherwise asyncwhois builds its OWN default TLDExtract for URL
+        # parsing; under the Zabbix daemon (HOME unset) tldextract's cache_dir
+        # falls back to the non-writable site-packages .suffix_cache, and the
+        # failed cache-write logs to stderr → Zabbix folds it into the master
+        # item value → dependent JSONPath items go UNSUPPORTED.
+        extractor = _get_psl_extractor()
         if whodap_client is not None:
-            raw_json, _ = asyncwhois.rdap(apex, whodap_client=whodap_client)
+            raw_json, _ = asyncwhois.rdap(apex, whodap_client=whodap_client, tldextract_obj=extractor)
         else:
-            raw_json, _ = asyncwhois.rdap(apex)
+            raw_json, _ = asyncwhois.rdap(apex, tldextract_obj=extractor)
         d = json.loads(raw_json)
     except Exception:  # noqa: BLE001 — any RDAP issue means "try WHOIS instead"
         return None
