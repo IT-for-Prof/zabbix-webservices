@@ -188,7 +188,7 @@ def test_query_whois_threads_offline_extractor_into_asyncwhois(monkeypatch, web_
 
     monkeypatch.setattr(asyncwhois, "whois", fake_whois)
 
-    web_check_module._query_whois_port43("itforprof.com")
+    web_check_module._query_whois_port43("itforprof.com", deadline=web_check_module.time.monotonic() + 10.0)
 
     assert "tldextract_obj" in captured["kwargs"], (
         "asyncwhois.whois must receive tldextract_obj=our extractor; "

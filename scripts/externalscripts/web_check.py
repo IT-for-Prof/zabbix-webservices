@@ -1001,13 +1001,17 @@ def _query_registration(apex: str) -> dict[str, Any]:
     RDAP (RFC 9082/9083, IANA-bootstrapped by whodap) is authoritative for
     gTLDs since ICANN's 2025 WHOIS sunset. RDAP-less TLDs (.ru/.рф via TCI)
     raise NotImplementedError locally (~0.4 s bootstrap miss) and fall through
-    to the existing port-43 path with its TCI augmenters intact.
+    to the existing port-43 path with its TCI augmenters intact. A single 10 s
+    wall-time budget covers the RDAP attempt and the WHOIS retries so a slow
+    RDAP endpoint cannot stack onto a fresh WHOIS deadline and blow the Zabbix
+    item Timeout.
     """
-    rdap_norm = _query_rdap(apex)
+    deadline = time.monotonic() + 10.0
+    rdap_norm = _query_rdap(apex, deadline)
     if rdap_norm is not None:
         return _finalize_registration(rdap_norm, apex)
 
-    whois_result = _query_whois_port43(apex)
+    whois_result = _query_whois_port43(apex, deadline)
     if whois_result.get("error_code"):  # transport failure (timeout/unreachable/dep)
         return whois_result
     if whois_result["days_to_expire"] is None and not whois_result["provider_no_expiry"]:
@@ -1043,35 +1047,61 @@ def _finalize_registration(norm: dict[str, Any], apex: str) -> dict[str, Any]:
     return norm
 
 
-def _query_rdap(apex: str) -> dict[str, Any] | None:
+def _query_rdap(apex: str, deadline: float) -> dict[str, Any] | None:  # noqa: C901 — import-guard fallback + bounded-client cleanup, not algorithmic branching
     """Return a normalized registration dict from RDAP, or None to fall back.
 
-    Returns None on: no RDAP server for the TLD (NotImplementedError),
-    not-found, transport/JSON error, or a response that lacks a usable expiry
-    (unless the TLD legitimately has no expiry). Any of these defers to WHOIS.
+    Returns None on: exhausted time budget, no RDAP server for the TLD
+    (NotImplementedError), not-found, transport/JSON error, or a response that
+    lacks a usable expiry (unless the TLD legitimately has no expiry). The RDAP
+    HTTP client is bounded so a hung registry endpoint can't blow the budget.
     """
+    remaining = deadline - time.monotonic()
+    if remaining <= 0.5:
+        return None
     try:
         import asyncwhois
     except ImportError:
         return None
+
+    whodap_client = None
+    http_client = None
     try:
-        raw_json, _ = asyncwhois.rdap(apex)
+        import httpx
+        import whodap
+    except ImportError:
+        pass  # deps absent (minimal test env): use the unbounded convenience call
+    else:
+        try:
+            http_client = httpx.Client(timeout=httpx.Timeout(min(4.0, remaining)), follow_redirects=True)
+            whodap_client = whodap.DNSClient.new_client(httpx_client=http_client)
+        except Exception:  # noqa: BLE001 — client/bootstrap build failed: skip RDAP, use WHOIS
+            if http_client is not None:
+                http_client.close()
+            return None
+
+    try:
+        if whodap_client is not None:
+            raw_json, _ = asyncwhois.rdap(apex, whodap_client=whodap_client)
+        else:
+            raw_json, _ = asyncwhois.rdap(apex)
         d = json.loads(raw_json)
     except Exception:  # noqa: BLE001 — any RDAP issue means "try WHOIS instead"
         return None
+    finally:
+        if http_client is not None:
+            http_client.close()
+
     norm = _normalize_rdap(d, tld_of(apex))
     if norm["days_to_expire"] is None and not norm["provider_no_expiry"]:
         return None
     return norm
 
 
-def _query_whois_port43(apex: str) -> dict[str, Any]:
-    """One-shot port-43 WHOIS via asyncwhois with retries and a 10 s wall cap.
-
-    Returns a *bare* normalized dict (no `ok`/envelope keys) on a parseable
-    response, or a `whois_error_envelope` on a transport-level failure. Zabbix
-    SIGKILLs externalscripts after their Timeout; cap total wall-time to 10 s
-    and skip the post-failure sleep.
+def _query_whois_port43(apex: str, deadline: float) -> dict[str, Any]:
+    """One-shot port-43 WHOIS via asyncwhois with retries, bounded by the shared
+    `deadline` (monotonic). Returns a bare normalized dict on a parseable
+    response, or a `whois_error_envelope` on transport-level failure. Zabbix
+    SIGKILLs externalscripts after their Timeout, so we never exceed the budget.
     """
     try:
         import asyncwhois
@@ -1079,7 +1109,6 @@ def _query_whois_port43(apex: str) -> dict[str, Any]:
         return whois_error_envelope("missing_dependency", f"asyncwhois not importable: {e}", apex=apex)
 
     extractor = _get_psl_extractor()
-    deadline = time.monotonic() + 10.0
     backoffs = [0.5, 1.5]
     raw: str = ""
     parsed: dict[str, Any] = {}

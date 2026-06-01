@@ -205,3 +205,26 @@ def test_query_registration_whois_transport_error_surfaces(monkeypatch, web_chec
     out = web_check_module._query_registration("example.ru")
     assert out["ok"] is False
     assert out["error_code"] == "whois_unreachable"
+
+
+def test_query_rdap_skips_when_deadline_exhausted(monkeypatch, web_check_module):
+    called = {"rdap": False}
+
+    def rdap_spy(apex, **k):
+        called["rdap"] = True
+        return ("{}", {})
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", _fake_asyncwhois(rdap=rdap_spy))
+    out = web_check_module._query_rdap("example.com", web_check_module.time.monotonic() - 1)
+    assert out is None
+    assert called["rdap"] is False  # no work attempted past the shared deadline
+
+
+def test_query_whois_port43_respects_shared_deadline(monkeypatch, web_check_module):
+    def whois_spy(apex, **k):
+        raise AssertionError("whois must not be called past the deadline")
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", _fake_asyncwhois(whois=whois_spy))
+    monkeypatch.setattr(web_check_module, "_get_psl_extractor", lambda: object())
+    out = web_check_module._query_whois_port43("example.com", web_check_module.time.monotonic() - 1)
+    assert out["error_code"] == "whois_timeout"
