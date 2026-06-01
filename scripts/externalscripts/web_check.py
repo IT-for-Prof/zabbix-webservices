@@ -1001,10 +1001,16 @@ def _query_registration(apex: str) -> dict[str, Any]:
     RDAP (RFC 9082/9083, IANA-bootstrapped by whodap) is authoritative for
     gTLDs since ICANN's 2025 WHOIS sunset. RDAP-less TLDs (.ru/.рф via TCI)
     raise NotImplementedError locally (~0.4 s bootstrap miss) and fall through
-    to the existing port-43 path with its TCI augmenters intact. A single 10 s
-    wall-time budget covers the RDAP attempt and the WHOIS retries so a slow
-    RDAP endpoint cannot stack onto a fresh WHOIS deadline and blow the Zabbix
-    item Timeout.
+    to the existing port-43 path with its TCI augmenters intact.
+
+    Wall-time: one 10 s monotonic deadline gates *both* phases — RDAP only
+    starts if budget remains, and once RDAP returns the WHOIS retry loop trips
+    its deadline check immediately if RDAP overran, so WHOIS never stacks a
+    fresh budget on top. The RDAP HTTP client uses a per-operation httpx
+    timeout (connect/read), the same bounding style as WHOIS's per-attempt
+    socket timeout — so a single hung RDAP leg is capped, though the deadline
+    cannot interrupt an in-flight call mid-leg (worst case ≈ a few legs ×
+    timeout, well under the server Timeout).
     """
     deadline = time.monotonic() + 10.0
     rdap_norm = _query_rdap(apex, deadline)
@@ -1062,7 +1068,10 @@ def _rdap_whodap_client(timeout: float) -> tuple[Any, Any]:
         import whodap
     except ImportError:
         return None, None
-    http_client = httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=True)
+    # httpx.Timeout is per-operation. Cap connect tighter than read so an
+    # unreachable registry RDAP endpoint fails fast (the main SIGKILL risk on
+    # tight-Timeout proxies) rather than burning the full read budget per leg.
+    http_client = httpx.Client(timeout=httpx.Timeout(timeout, connect=min(2.0, timeout)), follow_redirects=True)
     try:
         whodap_client = whodap.DNSClient.new_client(httpx_client=http_client)
     except Exception:  # noqa: BLE001 — bootstrap build failed: caller falls back to WHOIS
