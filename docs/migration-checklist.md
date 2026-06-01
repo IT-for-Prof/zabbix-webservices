@@ -10,8 +10,13 @@ step until the legacy template is unlinked.
       ```
       curl -fsSL https://raw.githubusercontent.com/IT-for-Prof/zabbix-webservices/main/scripts/deploy/install.sh | sudo sh
       ```
-      Current target nodes: `mon.itforprof.com`, `ET-VPS01`, `SR-VPS01-PROXY`,
-      `IFP-VPS12-PROXY`, `IFP-VPS15-PROXY`.
+      Current target nodes: `mon.itforprof.com` (server), `ET-VPS01`,
+      `SR-VPS01-PROXY`, `IFP-VPS12-PROXY` + `IFP-VPS15-PROXY` (proxy group
+      `IFP-VPS`), and `TRC-ENERGY-ZBX-PROXY`. Derive the authoritative list from
+      the proxies/proxy-groups actually serving template-linked hosts, not this
+      static list — a missing node silently keeps running the old script
+      (e.g. `TRC-ENERGY-ZBX-PROXY` is a remote tenant proxy with no SSH alias on
+      the admin box, so it is easy to overlook).
 - [ ] Smoke test:
       `sudo -u zabbix /usr/lib/zabbix/externalscripts/web_check.py self-test`
       must exit 0 and report `cache roundtrip: ok` on each node.
