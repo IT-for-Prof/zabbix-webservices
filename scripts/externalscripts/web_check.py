@@ -44,8 +44,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-__version__ = "2.1.8"
-SCHEMA_VERSION = 2
+__version__ = "2.2.0"
+SCHEMA_VERSION = 3
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
 HOME = Path(os.environ.get("WEB_CHECK_HOME", "/opt/web_check"))

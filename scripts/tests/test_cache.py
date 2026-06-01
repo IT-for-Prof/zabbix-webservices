@@ -92,3 +92,7 @@ def test_old_whois_cache_schema_is_ignored(tmp_cache, web_check_module):
     )
 
     assert tmp_cache.read("searegion.com") is None
+
+
+def test_schema_version_is_3(web_check_module):
+    assert web_check_module.SCHEMA_VERSION == 3
