@@ -1,0 +1,374 @@
+{
+  "entities": [
+    {
+      "handle": "54920494",
+      "lang": "en",
+      "objectClassName": "entity",
+      "roles": [
+        "administrative",
+        "technical"
+      ],
+      "status": [
+        "active"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "kind",
+            {},
+            "text",
+            "individual"
+          ],
+          [
+            "fn",
+            {},
+            "text",
+            "Laskovets Nikolay Nikolaevich"
+          ],
+          [
+            "adr",
+            {
+              "cc": "RU"
+            },
+            "text",
+            [
+              "",
+              "",
+              [
+                "",
+                "",
+                "Krasnodarskij kraj, g.Novorossijsk, p.Gajduk, ul.Suvorova, 49"
+              ],
+              "N/A",
+              "N/A",
+              "353991",
+              ""
+            ]
+          ],
+          [
+            "email",
+            {},
+            "text",
+            "searegion.novo@gmail.com"
+          ],
+          [
+            "tel",
+            {
+              "type": "voice"
+            },
+            "uri",
+            "tel:+7.9054385438"
+          ]
+        ]
+      ]
+    },
+    {
+      "handle": "54920494",
+      "lang": "en",
+      "objectClassName": "entity",
+      "roles": [
+        "registrant"
+      ],
+      "status": [
+        "active"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "kind",
+            {},
+            "text",
+            "individual"
+          ],
+          [
+            "fn",
+            {},
+            "text",
+            "Laskovets Nikolay Nikolaevich"
+          ],
+          [
+            "adr",
+            {
+              "cc": "RU"
+            },
+            "text",
+            [
+              "",
+              "",
+              [
+                "",
+                "",
+                "Krasnodarskij kraj, g.Novorossijsk, p.Gajduk, ul.Suvorova, 49"
+              ],
+              "N/A",
+              "N/A",
+              "353991",
+              ""
+            ]
+          ],
+          [
+            "email",
+            {},
+            "text",
+            "searegion.novo@gmail.com"
+          ],
+          [
+            "tel",
+            {
+              "type": "voice"
+            },
+            "uri",
+            "tel:+7.9054385438"
+          ]
+        ]
+      ]
+    },
+    {
+      "entities": [
+        {
+          "lang": "en",
+          "objectClassName": "entity",
+          "roles": [
+            "abuse"
+          ],
+          "status": [
+            "active"
+          ],
+          "vcardArray": [
+            "vcard",
+            [
+              [
+                "version",
+                {},
+                "text",
+                "4.0"
+              ],
+              [
+                "org",
+                {},
+                "text",
+                "PDR Ltd. d/b/a PublicDomainRegistry.com"
+              ],
+              [
+                "tel",
+                {
+                  "type": "voice"
+                },
+                "text",
+                "tel:+1.2013775952"
+              ],
+              [
+                "email",
+                {},
+                "text",
+                "abuse-contact@publicdomainregistry.com"
+              ],
+              [
+                "fn",
+                {},
+                "text",
+                "PDR Ltd. d/b/a PublicDomainRegistry.com"
+              ]
+            ]
+          ]
+        }
+      ],
+      "handle": "303",
+      "lang": "en",
+      "links": [
+        {
+          "href": "https://www.publicdomainregistry.com",
+          "rel": "about",
+          "type": "application/rdap+json",
+          "value": "https://rdapserver.net/"
+        }
+      ],
+      "objectClassName": "entity",
+      "publicIds": [
+        {
+          "identifier": "303",
+          "type": "IANA Registrar ID"
+        }
+      ],
+      "roles": [
+        "registrar"
+      ],
+      "status": [
+        "active"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "org",
+            {},
+            "text",
+            "PDR Ltd. d/b/a PublicDomainRegistry.com"
+          ],
+          [
+            "fn",
+            {},
+            "text",
+            "PDR Ltd. d/b/a PublicDomainRegistry.com"
+          ]
+        ]
+      ]
+    }
+  ],
+  "events": [
+    {
+      "eventAction": "registration",
+      "eventDate": "2016-06-08T07:30:37Z"
+    },
+    {
+      "eventAction": "registrar expiration",
+      "eventDate": "2026-06-08T07:30:38Z"
+    },
+    {
+      "eventAction": "last changed",
+      "eventDate": "2025-06-06T07:55:01.940886Z"
+    },
+    {
+      "eventAction": "last update of RDAP database",
+      "eventDate": "2026-06-01T12:36:04.097Z"
+    }
+  ],
+  "handle": "2034442357_DOMAIN_COM-VRSN",
+  "lang": "en",
+  "ldhName": "searegion.com",
+  "nameservers": [
+    {
+      "lang": "en",
+      "ldhName": "ns1.timeweb.ru",
+      "objectClassName": "nameserver",
+      "status": [
+        "active"
+      ],
+      "unicodeName": "ns1.timeweb.ru"
+    },
+    {
+      "lang": "en",
+      "ldhName": "ns2.timeweb.ru",
+      "objectClassName": "nameserver",
+      "status": [
+        "active"
+      ],
+      "unicodeName": "ns2.timeweb.ru"
+    },
+    {
+      "lang": "en",
+      "ldhName": "ns3.timeweb.org",
+      "objectClassName": "nameserver",
+      "status": [
+        "active"
+      ],
+      "unicodeName": "ns3.timeweb.org"
+    },
+    {
+      "lang": "en",
+      "ldhName": "ns4.timeweb.org",
+      "objectClassName": "nameserver",
+      "status": [
+        "active"
+      ],
+      "unicodeName": "ns4.timeweb.org"
+    }
+  ],
+  "notices": [
+    {
+      "description": [
+        "The contact information for one or more entities associated with this domain has been redacted in accordance with the entity's disclosure preferences."
+      ],
+      "title": "Data Policy",
+      "type": "object truncated due to authorization"
+    },
+    {
+      "description": [
+        "URL for Terms of Use https://rdapserver.net/terms-of-use/"
+      ],
+      "links": [
+        {
+          "href": "https://rdapserver.net/terms-of-use/",
+          "rel": "terms-of-service",
+          "type": "application/rdap+json",
+          "value": "https://rdapserver.net/domain/searegion.com"
+        }
+      ],
+      "title": "Terms of Use"
+    },
+    {
+      "description": [
+        "For more information on domain status codes, please visit https://icann.org/epp"
+      ],
+      "links": [
+        {
+          "href": "https://icann.org/epp",
+          "rel": "glossary",
+          "type": "application/rdap+json",
+          "value": "https://rdapserver.net/domain/searegion.com"
+        }
+      ],
+      "title": "Status Codes"
+    },
+    {
+      "description": [
+        "URL of the ICANN RDDS Inaccuracy Complaint Form: https://icann.org/wicf"
+      ],
+      "links": [
+        {
+          "href": "https://icann.org/wicf",
+          "rel": "help",
+          "type": "application/rdap+json",
+          "value": "https://rdapserver.net/domain/searegion.com"
+        }
+      ],
+      "title": "RDDS Inaccuracy Complaint Form"
+    }
+  ],
+  "objectClassName": "domain",
+  "rdapConformance": [
+    "icann_rdap_response_profile_1",
+    "icann_rdap_technical_implementation_guide_1",
+    "rdap_level_0",
+    "redacted"
+  ],
+  "redacted": [
+    {
+      "method": "removal",
+      "name": {
+        "type": "Registrant Organization"
+      },
+      "pathLang": "jsonpath",
+      "prePath": "$.entities[?(@.roles[0]=='registrant')].vcardArray[1][?(@[0]=='org')]",
+      "reason": {
+        "description": "Data redacted due to Privacy."
+      }
+    }
+  ],
+  "secureDNS": {
+    "delegationSigned": false
+  },
+  "status": [
+    "client transfer prohibited"
+  ]
+}

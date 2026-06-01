@@ -4,6 +4,38 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.6 / web_check 2.2.0] - 2026-06-01
+
+### web_check 2.2.0 — RDAP-first registration lookup
+RDAP (RFC 9082/9083) is authoritative for gTLDs since ICANN's 2025 WHOIS
+sunset; some registries (e.g. Identity Digital `.center`) no longer serve
+usable port-43 WHOIS. `web_check` now queries RDAP first and falls back to
+port-43 WHOIS.
+
+- **`_query_registration`** tries `asyncwhois.rdap()` first (IANA-bootstrapped
+  by `whodap`), then `asyncwhois.whois()`. RDAP-less TLDs (`.ru`/`.рф` via TCI)
+  fail the RDAP bootstrap locally (~0.4 s) and use the unchanged port-43 path
+  and its TCI augmenters. RDAP and WHOIS share one 10 s wall-time budget, and
+  the RDAP HTTP client is bounded (httpx timeout) so a hung registry endpoint
+  cannot exceed the Zabbix item Timeout.
+- **`_normalize_rdap`** parses the raw RFC-9083 JSON (not `whodap`'s convenience
+  dict, which drops `.com` `registrar expiration` expiry and `secureDNS`):
+  expiry from `events[]` (`expiration` / `registrar expiration` /
+  `registry expiration`), `dnssec` from `secureDNS.delegationSigned`, registrar
+  / IANA id / abuse email from `entities`, NS from `nameservers[].ldhName`.
+  Output envelope is identical to the WHOIS path (no nulls, `dnssec` tri-state).
+- **No new dependency** — `httpx`/`whodap` are already pinned via `asyncwhois`;
+  `requirements.lock` is unchanged.
+- **Cache `SCHEMA_VERSION` 2→3** invalidates 2.1.8 entries so RDAP-only domains
+  (e.g. `hss.center`) re-query once after deploy.
+- **No template change.** Verified on the live fleet that RDAP and WHOIS produce
+  identical registrar / NS order / dnssec / expiry, so the source switch fires
+  no `change()`-based trigger.
+- **Deploy:** redeploy via `install.sh` to **all six** monitor nodes including
+  `TRC-ENERGY-ZBX-PROXY` (missed in the 2.1.8 rollout). RDAP needs outbound
+  HTTPS/443 per node; a 443-blocked node degrades gracefully to WHOIS (no
+  regression). No dedup re-run needed (no template change).
+
 ## [7.0-2.2.6 / web_check 2.1.8] - 2026-06-01
 
 ### web_check 2.1.8 — output schema the 2.2.6 triggers depend on

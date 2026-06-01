@@ -44,8 +44,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-__version__ = "2.1.8"
-SCHEMA_VERSION = 2
+__version__ = "2.2.0"
+SCHEMA_VERSION = 3
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
 HOME = Path(os.environ.get("WEB_CHECK_HOME", "/opt/web_check"))
@@ -242,7 +242,7 @@ def _get_psl_extractor() -> Any:
     """Return the module-level offline TLDExtract, constructing it lazily.
 
     Exposed as a helper so callers other than `registered_apex` (notably
-    `_query_whois`, which threads it into `asyncwhois.whois(...)` to
+    `_query_whois_port43`, which threads it into `asyncwhois.whois(...)` to
     prevent asyncwhois from constructing its OWN default TLDExtract and
     re-triggering the cache-write hazard documented above) can obtain
     the same correctly-configured instance.
@@ -989,80 +989,52 @@ def check_whois(
             out["cache_age_seconds"] = hit.age_seconds()
             return out
 
-        result = _query_whois(apex)
+        result = _query_registration(apex)
 
     cache.write(apex, result, ttl if result.get("ok") and not result.get("provider_no_expiry") else neg_ttl)
     return result
 
 
-def _query_whois(apex: str) -> dict[str, Any]:
-    """One-shot WHOIS/RDAP via asyncwhois with retries and a wall-time cap.
+def _query_registration(apex: str) -> dict[str, Any]:
+    """RDAP-first registration lookup with port-43 WHOIS fallback.
 
-    Zabbix kills externalscripts after their `Timeout` setting (typically
-    3-30 s), so unbounded retries with multi-minute back-offs would just get
-    SIGKILLed mid-sleep and we'd never write a negative-cache entry. Cap
-    total wall-time to 10 s and skip the final post-failure sleep.
+    RDAP (RFC 9082/9083, IANA-bootstrapped by whodap) is authoritative for
+    gTLDs since ICANN's 2025 WHOIS sunset. RDAP-less TLDs (.ru/.рф via TCI)
+    raise NotImplementedError locally (~0.4 s bootstrap miss) and fall through
+    to the existing port-43 path with its TCI augmenters intact. A single 10 s
+    wall-time budget covers the RDAP attempt and the WHOIS retries so a slow
+    RDAP endpoint cannot stack onto a fresh WHOIS deadline and blow the Zabbix
+    item Timeout.
     """
-    try:
-        import asyncwhois
-    except ImportError as e:
-        return whois_error_envelope("missing_dependency", f"asyncwhois not importable: {e}", apex=apex)
+    deadline = time.monotonic() + 10.0
+    rdap_norm = _query_rdap(apex, deadline)
+    if rdap_norm is not None:
+        return _finalize_registration(rdap_norm, apex)
 
-    # Thread our offline+no-cache extractor through to asyncwhois. Without
-    # this kwarg, asyncwhois constructs its OWN `TLDExtract()` with library
-    # defaults (network-fetched PSL, default `$HOME/.cache/python-tldextract`
-    # cache_dir) — the exact bug we silenced for our own extractor in 2.1.4.
-    # Observed on production hosts with `zabbix_home=/nonexistent`: a
-    # `[Errno 13] Permission denied` warning leaks from asyncwhois's
-    # internal extractor into stderr and the Zabbix externalscript handler
-    # folds it into the JSON envelope, breaking dependent JSONPath items.
-    extractor = _get_psl_extractor()
-
-    tld = tld_of(apex)
-    deadline = time.monotonic() + 10.0  # hard cap, total budget
-    backoffs = [0.5, 1.5]  # only between retries; no sleep after last attempt
-    raw: str = ""
-    parsed: dict[str, Any] = {}
-    last_err = ""
-    for attempt in range(3):
-        if time.monotonic() >= deadline:
-            return whois_error_envelope(
-                "whois_timeout",
-                f"deadline exceeded after {attempt} attempts: {last_err}",
-                apex=apex,
-            )
-        try:
-            raw, parsed = asyncwhois.whois(apex, tldextract_obj=extractor)
-            break
-        except Exception as e:  # noqa: BLE001 — asyncwhois surfaces a wide error variety
-            last_err = f"{type(e).__name__}: {e}"
-            if attempt < len(backoffs):
-                # Only sleep if we have budget left AND another attempt remains
-                remaining = deadline - time.monotonic()
-                sleep_for = min(backoffs[attempt], max(0.0, remaining - 0.5))
-                if sleep_for > 0:
-                    time.sleep(sleep_for)
-    else:
-        return whois_error_envelope("whois_unreachable", last_err, apex=apex)
-
-    # Normalize: asyncwhois returns slightly different keys per registry/parser.
-    norm = _normalize_whois(parsed or {}, raw or "", tld)
-    if norm["days_to_expire"] is None and not norm["provider_no_expiry"]:
+    whois_result = _query_whois_port43(apex, deadline)
+    if whois_result.get("error_code"):  # transport failure (timeout/unreachable/dep)
+        return whois_result
+    if whois_result["days_to_expire"] is None and not whois_result["provider_no_expiry"]:
         return whois_error_envelope(
             "whois_incomplete",
-            f"WHOIS response for apex {apex!r} did not include a parseable expiration date",
+            f"no parseable expiration date for apex {apex!r} via RDAP or WHOIS",
             apex=apex,
-            source=norm["source"],
-            registrar=norm["registrar"] or "",
-            registrar_iana_id=norm["registrar_iana_id"] or "",
-            registered_at=norm["registered_at"] or "",
-            last_updated=norm["last_updated"] or "",
-            statuses=norm["statuses"],
-            name_servers=norm["name_servers"],
-            dnssec=norm["dnssec"],
-            abuse_email=norm["abuse_email"] or "",
+            source=whois_result["source"],
+            registrar=whois_result["registrar"],
+            registrar_iana_id=whois_result["registrar_iana_id"],
+            registered_at=whois_result["registered_at"],
+            last_updated=whois_result["last_updated"],
+            statuses=whois_result["statuses"],
+            name_servers=whois_result["name_servers"],
+            dnssec=whois_result["dnssec"],
+            abuse_email=whois_result["abuse_email"],
             provider_no_expiry=False,
         )
+    return _finalize_registration(whois_result, apex)
+
+
+def _finalize_registration(norm: dict[str, Any], apex: str) -> dict[str, Any]:
+    """Stamp a successful normalized result (from RDAP or WHOIS) into an envelope."""
     norm.update(
         {
             "ok": True,
@@ -1073,6 +1045,93 @@ def _query_whois(apex: str) -> dict[str, Any]:
         }
     )
     return norm
+
+
+def _query_rdap(apex: str, deadline: float) -> dict[str, Any] | None:  # noqa: C901 — import-guard fallback + bounded-client cleanup, not algorithmic branching
+    """Return a normalized registration dict from RDAP, or None to fall back.
+
+    Returns None on: exhausted time budget, no RDAP server for the TLD
+    (NotImplementedError), not-found, transport/JSON error, or a response that
+    lacks a usable expiry (unless the TLD legitimately has no expiry). The RDAP
+    HTTP client is bounded so a hung registry endpoint can't blow the budget.
+    """
+    remaining = deadline - time.monotonic()
+    if remaining <= 0.5:
+        return None
+    try:
+        import asyncwhois
+    except ImportError:
+        return None
+
+    whodap_client = None
+    http_client = None
+    try:
+        import httpx
+        import whodap
+    except ImportError:
+        pass  # deps absent (minimal test env): use the unbounded convenience call
+    else:
+        try:
+            http_client = httpx.Client(timeout=httpx.Timeout(min(4.0, remaining)), follow_redirects=True)
+            whodap_client = whodap.DNSClient.new_client(httpx_client=http_client)
+        except Exception:  # noqa: BLE001 — client/bootstrap build failed: skip RDAP, use WHOIS
+            if http_client is not None:
+                http_client.close()
+            return None
+
+    try:
+        if whodap_client is not None:
+            raw_json, _ = asyncwhois.rdap(apex, whodap_client=whodap_client)
+        else:
+            raw_json, _ = asyncwhois.rdap(apex)
+        d = json.loads(raw_json)
+    except Exception:  # noqa: BLE001 — any RDAP issue means "try WHOIS instead"
+        return None
+    finally:
+        if http_client is not None:
+            http_client.close()
+
+    norm = _normalize_rdap(d, tld_of(apex))
+    if norm["days_to_expire"] is None and not norm["provider_no_expiry"]:
+        return None
+    return norm
+
+
+def _query_whois_port43(apex: str, deadline: float) -> dict[str, Any]:
+    """One-shot port-43 WHOIS via asyncwhois with retries, bounded by the shared
+    `deadline` (monotonic). Returns a bare normalized dict on a parseable
+    response, or a `whois_error_envelope` on transport-level failure. Zabbix
+    SIGKILLs externalscripts after their Timeout, so we never exceed the budget.
+    """
+    try:
+        import asyncwhois
+    except ImportError as e:
+        return whois_error_envelope("missing_dependency", f"asyncwhois not importable: {e}", apex=apex)
+
+    extractor = _get_psl_extractor()
+    backoffs = [0.5, 1.5]
+    raw: str = ""
+    parsed: dict[str, Any] = {}
+    last_err = ""
+    for attempt in range(3):
+        if time.monotonic() >= deadline:
+            return whois_error_envelope(
+                "whois_timeout", f"deadline exceeded after {attempt} attempts: {last_err}", apex=apex
+            )
+        try:
+            raw, parsed = asyncwhois.whois(apex, tldextract_obj=extractor)
+            break
+        except Exception as e:  # noqa: BLE001 — asyncwhois surfaces a wide error variety
+            last_err = f"{type(e).__name__}: {e}"
+            if attempt < len(backoffs):
+                remaining = deadline - time.monotonic()
+                sleep_for = min(backoffs[attempt], max(0.0, remaining - 0.5))
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+    else:
+        return whois_error_envelope("whois_unreachable", last_err, apex=apex)
+
+    return _normalize_whois(parsed or {}, raw or "", tld_of(apex))
 
 
 def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, Any]:  # noqa: C901 — flat dict shaping, not a real branchy function
@@ -1186,6 +1245,119 @@ def _augment_tci_raw(raw: str) -> tuple[datetime | None, datetime | None, list[s
         parse_dt(created_m.group(1)) if created_m else None,
         ns_matches,
     )
+
+
+# =============================================================================
+# Layer 3 — RDAP (RFC 9083) normalization
+# =============================================================================
+
+
+def _parse_rdap_dt(s: Any) -> datetime | None:
+    """Parse an RDAP ISO-8601 eventDate into an aware UTC datetime, or None."""
+    if not isinstance(s, str) or not s:
+        return None
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def _vcard_get(vcard_array: Any, field: str) -> str | None:
+    """Pull a field (e.g. 'fn', 'email') from a jCard ['vcard', [[name,..,value]]]."""
+    try:
+        for entry in vcard_array[1]:
+            if entry[0] == field:
+                return entry[3] if isinstance(entry[3], str) else None
+    except (IndexError, TypeError, KeyError):
+        return None
+    return None
+
+
+def _rdap_find_entity(entities: Any, role: str) -> dict[str, Any] | None:
+    for e in entities or []:
+        if isinstance(e, dict) and isinstance(e.get("roles"), list) and role in e["roles"]:
+            return e
+    return None
+
+
+def _rdap_registrar(d: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
+    """(registrar name, IANA registrar id, abuse email) from RDAP entities."""
+    reg = _rdap_find_entity(d.get("entities"), "registrar")
+    if not reg:
+        return (None, None, None)
+    name = _vcard_get(reg.get("vcardArray"), "fn")
+    iana = None
+    for pid in reg.get("publicIds") or []:
+        if isinstance(pid, dict) and "IANA" in (pid.get("type") or ""):
+            iana = pid.get("identifier")
+    abuse = _rdap_find_entity(reg.get("entities"), "abuse")
+    abuse_email = _vcard_get(abuse.get("vcardArray"), "email") if abuse else None
+    return (name, iana, abuse_email)
+
+
+def _normalize_rdap(d: dict[str, Any], tld: str) -> dict[str, Any]:
+    """Convert an RDAP domain object (RFC 9083) into our stable envelope.
+
+    Mirrors `_normalize_whois`'s output shape exactly (same keys, no nulls,
+    `dnssec` tri-state string, `provider_no_expiry` semantics) so callers can't
+    tell the source apart beyond the `source` field. We read the raw RDAP JSON,
+    not whodap's convenience dict, which drops `.com` `registrar expiration`
+    expiry events and `secureDNS`.
+    """
+    events: dict[str, str] = {}
+    for ev in d.get("events") or []:
+        if not isinstance(ev, dict):
+            continue
+        action, date = ev.get("eventAction"), ev.get("eventDate")
+        if action and date and action not in events:
+            events[action] = date
+
+    expires_dt = _parse_rdap_dt(
+        events.get("expiration") or events.get("registrar expiration") or events.get("registry expiration")
+    )
+    created_dt = _parse_rdap_dt(events.get("registration"))
+    updated_dt = _parse_rdap_dt(events.get("last changed"))
+
+    sd = d.get("secureDNS")
+    if isinstance(sd, dict) and "delegationSigned" in sd:
+        dnssec_s = "signed" if sd.get("delegationSigned") else "unsigned"
+    else:
+        dnssec_s = "unknown"
+
+    registrar, iana_id, abuse_email = _rdap_registrar(d)
+
+    name_servers = [
+        ns["ldhName"].rstrip(".").lower()
+        for ns in (d.get("nameservers") or [])
+        if isinstance(ns, dict) and isinstance(ns.get("ldhName"), str)
+    ]
+
+    statuses = d.get("status") or []
+    if isinstance(statuses, str):
+        statuses = [statuses]
+    elif not isinstance(statuses, list):
+        statuses = []
+
+    no_expiry = tld in NO_EXPIRY_TLDS
+    dte = (expires_dt - datetime.now(UTC)).days if expires_dt is not None else None
+
+    return {
+        "source": "rdap",
+        "registrar": registrar or "",
+        "registrar_iana_id": iana_id or "",
+        "registered_at": created_dt.isoformat() if created_dt else "",
+        "last_updated": updated_dt.isoformat() if updated_dt else "",
+        "expires_at": expires_dt.isoformat() if expires_dt else "",
+        "days_to_expire": dte if dte is not None or not no_expiry else 0,
+        "statuses": statuses,
+        "name_servers": name_servers,
+        "dnssec": dnssec_s,
+        "abuse_email": abuse_email or "",
+        "provider_no_expiry": no_expiry,
+    }
 
 
 # =============================================================================
