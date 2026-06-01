@@ -91,6 +91,10 @@ def test_tls_scan_bad_url_returns_envelope(monkeypatch, web_check_module):
     scan = web_check_module.run_tls_scan("https://", timeout=1.0)
     assert scan["ok"] is False
     assert scan["error_code"] == "bad_url"
+    assert scan["supported_protocols"] == []
+    assert scan["negotiated_ciphers"] == {}
+    assert scan["weak_findings"] == []
+    assert scan["weak_count"] == 0
 
 
 def test_tls_scan_unreachable_returns_envelope(monkeypatch, web_check_module):

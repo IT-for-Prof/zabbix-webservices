@@ -16,6 +16,7 @@ import socket
 import ssl
 import threading
 from contextlib import contextmanager
+from dataclasses import asdict
 from datetime import UTC, datetime
 
 import pytest
@@ -41,6 +42,8 @@ def _tls_server(cert_bundle, host="127.0.0.1"):
                 client, _ = sock.accept()
             except TimeoutError:
                 continue
+            except OSError:
+                return
             try:
                 with ctx.wrap_socket(client, server_side=True) as ss:
                     ss.recv(1024)
@@ -53,8 +56,8 @@ def _tls_server(cert_bundle, host="127.0.0.1"):
         yield port
     finally:
         stop.set()
-        sock.close()
         t.join(timeout=2)
+        sock.close()
 
 
 def _patch_default_ssl(monkeypatch, ca):
@@ -110,6 +113,12 @@ def test_cert_bad_url(web_check_module):
     # "not a url at all" → urlparse extracts "not a url at all" → no hostname
     assert res.ok is False
     assert res.error_code in ("bad_url", "dns_error")  # tolerant: urlparse quirks
+    payload = asdict(res)
+    assert payload["cert"]["days_to_expire"] == 0
+    assert payload["cert"]["not_after"] == ""
+    assert payload["cert"]["hostname_covered"] is False
+    assert payload["tls"]["protocol"] == ""
+    assert payload["tls"]["handshake_ms"] == 0.0
 
 
 def test_cert_attribute_shim_handles_either_api(web_check_module):

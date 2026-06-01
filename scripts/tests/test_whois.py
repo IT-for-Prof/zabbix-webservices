@@ -7,6 +7,8 @@ augmenter logic for `.рф` / `.ru` without flakiness.
 
 from __future__ import annotations
 
+import sys
+import types
 from datetime import UTC, datetime
 
 TCI_RAW = """\
@@ -50,7 +52,7 @@ def test_normalise_com_via_asyncwhois_shape(web_check_module):
     assert out["expires_at"].startswith("2027-03-21")
     assert out["days_to_expire"] > 0
     assert out["name_servers"] == ["ns1.reg.ru", "ns2.reg.ru"]
-    assert out["dnssec"] is False  # "unsigned" → False
+    assert out["dnssec"] == "unsigned"
     assert out["provider_no_expiry"] is False
 
 
@@ -69,15 +71,60 @@ def test_normalise_hu_marks_no_expiry(web_check_module):
     parsed = {"domain_name": "casualstyle.hu", "registrar": None}
     raw_min = "% Whois server 4.0 serving the hu ccTLD\n\ndomain:         casualstyle.hu\nrecord created: 2021-02-24\n"
     out = web_check_module._normalize_whois(parsed, raw=raw_min, tld="hu")
-    assert out["expires_at"] is None
-    assert out["days_to_expire"] is None
+    assert out["expires_at"] == ""
+    assert out["days_to_expire"] == 0
     assert out["provider_no_expiry"] is True
+
+
+def test_normalise_com_without_expiry_is_not_provider_no_expiry(web_check_module):
+    """A gTLD without parsed expiry is incomplete, not an intentional no-expiry provider."""
+    parsed = {
+        "domain_name": "SEAREGION.COM",
+        "registrar": "REG.RU",
+        "name_servers": ["ns1.reg.ru"],
+    }
+    out = web_check_module._normalize_whois(parsed, raw="", tld="com")
+    assert out["expires_at"] == ""
+    assert out["days_to_expire"] is None
+    assert out["provider_no_expiry"] is False
+
+
+def test_query_whois_incomplete_gtld_returns_supported_error_payload(monkeypatch, web_check_module):
+    """WHOIS parse gaps must not make template-dependent items unsupported.
+
+    Zabbix evaluates all item functions in a trigger expression before
+    dependency suppression. For normal TLDs such as .com, a missing expiry is
+    therefore a script-level failure with safe fallback fields, not ok=true with
+    null days_to_expire.
+    """
+
+    def fake_whois(domain, **kwargs):
+        return ("Domain Name: SEAREGION.COM\nRegistrar WHOIS Server: whois.reg.ru\n", {"registrar": "REG.RU"})
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", types.SimpleNamespace(whois=fake_whois))
+    monkeypatch.setattr(web_check_module, "_get_psl_extractor", lambda: object())
+
+    out = web_check_module._query_whois("searegion.com")
+
+    assert out["ok"] is False
+    assert out["error_code"] == "whois_incomplete"
+    assert out["apex"] == "searegion.com"
+    assert out["source"] == "asyncwhois"
+    assert out["days_to_expire"] == 0
+    assert out["provider_no_expiry"] is False
+    assert out["expires_at"] == ""
 
 
 def test_normalise_dnssec_signed(web_check_module):
     parsed = {"dnssec": "signedDelegation"}
     out = web_check_module._normalize_whois(parsed, raw="", tld="com")
-    assert out["dnssec"] is True
+    assert out["dnssec"] == "signed"
+
+
+def test_normalise_dnssec_unsigned(web_check_module):
+    parsed = {"dnssec": "unsigned"}
+    out = web_check_module._normalize_whois(parsed, raw="", tld="com")
+    assert out["dnssec"] == "unsigned"
 
 
 def test_check_whois_cache_hit(monkeypatch, web_check_module, tmp_cache):
@@ -91,7 +138,7 @@ def test_check_whois_cache_hit(monkeypatch, web_check_module, tmp_cache):
         "days_to_expire": 9999,
         "provider_no_expiry": False,
         "name_servers": [],
-        "schema_version": 1,
+        "schema_version": web_check_module.SCHEMA_VERSION,
         "checked_at": "2026-05-13T00:00:00+00:00",
     }
     tmp_cache.write(apex, payload, ttl=86400)

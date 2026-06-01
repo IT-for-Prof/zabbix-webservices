@@ -4,6 +4,40 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.6 / web_check 2.1.8] - 2026-06-01
+
+### web_check 2.1.8 — output schema the 2.2.6 triggers depend on
+The `7.0-2.2.6` hardening below was written against *this* script's output
+schema but shipped paired with `web_check 2.1.6`; this release closes that gap.
+(`2.1.7` was an unreleased interim.) **Requires a node-side redeploy**
+(`scripts/deploy/install.sh`) on every monitor node — until each node pulls
+2.1.8 the items below keep their 2.1.6 values and the DNSSEC trigger stays dead.
+
+- **`dnssec` is now a tri-state string `"signed"` / `"unsigned"` / `"unknown"`**
+  (was a JSON boolean). The `Domain DNSSEC removed` trigger compares
+  `last(…whois.dnssec,#2)="signed" and last(…whois.dnssec)="unsigned"`; against
+  the old boolean the `CHAR` item stored `"true"`/`"false"`, so the trigger could
+  never fire. Verified dead in production before the fix — every WHOIS-owner host
+  read `"false"`.
+- **No nulls in any template-consumed field.** WHOIS, cert, TLS, tls-scan and
+  HTTP/3 error/partial paths now emit every key the template reads, with typed
+  defaults (`""`, `0`, `[]`, `{}`, `false`), so dependent items never go
+  UNSUPPORTED and triggers never see `*UNKNOWN*`. `CertResult.tls`/`.cert` default
+  to full shapes; `cmd_cert` no longer flattens failures to a sparse envelope.
+- **`whois_incomplete` error path.** A normal TLD that parses with no expiry is a
+  script failure (`ok=0`, full fallback fields) rather than `ok=1` with a null
+  `days_to_expire`; `provider_no_expiry` is now reserved for TLDs that genuinely
+  have no expiry (the old raw-text heuristic was dropped). Blast radius at deploy:
+  zero — all 21 WHOIS-owner hosts currently report `provider_no_expiry=0` with a
+  parseable expiry.
+- **Cache `SCHEMA_VERSION` 1→2.** `WhoisCache.read` rejects entries whose record
+  *or* payload schema doesn't match, so stale `ok=true`/null-field payloads are
+  re-queried once per apex after deploy (21 apexes; self-healing). `write` now
+  stamps the payload too.
+- Tests cover the WHOIS schema (dnssec string, `whois_incomplete`, no-expiry
+  semantics), cache invalidation, and full-envelope assertions for the
+  cert/tls-scan/http3 bad-url paths. `PyYAML` added to `requirements-test.txt`.
+
 ## [7.0-2.2.6 / web_check 2.1.6] - 2026-06-01
 
 ### Template 7.0-2.2.6 — harden WHOIS triggers + apex-dedup tooling

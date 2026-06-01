@@ -28,6 +28,8 @@ def test_http3_skipped_when_alt_svc_missing(monkeypatch, web_check_module):
     assert result["ok"] is True
     assert result["alt_svc_advertised"] is False
     assert result["h3_reachable"] is False
+    assert result["alpn"] == ""
+    assert result["quic_version"] == ""
     assert result["error_code"] == ""
     assert called["udp"] is False, "must not run QUIC probe when h3 isn't advertised"
 
@@ -97,6 +99,11 @@ def test_http3_bad_url(monkeypatch, web_check_module):
     result = web_check_module.run_http3_check("https://", timeout=1.0)
     assert result["ok"] is False
     assert result["error_code"] == "bad_url"
+    assert result["alt_svc_advertised"] is False
+    assert result["h3_reachable"] is False
+    assert result["handshake_ms"] == 0.0
+    assert result["alpn"] == ""
+    assert result["quic_version"] == ""
 
 
 @pytest.mark.parametrize(
