@@ -1047,7 +1047,31 @@ def _finalize_registration(norm: dict[str, Any], apex: str) -> dict[str, Any]:
     return norm
 
 
-def _query_rdap(apex: str, deadline: float) -> dict[str, Any] | None:  # noqa: C901 — import-guard fallback + bounded-client cleanup, not algorithmic branching
+def _rdap_whodap_client(timeout: float) -> tuple[Any, Any]:
+    """Build a timeout-bounded whodap DNS client and its backing httpx client.
+
+    Returns ``(whodap_client, http_client)``, or ``(None, None)`` when
+    whodap/httpx are unavailable (e.g. a minimal test env) or the IANA bootstrap
+    build fails — callers then use the unbounded ``asyncwhois.rdap()`` path.
+    Isolated into its own function so tests can stub it: this keeps them
+    hermetic (no real bootstrap network fetch) regardless of which deps are
+    installed in the test environment.
+    """
+    try:
+        import httpx
+        import whodap
+    except ImportError:
+        return None, None
+    http_client = httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=True)
+    try:
+        whodap_client = whodap.DNSClient.new_client(httpx_client=http_client)
+    except Exception:  # noqa: BLE001 — bootstrap build failed: caller falls back to WHOIS
+        http_client.close()
+        return None, None
+    return whodap_client, http_client
+
+
+def _query_rdap(apex: str, deadline: float) -> dict[str, Any] | None:
     """Return a normalized registration dict from RDAP, or None to fall back.
 
     Returns None on: exhausted time budget, no RDAP server for the TLD
@@ -1063,22 +1087,7 @@ def _query_rdap(apex: str, deadline: float) -> dict[str, Any] | None:  # noqa: C
     except ImportError:
         return None
 
-    whodap_client = None
-    http_client = None
-    try:
-        import httpx
-        import whodap
-    except ImportError:
-        pass  # deps absent (minimal test env): use the unbounded convenience call
-    else:
-        try:
-            http_client = httpx.Client(timeout=httpx.Timeout(min(4.0, remaining)), follow_redirects=True)
-            whodap_client = whodap.DNSClient.new_client(httpx_client=http_client)
-        except Exception:  # noqa: BLE001 — client/bootstrap build failed: skip RDAP, use WHOIS
-            if http_client is not None:
-                http_client.close()
-            return None
-
+    whodap_client, http_client = _rdap_whodap_client(min(4.0, remaining))
     try:
         if whodap_client is not None:
             raw_json, _ = asyncwhois.rdap(apex, whodap_client=whodap_client)
