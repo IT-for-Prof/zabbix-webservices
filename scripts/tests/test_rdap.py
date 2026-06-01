@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 FIX = Path(__file__).parent / "fixtures" / "rdap"
 
 
@@ -63,3 +65,57 @@ def test_rdap_no_nulls_on_sparse_input(web_check_module):
     assert out["name_servers"] == []
     assert out["statuses"] == []
     assert out["days_to_expire"] is None
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"events": ["x", 123, None]},
+        {"status": 5},
+        {"status": {"weird": True}},
+        {"nameservers": [{"ldhName": 123}, {"ldhName": "NS1.Example.COM."}]},
+        {"entities": [{"roles": "registrar", "vcardArray": ["vcard", [["fn", {}, "text", "X"]]]}]},
+        {"entities": ["junk", 5, {"roles": ["registrar"], "publicIds": ["x", 7]}]},
+        {"secureDNS": "nope"},
+    ],
+)
+def test_rdap_malformed_never_raises_and_no_nulls(web_check_module, payload):
+    out = web_check_module._normalize_rdap(payload, "com")
+    for k in (
+        "source",
+        "registrar",
+        "registrar_iana_id",
+        "registered_at",
+        "last_updated",
+        "expires_at",
+        "abuse_email",
+        "dnssec",
+    ):
+        assert isinstance(out[k], str)
+    assert isinstance(out["statuses"], list)
+    assert isinstance(out["name_servers"], list)
+    assert out["days_to_expire"] is None or isinstance(out["days_to_expire"], int)
+
+
+def test_rdap_string_roles_not_substring_matched(web_check_module):
+    # roles as a bare string must NOT be substring-matched into a registrar hit
+    d = {"entities": [{"roles": "sub-registrar-x", "vcardArray": ["vcard", [["fn", {}, "text", "Nope"]]]}]}
+    out = web_check_module._normalize_rdap(d, "com")
+    assert out["registrar"] == ""
+
+
+def test_rdap_registry_expiration_fallback(web_check_module):
+    d = {"events": [{"eventAction": "registry expiration", "eventDate": "2029-09-09T00:00:00Z"}]}
+    out = web_check_module._normalize_rdap(d, "com")
+    assert out["expires_at"].startswith("2029-09-09")
+
+
+def test_rdap_expiration_wins_over_registrar_expiration(web_check_module):
+    d = {
+        "events": [
+            {"eventAction": "registrar expiration", "eventDate": "2030-01-01T00:00:00Z"},
+            {"eventAction": "expiration", "eventDate": "2028-01-01T00:00:00Z"},
+        ]
+    }
+    out = web_check_module._normalize_rdap(d, "com")
+    assert out["expires_at"].startswith("2028-01-01")

@@ -1211,7 +1211,7 @@ def _vcard_get(vcard_array: Any, field: str) -> str | None:
     try:
         for entry in vcard_array[1]:
             if entry[0] == field:
-                return entry[3]
+                return entry[3] if isinstance(entry[3], str) else None
     except (IndexError, TypeError, KeyError):
         return None
     return None
@@ -1219,7 +1219,7 @@ def _vcard_get(vcard_array: Any, field: str) -> str | None:
 
 def _rdap_find_entity(entities: Any, role: str) -> dict[str, Any] | None:
     for e in entities or []:
-        if isinstance(e, dict) and role in (e.get("roles") or []):
+        if isinstance(e, dict) and isinstance(e.get("roles"), list) and role in e["roles"]:
             return e
     return None
 
@@ -1232,7 +1232,7 @@ def _rdap_registrar(d: dict[str, Any]) -> tuple[str | None, str | None, str | No
     name = _vcard_get(reg.get("vcardArray"), "fn")
     iana = None
     for pid in reg.get("publicIds") or []:
-        if "IANA" in (pid.get("type") or ""):
+        if isinstance(pid, dict) and "IANA" in (pid.get("type") or ""):
             iana = pid.get("identifier")
     abuse = _rdap_find_entity(reg.get("entities"), "abuse")
     abuse_email = _vcard_get(abuse.get("vcardArray"), "email") if abuse else None
@@ -1250,6 +1250,8 @@ def _normalize_rdap(d: dict[str, Any], tld: str) -> dict[str, Any]:
     """
     events: dict[str, str] = {}
     for ev in d.get("events") or []:
+        if not isinstance(ev, dict):
+            continue
         action, date = ev.get("eventAction"), ev.get("eventDate")
         if action and date and action not in events:
             events[action] = date
@@ -1269,14 +1271,16 @@ def _normalize_rdap(d: dict[str, Any], tld: str) -> dict[str, Any]:
     registrar, iana_id, abuse_email = _rdap_registrar(d)
 
     name_servers = [
-        ns.get("ldhName").rstrip(".").lower()
+        ns["ldhName"].rstrip(".").lower()
         for ns in (d.get("nameservers") or [])
-        if isinstance(ns, dict) and ns.get("ldhName")
+        if isinstance(ns, dict) and isinstance(ns.get("ldhName"), str)
     ]
 
     statuses = d.get("status") or []
     if isinstance(statuses, str):
         statuses = [statuses]
+    elif not isinstance(statuses, list):
+        statuses = []
 
     no_expiry = tld in NO_EXPIRY_TLDS
     dte = (expires_dt - datetime.now(UTC)).days if expires_dt is not None else None
