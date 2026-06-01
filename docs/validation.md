@@ -502,6 +502,19 @@ should be inverted: per-TLD strategy table with port-43 as the dominant
 path, RDAP only for gTLDs. `.hu` expiry monitoring may have to be dropped
 or use a paid registry-data feed.
 
+> **Resolved (2026-06-01, web_check 2.2.0).** The "invert to port-43-first"
+> conclusion was *not* adopted, and a hand-maintained per-TLD table was
+> deliberately avoided. Instead `_query_registration` is **RDAP-first with
+> automatic port-43 WHOIS fallback**: routing is delegated to the IANA RDAP
+> bootstrap that `whodap` consumes, so the TLDs F-1 lists as RDAP-less
+> (`.ru`/`.рф`/`.su`/`.hu`/…) raise `NotImplementedError` on a *local*
+> bootstrap miss (~0.4 s, no network) and fall straight through to the
+> unchanged port-43 path and its TCI augmenters — `.hu` keeps
+> `provider_no_expiry`. gTLDs use RDAP (verified `.com`/`.center`). This
+> keeps `architecture.md`'s RDAP-first design intact while honouring F-1's
+> reality, with zero per-TLD maintenance. Fleet-verified across all 21
+> WHOIS-owner apexes; `hss.center` (`.center`) regained expiry monitoring.
+
 ### Finding F-2 (from B5, 2026-05-13). OCSP stapling not accessible from Python stdlib
 
 `ssl._sslobj` has no `ocsp_response_get` method in CPython 3.12. The

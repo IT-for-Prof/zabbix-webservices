@@ -15,9 +15,10 @@ port-43 WHOIS.
 - **`_query_registration`** tries `asyncwhois.rdap()` first (IANA-bootstrapped
   by `whodap`), then `asyncwhois.whois()`. RDAP-less TLDs (`.ru`/`.рф` via TCI)
   fail the RDAP bootstrap locally (~0.4 s) and use the unchanged port-43 path
-  and its TCI augmenters. RDAP and WHOIS share one 10 s wall-time budget, and
-  the RDAP HTTP client is bounded (httpx timeout) so a hung registry endpoint
-  cannot exceed the Zabbix item Timeout.
+  and its TCI augmenters. One 10 s monotonic deadline gates both phases (RDAP
+  only starts with budget left; WHOIS short-circuits if RDAP overran), and the
+  RDAP HTTP client uses a bounded per-operation httpx timeout (connect capped
+  tighter than read) so a hung/unreachable registry endpoint fails fast.
 - **`_normalize_rdap`** parses the raw RFC-9083 JSON (not `whodap`'s convenience
   dict, which drops `.com` `registrar expiration` expiry and `secureDNS`):
   expiry from `events[]` (`expiration` / `registrar expiration` /

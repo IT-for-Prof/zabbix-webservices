@@ -342,7 +342,7 @@ web_check.py["whois", "{$WEB_SERVICE.URL}"]
   "ok": true,
   "checked_at": "2026-05-13T12:34:56Z",
   "apex": "itforprof.com",
-  "source": "rdap_via_asyncwhois",
+  "source": "rdap",
   "cache_age_seconds": 0,
   "registrar": "Registrar of Domain Names REG.RU LLC",
   "registrar_iana_id": "1606",
@@ -352,7 +352,7 @@ web_check.py["whois", "{$WEB_SERVICE.URL}"]
   "days_to_expire": 308,
   "statuses": ["clientTransferProhibited"],
   "name_servers": ["ns1.reg.ru", "ns2.reg.ru"],
-  "dnssec": false,
+  "dnssec": "unsigned",
   "abuse_email": "abuse@reg.ru",
   "provider_no_expiry": false
 }
@@ -360,9 +360,11 @@ web_check.py["whois", "{$WEB_SERVICE.URL}"]
 
 The flag `provider_no_expiry` is set true when the upstream registry
 intentionally omits expiration (notably `.hu` via `whois.nic.hu`). In
-that case, `expires_at` and `days_to_expire` are `null` and the
-"domain expires" triggers are suppressed for the host (via a calculated
-item using this flag as gate).
+that case `expires_at` is `""` and `days_to_expire` is `0` (the envelope
+carries no nulls — see web_check 2.1.8), and the "domain expires" triggers
+are suppressed for the host (gated on `provider_no_expiry=0` and
+`length(expires_at)>0`). `dnssec` is a tri-state string —
+`"signed"`/`"unsigned"`/`"unknown"` — not a boolean.
 
 **Dependent items:** `whois.days_to_expire`, `whois.expires_at`,
 `whois.registrar`, `whois.name_servers` (joined), `whois.dnssec`,
