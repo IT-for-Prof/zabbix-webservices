@@ -84,9 +84,13 @@ _query_registration(apex):
     4. return whois_error_envelope("whois_incomplete", ...)  # genuine dual-source miss
 ```
 
-- The shared 10 s wall-time budget is preserved; the RDAP attempt and the WHOIS
-  retries draw from the same deadline (RDAP fast-fail on `.ru` leaves the WHOIS
-  retries their full budget).
+- One 10 s monotonic deadline gates both phases: RDAP only starts if budget
+  remains, and the WHOIS retry loop trips its deadline check immediately if RDAP
+  overran (so WHOIS never stacks a fresh budget). The deadline cannot interrupt
+  an in-flight RDAP call mid-leg, so RDAP is additionally bounded by a
+  per-operation `httpx` timeout (connect capped tighter than read) — the same
+  bounding style as WHOIS's per-attempt socket timeout. RDAP fast-fail on `.ru`
+  (~0.4 s, local bootstrap miss) leaves the WHOIS retries their full budget.
 - The output envelope is unchanged in shape. The existing `source` field carries
   `"rdap"` or `"asyncwhois"` for transparency.
 - `check_whois()`, `WhoisCache`, apex dedup, the negative-cache TTL, and the
