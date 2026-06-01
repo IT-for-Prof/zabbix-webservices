@@ -44,8 +44,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-__version__ = "2.1.6"
-SCHEMA_VERSION = 1
+__version__ = "2.1.8"
+SCHEMA_VERSION = 2
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
 HOME = Path(os.environ.get("WEB_CHECK_HOME", "/opt/web_check"))
@@ -93,6 +93,92 @@ def error_envelope(error_code: str, message: str, **extra: Any) -> dict[str, Any
     }
     out.update(extra)
     return out
+
+
+def cert_defaults() -> dict[str, Any]:
+    return {
+        "subject_cn": "",
+        "subject_dn": "",
+        "issuer_cn": "",
+        "issuer_dn": "",
+        "issuer_org": "",
+        "serial": "",
+        "not_before": "",
+        "not_after": "",
+        "days_to_expire": 0,
+        "sans": [],
+        "hostname_covered": False,
+        "signature_algorithm": "",
+        "public_key_algorithm": "",
+        "public_key_bits": 0,
+        "fingerprint_sha256": "",
+        "fingerprint_sha1": "",
+        "ocsp_uri": "",
+        "ca_issuers_uri": "",
+        "chain_status": "",
+        "chain_length": 0,
+    }
+
+
+def tls_defaults() -> dict[str, Any]:
+    return {
+        "protocol": "",
+        "cipher": "",
+        "alpn": "",
+        "forward_secrecy": False,
+        "handshake_ms": 0.0,
+    }
+
+
+def whois_error_envelope(error_code: str, message: str, *, apex: str = "", **extra: Any) -> dict[str, Any]:
+    """Build a WHOIS error envelope with every template-consumed key present."""
+    defaults: dict[str, Any] = {
+        "source": "",
+        "registrar": "",
+        "registrar_iana_id": "",
+        "registered_at": "",
+        "last_updated": "",
+        "expires_at": "",
+        "days_to_expire": 0,
+        "statuses": [],
+        "name_servers": [],
+        "dnssec": "unknown",
+        "abuse_email": "",
+        "provider_no_expiry": False,
+        "apex": apex,
+        "cache_age_seconds": 0,
+    }
+    defaults.update({k: v for k, v in extra.items() if v is not None})
+    return error_envelope(error_code, message, **defaults)
+
+
+def tls_scan_error_envelope(error_code: str, message: str, **extra: Any) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
+        "url": "",
+        "host": "",
+        "port": 443,
+        "supported_protocols": [],
+        "negotiated_ciphers": {},
+        "weak_findings": [],
+        "weak_count": 0,
+    }
+    defaults.update({k: v for k, v in extra.items() if v is not None})
+    return error_envelope(error_code, message, **defaults)
+
+
+def http3_error_envelope(error_code: str, message: str, **extra: Any) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
+        "url": "",
+        "host": "",
+        "port": 443,
+        "alt_svc_advertised": False,
+        "h3_reachable": False,
+        "handshake_ms": 0.0,
+        "alpn": "",
+        "quic_version": "",
+    }
+    defaults.update({k: v for k, v in extra.items() if v is not None})
+    return error_envelope(error_code, message, **defaults)
 
 
 # =============================================================================
@@ -235,8 +321,13 @@ class WhoisCache:
             return None
         try:
             raw = json.loads(p.read_text(encoding="utf-8"))
+            if int(raw.get("schema_version", 0)) != SCHEMA_VERSION:
+                return None
+            payload = raw["payload"]
+            if int(payload.get("schema_version", 0)) != SCHEMA_VERSION:
+                return None
             return CacheEntry(
-                payload=raw["payload"],
+                payload=payload,
                 written_at=float(raw["written_at"]),
                 ttl=int(raw["ttl"]),
             )
@@ -245,6 +336,8 @@ class WhoisCache:
 
     def write(self, apex: str, payload: dict[str, Any], ttl: int) -> None:
         """Atomic write via tmpfile + os.replace. Returns silently on permission errors."""
+        payload = dict(payload)
+        payload.setdefault("schema_version", SCHEMA_VERSION)
         record = {
             "schema_version": SCHEMA_VERSION,
             "apex": apex,
@@ -300,8 +393,8 @@ class CertResult:
     url: str = ""
     host: str = ""
     port: int = 443
-    tls: dict[str, Any] = field(default_factory=dict)
-    cert: dict[str, Any] = field(default_factory=dict)
+    tls: dict[str, Any] = field(default_factory=tls_defaults)
+    cert: dict[str, Any] = field(default_factory=cert_defaults)
     error_code: str = ""
     error_message: str = ""
 
@@ -668,7 +761,7 @@ def run_tls_scan(url: str, *, timeout: float = 10.0) -> dict[str, Any]:
     """
     host, port = url_host(url, force_tls=True)
     if not host:
-        return error_envelope("bad_url", f"cannot parse URL: {url!r}")
+        return tls_scan_error_envelope("bad_url", f"cannot parse URL: {url!r}", url=url)
 
     supported: list[str] = []
     negotiated: dict[str, str] = {}
@@ -805,7 +898,7 @@ def run_http3_check(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
     """Layer 6 master probe. Always returns a dict; never raises."""
     host, port = url_host(url, force_tls=True)
     if not host:
-        return error_envelope("bad_url", f"cannot parse URL: {url!r}")
+        return http3_error_envelope("bad_url", f"cannot parse URL: {url!r}", url=url)
 
     advertised = _alt_svc_advertises_h3(host, port, timeout)
     result: dict[str, Any] = {
@@ -818,8 +911,8 @@ def run_http3_check(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
         "alt_svc_advertised": advertised,
         "h3_reachable": False,
         "handshake_ms": 0.0,
-        "alpn": None,
-        "quic_version": None,
+        "alpn": "",
+        "quic_version": "",
         "error_code": "",
         "error_message": "",
     }
@@ -848,6 +941,8 @@ def run_http3_check(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
     finally:
         with contextlib.suppress(Exception):
             loop.close()
+    result["alpn"] = result.get("alpn") or ""
+    result["quic_version"] = result.get("quic_version") or ""
     return result
 
 
@@ -862,13 +957,13 @@ def check_whois(
     """Layer 3: apex-deduped WHOIS via asyncwhois."""
     host, _ = url_host(url)
     if not host:
-        return error_envelope("bad_url", f"cannot parse URL: {url!r}")
+        return whois_error_envelope("bad_url", f"cannot parse URL: {url!r}")
     try:
         apex = registered_apex(host)
     except ImportError as e:
-        return error_envelope("missing_dependency", f"tldextract not importable: {e}", host=host)
+        return whois_error_envelope("missing_dependency", f"tldextract not importable: {e}", apex=host)
     if not apex:
-        return error_envelope("apex_unresolved", f"no PSL apex for {host!r}", host=host)
+        return whois_error_envelope("apex_unresolved", f"no PSL apex for {host!r}", apex=host)
 
     cache = cache or WhoisCache()
     hit = cache.read(apex)
@@ -886,7 +981,7 @@ def check_whois(
                 out["cache_age_seconds"] = hit.age_seconds()
                 out["stale_due_to_lock"] = True
                 return out
-            return error_envelope("whois_locked", f"concurrent query in progress for apex {apex!r}", apex=apex)
+            return whois_error_envelope("whois_locked", f"concurrent query in progress for apex {apex!r}", apex=apex)
         # Re-check cache inside the lock (another process may have just written).
         hit = cache.read(apex)
         if hit and hit.fresh():
@@ -911,7 +1006,7 @@ def _query_whois(apex: str) -> dict[str, Any]:
     try:
         import asyncwhois
     except ImportError as e:
-        return error_envelope("missing_dependency", f"asyncwhois not importable: {e}", apex=apex)
+        return whois_error_envelope("missing_dependency", f"asyncwhois not importable: {e}", apex=apex)
 
     # Thread our offline+no-cache extractor through to asyncwhois. Without
     # this kwarg, asyncwhois constructs its OWN `TLDExtract()` with library
@@ -931,7 +1026,11 @@ def _query_whois(apex: str) -> dict[str, Any]:
     last_err = ""
     for attempt in range(3):
         if time.monotonic() >= deadline:
-            return error_envelope("whois_timeout", f"deadline exceeded after {attempt} attempts: {last_err}", apex=apex)
+            return whois_error_envelope(
+                "whois_timeout",
+                f"deadline exceeded after {attempt} attempts: {last_err}",
+                apex=apex,
+            )
         try:
             raw, parsed = asyncwhois.whois(apex, tldextract_obj=extractor)
             break
@@ -944,10 +1043,26 @@ def _query_whois(apex: str) -> dict[str, Any]:
                 if sleep_for > 0:
                     time.sleep(sleep_for)
     else:
-        return error_envelope("whois_unreachable", last_err, apex=apex)
+        return whois_error_envelope("whois_unreachable", last_err, apex=apex)
 
     # Normalize: asyncwhois returns slightly different keys per registry/parser.
     norm = _normalize_whois(parsed or {}, raw or "", tld)
+    if norm["days_to_expire"] is None and not norm["provider_no_expiry"]:
+        return whois_error_envelope(
+            "whois_incomplete",
+            f"WHOIS response for apex {apex!r} did not include a parseable expiration date",
+            apex=apex,
+            source=norm["source"],
+            registrar=norm["registrar"] or "",
+            registrar_iana_id=norm["registrar_iana_id"] or "",
+            registered_at=norm["registered_at"] or "",
+            last_updated=norm["last_updated"] or "",
+            statuses=norm["statuses"],
+            name_servers=norm["name_servers"],
+            dnssec=norm["dnssec"],
+            abuse_email=norm["abuse_email"] or "",
+            provider_no_expiry=False,
+        )
     norm.update(
         {
             "ok": True,
@@ -983,7 +1098,12 @@ def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, An
     if isinstance(ns, str):
         ns = [ns]
     dnssec = parsed.get("dnssec")
-    dnssec_b = dnssec.lower() not in ("unsigned", "", "none", "no") if isinstance(dnssec, str) else bool(dnssec)
+    if isinstance(dnssec, str):
+        dnssec_s = "unsigned" if dnssec.lower() in ("unsigned", "", "none", "no") else "signed"
+    elif dnssec is None:
+        dnssec_s = "unknown"
+    else:
+        dnssec_s = "signed" if bool(dnssec) else "unsigned"
 
     # Augmenters for TLDs where asyncwhois parser has gaps.
     if expires is None and tld in TCI_TLDS:
@@ -992,7 +1112,7 @@ def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, An
         if not ns and ns2:
             ns = ns2
 
-    no_expiry = tld in NO_EXPIRY_TLDS or (expires is None and not raw_has_expiry(raw))
+    no_expiry = tld in NO_EXPIRY_TLDS
     dte = None
     if expires:
         try:
@@ -1005,16 +1125,16 @@ def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, An
 
     return {
         "source": "asyncwhois",
-        "registrar": registrar,
-        "registrar_iana_id": parsed.get("registrar_iana_id"),
-        "registered_at": iso(created),
-        "last_updated": iso(updated),
-        "expires_at": iso(expires),
-        "days_to_expire": dte,
+        "registrar": registrar or "",
+        "registrar_iana_id": parsed.get("registrar_iana_id") or "",
+        "registered_at": iso(created) or "",
+        "last_updated": iso(updated) or "",
+        "expires_at": iso(expires) or "",
+        "days_to_expire": dte if dte is not None or not no_expiry else 0,
         "statuses": statuses,
         "name_servers": [n.rstrip(".").lower() for n in ns if n],
-        "dnssec": dnssec_b,
-        "abuse_email": parsed.get("registrar_abuse_email"),
+        "dnssec": dnssec_s,
+        "abuse_email": parsed.get("registrar_abuse_email") or "",
         "provider_no_expiry": no_expiry,
     }
 
@@ -1076,17 +1196,6 @@ def _augment_tci_raw(raw: str) -> tuple[datetime | None, datetime | None, list[s
 def cmd_cert(args: argparse.Namespace) -> None:
     res = check_cert(args.url, timeout=float(args.timeout))
     payload = asdict(res)
-    # On failure paths the dataclass holds tls={} cert={} — flatten to error envelope
-    if not payload["ok"]:
-        emit(
-            error_envelope(
-                payload["error_code"] or "unknown",
-                payload["error_message"] or "",
-                url=payload["url"],
-                host=payload["host"],
-                port=payload["port"],
-            )
-        )
     emit(payload)
 
 

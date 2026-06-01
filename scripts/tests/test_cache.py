@@ -9,7 +9,9 @@ def test_roundtrip(tmp_cache):
     tmp_cache.write("example.com", {"ok": True, "registrar": "Test"}, ttl=60)
     hit = tmp_cache.read("example.com")
     assert hit is not None
-    assert hit.payload == {"ok": True, "registrar": "Test"}
+    assert hit.payload["ok"] is True
+    assert hit.payload["registrar"] == "Test"
+    assert hit.payload["schema_version"] == __import__("web_check").SCHEMA_VERSION
     assert hit.fresh()
     assert hit.age_seconds() < 5
 
@@ -61,3 +63,32 @@ def test_atomic_write_no_partials(tmp_cache):
     p = tmp_cache._path("apex.test")
     raw = json.loads(p.read_text(encoding="utf-8"))
     assert raw["payload"]["i"] == 49
+
+
+def test_old_whois_cache_schema_is_ignored(tmp_cache, web_check_module):
+    """Old ok=true WHOIS payloads with incomplete fields must be invalidated."""
+    import json
+
+    p = tmp_cache._path("searegion.com")
+    p.write_text(
+        json.dumps(
+            {
+                "schema_version": web_check_module.SCHEMA_VERSION - 1,
+                "apex": "searegion.com",
+                "payload": {
+                    "ok": True,
+                    "schema_version": web_check_module.SCHEMA_VERSION - 1,
+                    "expires_at": None,
+                    "registrar": None,
+                    "dnssec": False,
+                    "name_servers": [],
+                    "provider_no_expiry": False,
+                },
+                "written_at": time.time(),
+                "ttl": 3600,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert tmp_cache.read("searegion.com") is None
