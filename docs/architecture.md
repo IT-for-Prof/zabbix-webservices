@@ -599,6 +599,45 @@ change-detection.
 **Reasonable cache size:** For our parc, ~25 apex × ~600 bytes/file =
 ~15 KiB. Effectively free.
 
+### Host-level WHOIS ownership (apex owner dedup)
+
+The FS cache above dedups WHOIS *network queries*. A second, independent layer
+dedups the WHOIS *monitoring surface* — items, triggers, and alerts — across the
+Zabbix hosts that share an apex. Without it, the eleven `*.itforprof.com` hosts
+each raise their own "Domain expires" / "Registrar changed" event for the one
+shared registration.
+
+`scripts/sync-domain-registry-owners.py` elects one **owner** host per registered
+apex and disables WHOIS on the **duplicates**:
+
+1. **Owner selection (deterministic, idempotent):** among the *enabled*
+   template-linked hosts sharing an apex, prefer the host whose URL hostname
+   equals the bare apex; if none qualifies, the shortest URL hostname; ties
+   broken by lowest hostid. Re-runs always elect the same owner. (Apex is
+   extracted with the same PSL `registered_apex()`/`url_host()` used by
+   `web_check.py`, so host-dedup and cache-dedup agree on what "apex" means.)
+2. **Effect:** the owner keeps WHOIS enabled; each duplicate's WHOIS master +
+   dependent items and the nine domain triggers are set `status=disabled` at the
+   host level. Every host (owner and duplicate) is stamped with transparency
+   macros `{$WEB_SERVICE.REGISTRY.APEX}`, `{$WEB_SERVICE.REGISTRY.OWNER}`,
+   `{$WEB_SERVICE.REGISTRY.ROLE}` (`owner`|`duplicate`) — metadata only, not
+   referenced by any trigger.
+3. **Fail-closed:** if any host's WHOIS item/trigger inventory is incomplete the
+   whole run aborts before writing anything — never a partial dedup.
+4. **Default dry-run;** `--apply` writes, `--only-apex <apex>` scopes to one
+   group. Reads `ZABBIX_URL`/`ZABBIX_TOKEN` from `scripts/.env`; item/trigger
+   status changes are batched into one array call per host.
+5. **Re-import caveat:** `configuration.import` recreates the
+   `web_check.whois.error_code`/`error_message` dependent items *enabled* on
+   duplicate hosts (harmless — they carry no triggers and the duplicate's WHOIS
+   master stays disabled); re-run the script after every import to restore the
+   clean owner-only state. Host-level status overrides otherwise survive
+   re-import.
+
+The two layers are independent: the cache collapses round-trips even with no
+dedup, and the owner dedup collapses the monitoring surface to one item set +
+one alert per apex.
+
 ## Python implementation: `web_check.py`
 
 ### File layout in the repo
