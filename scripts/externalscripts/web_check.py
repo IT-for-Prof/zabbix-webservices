@@ -1189,6 +1189,115 @@ def _augment_tci_raw(raw: str) -> tuple[datetime | None, datetime | None, list[s
 
 
 # =============================================================================
+# Layer 3 — RDAP (RFC 9083) normalization
+# =============================================================================
+
+
+def _parse_rdap_dt(s: Any) -> datetime | None:
+    """Parse an RDAP ISO-8601 eventDate into an aware UTC datetime, or None."""
+    if not isinstance(s, str) or not s:
+        return None
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def _vcard_get(vcard_array: Any, field: str) -> str | None:
+    """Pull a field (e.g. 'fn', 'email') from a jCard ['vcard', [[name,..,value]]]."""
+    try:
+        for entry in vcard_array[1]:
+            if entry[0] == field:
+                return entry[3]
+    except (IndexError, TypeError, KeyError):
+        return None
+    return None
+
+
+def _rdap_find_entity(entities: Any, role: str) -> dict[str, Any] | None:
+    for e in entities or []:
+        if isinstance(e, dict) and role in (e.get("roles") or []):
+            return e
+    return None
+
+
+def _rdap_registrar(d: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
+    """(registrar name, IANA registrar id, abuse email) from RDAP entities."""
+    reg = _rdap_find_entity(d.get("entities"), "registrar")
+    if not reg:
+        return (None, None, None)
+    name = _vcard_get(reg.get("vcardArray"), "fn")
+    iana = None
+    for pid in reg.get("publicIds") or []:
+        if "IANA" in (pid.get("type") or ""):
+            iana = pid.get("identifier")
+    abuse = _rdap_find_entity(reg.get("entities"), "abuse")
+    abuse_email = _vcard_get(abuse.get("vcardArray"), "email") if abuse else None
+    return (name, iana, abuse_email)
+
+
+def _normalize_rdap(d: dict[str, Any], tld: str) -> dict[str, Any]:
+    """Convert an RDAP domain object (RFC 9083) into our stable envelope.
+
+    Mirrors `_normalize_whois`'s output shape exactly (same keys, no nulls,
+    `dnssec` tri-state string, `provider_no_expiry` semantics) so callers can't
+    tell the source apart beyond the `source` field. We read the raw RDAP JSON,
+    not whodap's convenience dict, which drops `.com` `registrar expiration`
+    expiry events and `secureDNS`.
+    """
+    events: dict[str, str] = {}
+    for ev in d.get("events") or []:
+        action, date = ev.get("eventAction"), ev.get("eventDate")
+        if action and date and action not in events:
+            events[action] = date
+
+    expires_dt = _parse_rdap_dt(
+        events.get("expiration") or events.get("registrar expiration") or events.get("registry expiration")
+    )
+    created_dt = _parse_rdap_dt(events.get("registration"))
+    updated_dt = _parse_rdap_dt(events.get("last changed"))
+
+    sd = d.get("secureDNS")
+    if isinstance(sd, dict) and "delegationSigned" in sd:
+        dnssec_s = "signed" if sd.get("delegationSigned") else "unsigned"
+    else:
+        dnssec_s = "unknown"
+
+    registrar, iana_id, abuse_email = _rdap_registrar(d)
+
+    name_servers = [
+        ns.get("ldhName").rstrip(".").lower()
+        for ns in (d.get("nameservers") or [])
+        if isinstance(ns, dict) and ns.get("ldhName")
+    ]
+
+    statuses = d.get("status") or []
+    if isinstance(statuses, str):
+        statuses = [statuses]
+
+    no_expiry = tld in NO_EXPIRY_TLDS
+    dte = (expires_dt - datetime.now(UTC)).days if expires_dt is not None else None
+
+    return {
+        "source": "rdap",
+        "registrar": registrar or "",
+        "registrar_iana_id": iana_id or "",
+        "registered_at": created_dt.isoformat() if created_dt else "",
+        "last_updated": updated_dt.isoformat() if updated_dt else "",
+        "expires_at": expires_dt.isoformat() if expires_dt else "",
+        "days_to_expire": dte if dte is not None or not no_expiry else 0,
+        "statuses": statuses,
+        "name_servers": name_servers,
+        "dnssec": dnssec_s,
+        "abuse_email": abuse_email or "",
+        "provider_no_expiry": no_expiry,
+    }
+
+
+# =============================================================================
 # Subcommand handlers
 # =============================================================================
 
