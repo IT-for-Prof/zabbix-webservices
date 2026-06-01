@@ -33,10 +33,7 @@ def _host(registry_mod, hostid, host, url, *, status="0"):
 
 def _item_inventory(registry_mod, hostid, *, status):
     keys = [f'{registry_mod.WHOIS_MASTER_KEY_PREFIX},"url"]'] + sorted(registry_mod.WHOIS_DEPENDENT_KEYS)
-    return [
-        {"itemid": f"{hostid}{idx:02d}", "key_": key, "status": status}
-        for idx, key in enumerate(keys, start=1)
-    ]
+    return [{"itemid": f"{hostid}{idx:02d}", "key_": key, "status": status} for idx, key in enumerate(keys, start=1)]
 
 
 def _trigger_inventory(registry_mod, hostid, *, status):
@@ -157,7 +154,9 @@ def test_plan_rejects_missing_item_or_trigger_inventory(registry_mod):
     with pytest.raises(RuntimeError, match="incomplete WHOIS/RDAP item inventory"):
         registry_mod.plan_actions(
             groups,
-            item_state={"1": [{"itemid": "101", "key_": "web_check.whois.ok", "status": registry_mod.ZABBIX_STATUS_ENABLED}]},
+            item_state={
+                "1": [{"itemid": "101", "key_": "web_check.whois.ok", "status": registry_mod.ZABBIX_STATUS_ENABLED}]
+            },
             trigger_state={"1": _trigger_inventory(registry_mod, 1, status=registry_mod.ZABBIX_STATUS_ENABLED)},
             macro_state={},
         )
@@ -174,7 +173,15 @@ def test_plan_rejects_missing_item_or_trigger_inventory(registry_mod):
         registry_mod.plan_actions(
             groups,
             item_state={"1": _item_inventory(registry_mod, 1, status=registry_mod.ZABBIX_STATUS_ENABLED)},
-            trigger_state={"1": [{"triggerid": "101", "description": "WHOIS check failing", "status": registry_mod.ZABBIX_STATUS_ENABLED}]},
+            trigger_state={
+                "1": [
+                    {
+                        "triggerid": "101",
+                        "description": "WHOIS check failing",
+                        "status": registry_mod.ZABBIX_STATUS_ENABLED,
+                    }
+                ]
+            },
             macro_state={},
         )
 
@@ -191,9 +198,7 @@ def test_dry_run_does_not_call_mutating_api_methods(registry_mod):
             return {}
 
     zbx = FakeZabbix()
-    actions = [
-        registry_mod.Action("item.update", {"itemid": "1", "status": registry_mod.ZABBIX_STATUS_ENABLED})
-    ]
+    actions = [registry_mod.Action("item.update", {"itemid": "1", "status": registry_mod.ZABBIX_STATUS_ENABLED})]
 
     registry_mod.apply_actions(zbx, actions, apply=False)
 
@@ -216,14 +221,27 @@ def test_fetch_trigger_state_requests_expanded_expressions_and_filters_whois(reg
     # The readable ("expanded") form is what expandExpression=True returns; the
     # web_check.whois substring guard only works against this form.
     triggers = [
-        {"triggerid": "1", "description": "Domain expired", "status": "0",
-         "expression": "last(/T/web_check.whois.ok)=1 and last(/T/web_check.whois.days_to_expire)<0",
-         "hosts": [{"hostid": "10"}]},
-        {"triggerid": "2", "description": "Cert expired", "status": "0",
-         "expression": "last(/T/web_check.cert.days_to_expire)<0",  # non-whois -> dropped
-         "hosts": [{"hostid": "10"}]},
-        {"triggerid": "3", "description": "WHOIS check failing", "status": "0",
-         "expression": "last(/T/web_check.whois.ok)=0", "hosts": [{"hostid": "10"}]},
+        {
+            "triggerid": "1",
+            "description": "Domain expired",
+            "status": "0",
+            "expression": "last(/T/web_check.whois.ok)=1 and last(/T/web_check.whois.days_to_expire)<0",
+            "hosts": [{"hostid": "10"}],
+        },
+        {
+            "triggerid": "2",
+            "description": "Cert expired",
+            "status": "0",
+            "expression": "last(/T/web_check.cert.days_to_expire)<0",  # non-whois -> dropped
+            "hosts": [{"hostid": "10"}],
+        },
+        {
+            "triggerid": "3",
+            "description": "WHOIS check failing",
+            "status": "0",
+            "expression": "last(/T/web_check.whois.ok)=0",
+            "hosts": [{"hostid": "10"}],
+        },
     ]
     zbx = _RecordingZabbix({"trigger.get": triggers})
 
@@ -242,8 +260,13 @@ def test_fetch_trigger_state_drops_unexpanded_functionid_expressions(registry_mo
     # so the downstream inventory guard fails closed (rather than silently
     # planning a partial change).
     triggers = [
-        {"triggerid": "1", "description": "Domain expired", "status": "0",
-         "expression": "{12345}=1 and {12346}<0", "hosts": [{"hostid": "10"}]},
+        {
+            "triggerid": "1",
+            "description": "Domain expired",
+            "status": "0",
+            "expression": "{12345}=1 and {12346}<0",
+            "hosts": [{"hostid": "10"}],
+        },
     ]
     zbx = _RecordingZabbix({"trigger.get": triggers})
 
@@ -283,7 +306,9 @@ def test_apply_batches_item_and_trigger_updates_into_one_call_each(registry_mod)
     disabled = registry_mod.ZABBIX_STATUS_DISABLED
     actions = [
         registry_mod.Action("item.update", {"hostid": "2", "itemids": ["a", "b"], "status": disabled}, "items"),
-        registry_mod.Action("trigger.update", {"hostid": "2", "triggerids": ["t1", "t2"], "status": disabled}, "triggers"),
+        registry_mod.Action(
+            "trigger.update", {"hostid": "2", "triggerids": ["t1", "t2"], "status": disabled}, "triggers"
+        ),
     ]
 
     registry_mod.apply_actions(zbx, actions, apply=True)

@@ -250,11 +250,7 @@ def _item_action(host: RegistryHost, status: str, item_state: dict[str, list[dic
         raise RuntimeError(
             f"{host.host}: incomplete WHOIS/RDAP item inventory ({', '.join(detail)}); refusing to plan partial changes"
         )
-    itemids = [
-        item["itemid"]
-        for item in item_state.get(host.hostid, [])
-        if item.get("status") != status
-    ]
+    itemids = [item["itemid"] for item in item_state.get(host.hostid, []) if item.get("status") != status]
     if not itemids:
         return None
     return Action(
@@ -276,9 +272,7 @@ def _trigger_action(host: RegistryHost, status: str, trigger_state: dict[str, li
             "refusing to plan partial changes"
         )
     triggerids = [
-        trigger["triggerid"]
-        for trigger in trigger_state.get(host.hostid, [])
-        if trigger.get("status") != status
+        trigger["triggerid"] for trigger in trigger_state.get(host.hostid, []) if trigger.get("status") != status
     ]
     if not triggerids:
         return None

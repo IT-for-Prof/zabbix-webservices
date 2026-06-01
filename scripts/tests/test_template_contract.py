@@ -26,8 +26,7 @@ def test_whois_expiry_triggers_only_evaluate_when_whois_ok():
     expiry_triggers = [
         trigger
         for trigger in master["triggers"]
-        if trigger["name"].startswith("Domain expired")
-        or trigger["name"].startswith("Domain expires within")
+        if trigger["name"].startswith("Domain expired") or trigger["name"].startswith("Domain expires within")
     ]
 
     assert expiry_triggers
@@ -56,30 +55,25 @@ def test_whois_change_triggers_only_evaluate_when_whois_ok():
 
 
 def test_whois_change_triggers_ignore_empty_registry_values():
-    triggers = [
-        trigger
-        for item in _template()["items"]
-        for trigger in item.get("triggers", []) or []
-    ]
+    triggers = [trigger for item in _template()["items"] for trigger in item.get("triggers", []) or []]
     expression_by_name = {trigger["name"]: trigger["expression"] for trigger in triggers}
 
-    assert 'last(/Web service by itforprof.com/web_check.whois.registrar)<>""' in expression_by_name[
-        "Domain registrar changed"
-    ]
-    assert 'last(/Web service by itforprof.com/web_check.whois.registrar)<>"null"' in expression_by_name[
-        "Domain registrar changed"
-    ]
-    assert 'last(/Web service by itforprof.com/web_check.whois.name_servers)<>"[]"' in expression_by_name[
-        "Domain name servers changed"
-    ]
+    assert (
+        'last(/Web service by itforprof.com/web_check.whois.registrar)<>""'
+        in expression_by_name["Domain registrar changed"]
+    )
+    assert (
+        'last(/Web service by itforprof.com/web_check.whois.registrar)<>"null"'
+        in expression_by_name["Domain registrar changed"]
+    )
+    assert (
+        'last(/Web service by itforprof.com/web_check.whois.name_servers)<>"[]"'
+        in expression_by_name["Domain name servers changed"]
+    )
 
 
 def test_dnssec_removed_requires_previous_signed_state():
-    triggers = [
-        trigger
-        for item in _template()["items"]
-        for trigger in item.get("triggers", []) or []
-    ]
+    triggers = [trigger for item in _template()["items"] for trigger in item.get("triggers", []) or []]
     expression = {trigger["name"]: trigger["expression"] for trigger in triggers}["Domain DNSSEC removed"]
 
     assert 'last(/Web service by itforprof.com/web_check.whois.dnssec,#2)="signed"' in expression
@@ -90,16 +84,15 @@ def test_whois_expiry_triggers_require_valid_expiry_item():
     expiry_triggers = [
         trigger
         for trigger in master["triggers"]
-        if trigger["name"].startswith("Domain expired")
-        or trigger["name"].startswith("Domain expires within")
+        if trigger["name"].startswith("Domain expired") or trigger["name"].startswith("Domain expires within")
     ]
 
     assert expiry_triggers
     for trigger in expiry_triggers:
         assert "web_check.whois.expires_at" in trigger["expression"], trigger["name"]
-        assert "length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0" in trigger[
-            "expression"
-        ], trigger["name"]
+        assert "length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0" in trigger["expression"], (
+            trigger["name"]
+        )
 
 
 def test_whois_error_details_are_exposed_as_dependent_items():
@@ -113,11 +106,7 @@ def test_template_vendor_version_was_bumped_for_contract_change():
 
 
 def test_whois_event_names_reference_data_items_after_ok_guard():
-    triggers = [
-        trigger
-        for item in _template()["items"]
-        for trigger in item.get("triggers", []) or []
-    ]
+    triggers = [trigger for item in _template()["items"] for trigger in item.get("triggers", []) or []]
     event_name_by_trigger = {trigger["name"]: trigger.get("event_name", "") for trigger in triggers}
 
     assert event_name_by_trigger["Domain expired"] == (
@@ -131,20 +120,12 @@ def test_whois_event_names_reference_data_items_after_ok_guard():
         assert event_name_by_trigger[name] == (
             "Domain {ITEM.LASTVALUE5} expires in {ITEM.LASTVALUE3} (host: {HOST.HOST})"
         )
-    assert event_name_by_trigger["Domain registrar changed"].startswith(
-        "Registrar changed to {ITEM.LASTVALUE2}"
-    )
-    assert event_name_by_trigger["Domain name servers changed"].startswith(
-        "Name servers changed to {ITEM.LASTVALUE2}"
-    )
+    assert event_name_by_trigger["Domain registrar changed"].startswith("Registrar changed to {ITEM.LASTVALUE2}")
+    assert event_name_by_trigger["Domain name servers changed"].startswith("Name servers changed to {ITEM.LASTVALUE2}")
 
 
 def test_whois_expiry_tags_and_descriptions_reference_apex_item():
-    triggers = [
-        trigger
-        for item in _template()["items"]
-        for trigger in item.get("triggers", []) or []
-    ]
+    triggers = [trigger for item in _template()["items"] for trigger in item.get("triggers", []) or []]
     by_name = {trigger["name"]: trigger for trigger in triggers}
 
     expired = by_name["Domain expired"]
@@ -161,11 +142,7 @@ def test_whois_expiry_tags_and_descriptions_reference_apex_item():
 
 
 def test_trigger_dependency_expressions_match_target_triggers():
-    triggers = [
-        trigger
-        for item in _template()["items"]
-        for trigger in item.get("triggers", []) or []
-    ]
+    triggers = [trigger for item in _template()["items"] for trigger in item.get("triggers", []) or []]
     expression_by_name = {trigger["name"]: trigger["expression"] for trigger in triggers}
 
     for trigger in triggers:
