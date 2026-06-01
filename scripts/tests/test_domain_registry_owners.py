@@ -198,3 +198,96 @@ def test_dry_run_does_not_call_mutating_api_methods(registry_mod):
     registry_mod.apply_actions(zbx, actions, apply=False)
 
     assert zbx.calls == []
+
+
+class _RecordingZabbix:
+    """Fake client that records calls and returns canned per-method payloads."""
+
+    def __init__(self, responses):
+        self.responses = responses
+        self.calls = []
+
+    def call(self, method, params=None):
+        self.calls.append((method, params if params is not None else {}))
+        return self.responses.get(method, [])
+
+
+def test_fetch_trigger_state_requests_expanded_expressions_and_filters_whois(registry_mod):
+    # The readable ("expanded") form is what expandExpression=True returns; the
+    # web_check.whois substring guard only works against this form.
+    triggers = [
+        {"triggerid": "1", "description": "Domain expired", "status": "0",
+         "expression": "last(/T/web_check.whois.ok)=1 and last(/T/web_check.whois.days_to_expire)<0",
+         "hosts": [{"hostid": "10"}]},
+        {"triggerid": "2", "description": "Cert expired", "status": "0",
+         "expression": "last(/T/web_check.cert.days_to_expire)<0",  # non-whois -> dropped
+         "hosts": [{"hostid": "10"}]},
+        {"triggerid": "3", "description": "WHOIS check failing", "status": "0",
+         "expression": "last(/T/web_check.whois.ok)=0", "hosts": [{"hostid": "10"}]},
+    ]
+    zbx = _RecordingZabbix({"trigger.get": triggers})
+
+    state = registry_mod.fetch_trigger_state(zbx, ["10"])
+
+    method, params = zbx.calls[0]
+    assert method == "trigger.get"
+    # Regression guard for the shipped bug: without this the server returns
+    # {functionid}-form expressions and the substring filter matches nothing.
+    assert params.get("expandExpression") is True
+    assert {t["description"] for t in state["10"]} == {"Domain expired", "WHOIS check failing"}
+
+
+def test_fetch_trigger_state_drops_unexpanded_functionid_expressions(registry_mod):
+    # If a server ever returns {functionid}-form, the filter must yield nothing
+    # so the downstream inventory guard fails closed (rather than silently
+    # planning a partial change).
+    triggers = [
+        {"triggerid": "1", "description": "Domain expired", "status": "0",
+         "expression": "{12345}=1 and {12346}<0", "hosts": [{"hostid": "10"}]},
+    ]
+    zbx = _RecordingZabbix({"trigger.get": triggers})
+
+    assert registry_mod.fetch_trigger_state(zbx, ["10"]) == {}
+
+
+def test_fetch_item_state_filters_to_whois_master_and_dependents(registry_mod):
+    master_key = registry_mod.WHOIS_MASTER_KEY_PREFIX + ',"url"]'
+    items = [
+        {"itemid": "1", "hostid": "10", "key_": master_key, "status": "0"},
+        {"itemid": "2", "hostid": "10", "key_": "web_check.whois.ok", "status": "0"},
+        {"itemid": "3", "hostid": "10", "key_": "web_check.cert.ok", "status": "0"},  # dropped
+    ]
+    zbx = _RecordingZabbix({"item.get": items})
+
+    state = registry_mod.fetch_item_state(zbx, ["10"])
+
+    keys = {i["key_"] for i in state["10"]}
+    assert master_key in keys
+    assert "web_check.whois.ok" in keys
+    assert "web_check.cert.ok" not in keys
+
+
+def test_fetch_macro_state_indexes_by_host_then_macro(registry_mod):
+    macros = [
+        {"hostmacroid": "1", "hostid": "10", "macro": "{$WEB_SERVICE.REGISTRY.APEX}", "value": "x.com"},
+    ]
+    zbx = _RecordingZabbix({"usermacro.get": macros})
+
+    state = registry_mod.fetch_macro_state(zbx, ["10"])
+
+    assert state["10"]["{$WEB_SERVICE.REGISTRY.APEX}"]["value"] == "x.com"
+
+
+def test_apply_batches_item_and_trigger_updates_into_one_call_each(registry_mod):
+    zbx = _RecordingZabbix({})
+    disabled = registry_mod.ZABBIX_STATUS_DISABLED
+    actions = [
+        registry_mod.Action("item.update", {"hostid": "2", "itemids": ["a", "b"], "status": disabled}, "items"),
+        registry_mod.Action("trigger.update", {"hostid": "2", "triggerids": ["t1", "t2"], "status": disabled}, "triggers"),
+    ]
+
+    registry_mod.apply_actions(zbx, actions, apply=True)
+
+    assert [m for m, _ in zbx.calls] == ["item.update", "trigger.update"]
+    assert zbx.calls[0][1] == [{"itemid": "a", "status": disabled}, {"itemid": "b", "status": disabled}]
+    assert zbx.calls[1][1] == [{"triggerid": "t1", "status": disabled}, {"triggerid": "t2", "status": disabled}]

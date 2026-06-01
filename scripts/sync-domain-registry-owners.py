@@ -190,7 +190,6 @@ def fetch_item_state(zbx: Zabbix, hostids: list[str]) -> dict[str, list[dict]]:
         {
             "hostids": hostids,
             "output": ["itemid", "hostid", "key_", "status", "name"],
-            "webitems": True,
         },
     )
     out: dict[str, list[dict]] = defaultdict(list)
@@ -345,26 +344,41 @@ def plan_actions(
 
 
 def apply_actions(zbx: Zabbix, actions: list[Action], *, apply: bool) -> None:
+    """Apply planned actions in order, printing progress so a mid-run failure
+    shows exactly how far it got.
+
+    There is no cross-host transaction in the Zabbix API; a re-run converges
+    because every action is idempotent (already-correct status/macros are
+    skipped at plan time). Item and trigger status changes are batched into one
+    array call per host to shrink the failure window.
+    """
     if not apply:
         return
-    for action in actions:
+    total = len(actions)
+    for idx, action in enumerate(actions, start=1):
+        print(f"  [{idx}/{total}] {action.label}", flush=True)
         if action.method == "item.update":
-            for itemid in action.params.get("itemids", []):
-                zbx.call("item.update", {"itemid": itemid, "status": action.params["status"]})
+            itemids = action.params.get("itemids", [])
+            if itemids:
+                zbx.call("item.update", [{"itemid": i, "status": action.params["status"]} for i in itemids])
         elif action.method == "trigger.update":
-            for triggerid in action.params.get("triggerids", []):
-                zbx.call("trigger.update", {"triggerid": triggerid, "status": action.params["status"]})
+            triggerids = action.params.get("triggerids", [])
+            if triggerids:
+                zbx.call("trigger.update", [{"triggerid": t, "status": action.params["status"]} for t in triggerids])
         elif action.method == "usermacro.create":
             zbx.call("usermacro.create", action.params)
         elif action.method == "usermacro.update":
-            params = {
-                "hostmacroid": action.params["hostmacroid"],
-                "value": action.params["value"],
-                "description": action.params["description"],
-            }
-            zbx.call("usermacro.update", params)
+            zbx.call(
+                "usermacro.update",
+                {
+                    "hostmacroid": action.params["hostmacroid"],
+                    "value": action.params["value"],
+                    "description": action.params["description"],
+                },
+            )
         else:
             raise RuntimeError(f"unsupported action method: {action.method}")
+    print(f"  applied {total} action(s).", flush=True)
 
 
 def print_plan(groups: list[OwnerGroup], actions: list[Action], *, apply: bool) -> None:
