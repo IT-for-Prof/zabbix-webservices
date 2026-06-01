@@ -627,12 +627,16 @@ apex and disables WHOIS on the **duplicates**:
 4. **Default dry-run;** `--apply` writes, `--only-apex <apex>` scopes to one
    group. Reads `ZABBIX_URL`/`ZABBIX_TOKEN` from `scripts/.env`; item/trigger
    status changes are batched into one array call per host.
-5. **Re-import caveat:** `configuration.import` recreates the
-   `web_check.whois.error_code`/`error_message` dependent items *enabled* on
-   duplicate hosts (harmless — they carry no triggers and the duplicate's WHOIS
-   master stays disabled); re-run the script after every import to restore the
-   clean owner-only state. Host-level status overrides otherwise survive
-   re-import.
+5. **Re-import caveat (important):** `configuration.import` resets the
+   host-level status of any item/trigger whose *definition changed* back to the
+   template default (enabled). Observed live: importing the 2.2.6 hardening
+   re-enabled the disabled WHOIS triggers on all 19 duplicate hosts (the WHOIS
+   *items*, keys unchanged, stayed disabled; the newly-added
+   error_code/error_message items were created enabled). Left unconverged the
+   re-enabled "WHOIS no data received" trigger fires on duplicates (their master
+   item has no data). **Always re-run `sync-domain-registry-owners.py --apply`
+   after a template import** to re-disable duplicates. A no-op import that
+   changes no definitions leaves host-level status intact.
 
 The two layers are independent: the cache collapses round-trips even with no
 dedup, and the owner dedup collapses the monitoring surface to one item set +

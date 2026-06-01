@@ -42,10 +42,12 @@ changelog entry.)
     run aborted); and `web_check.whois.statuses` was removed from
     `WHOIS_DEPENDENT_KEYS` (no such item exists).
 - **Action required:** re-run `sync-domain-registry-owners.py --apply` after any
-  `configuration.import` of this template — re-import recreates the
-  error_code/error_message dependent items *enabled* on duplicate hosts (harmless:
-  they carry no triggers and the duplicate's WHOIS master stays disabled, but the
-  re-run restores the clean dedup state).
+  `configuration.import` of this template. Import resets the host-level status of
+  any item/trigger whose definition changed back to the template default
+  (enabled) — verified live: the 2.2.6 hardening re-enabled the disabled WHOIS
+  triggers on all 19 duplicate hosts (items with unchanged keys stayed disabled).
+  Skipping the re-run lets the re-enabled "WHOIS no data received" trigger fire on
+  every duplicate (their master item has no data).
 
 ## [7.0-2.2.3 / web_check 2.1.6] - 2026-05-26
 

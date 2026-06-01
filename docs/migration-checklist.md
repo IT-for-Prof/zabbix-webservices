@@ -23,12 +23,13 @@ step until the legacy template is unlinked.
       python3 scripts/sync-domain-registry-owners.py            # dry-run, review
       python3 scripts/sync-domain-registry-owners.py --apply
       ```
-      Re-import recreates the `web_check.whois.error_code`/`error_message`
-      dependent items *enabled* on duplicate hosts (harmless — no triggers, and
-      the duplicate's WHOIS master stays disabled); the re-run restores the clean
-      owner-only state. Host-level item/trigger status overrides set by the dedup
-      otherwise survive re-import. Needs `scripts/.env` (`ZABBIX_URL`,
-      `ZABBIX_TOKEN`).
+      An import that changes WHOIS trigger/item definitions resets their
+      host-level status to *enabled* on duplicate hosts (observed: the 2.2.6
+      hardening re-enabled every duplicate's WHOIS triggers; items whose keys
+      didn't change kept their disabled status, and the new
+      error_code/error_message items came back enabled). The re-run re-disables
+      them — skip it and the "WHOIS no data received" trigger fires on all
+      duplicates. Needs `scripts/.env` (`ZABBIX_URL`, `ZABBIX_TOKEN`).
 
 ## Inventory check
 
