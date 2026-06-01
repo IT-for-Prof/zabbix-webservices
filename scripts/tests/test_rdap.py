@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -119,3 +121,87 @@ def test_rdap_expiration_wins_over_registrar_expiration(web_check_module):
     }
     out = web_check_module._normalize_rdap(d, "com")
     assert out["expires_at"].startswith("2028-01-01")
+
+
+def _fake_asyncwhois(*, rdap=None, whois=None):
+    """Build a fake asyncwhois module with given rdap/whois callables."""
+
+    def _raise(name):
+        def _f(*a, **k):
+            raise AssertionError(f"{name} should not be called")
+
+        return _f
+
+    return types.SimpleNamespace(rdap=rdap or _raise("rdap"), whois=whois or _raise("whois"))
+
+
+def test_query_registration_prefers_rdap(monkeypatch, web_check_module):
+    raw = (FIX / "hss_center.json").read_text(encoding="utf-8")
+    fake = _fake_asyncwhois(rdap=lambda apex: (raw, {}))
+    monkeypatch.setitem(sys.modules, "asyncwhois", fake)
+    out = web_check_module._query_registration("hss.center")
+    assert out["ok"] is True
+    assert out["source"] == "rdap"
+    assert out["expires_at"].startswith("2026-10-10")
+    assert out["apex"] == "hss.center"
+
+
+def test_query_registration_falls_back_to_whois_when_no_rdap(monkeypatch, web_check_module):
+    def rdap_no_server(apex):
+        raise NotImplementedError("No RDAP server found for .RU domains")
+
+    def whois_ok(apex, **kwargs):
+        return ("paid-till: 2027-01-01T00:00:00Z\n", {"expires": "2027-01-01T00:00:00Z", "registrar": "REGRU-RU"})
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", _fake_asyncwhois(rdap=rdap_no_server, whois=whois_ok))
+    monkeypatch.setattr(web_check_module, "_get_psl_extractor", lambda: object())
+    out = web_check_module._query_registration("example.ru")
+    assert out["ok"] is True
+    assert out["source"] == "asyncwhois"
+    assert out["expires_at"].startswith("2027-01-01")
+
+
+def test_query_registration_rdap_without_expiry_falls_back(monkeypatch, web_check_module):
+    def rdap_no_expiry(apex):
+        return ('{"events": [], "nameservers": []}', {})
+
+    def whois_ok(apex, **kwargs):
+        return ("", {"expires": "2028-05-05T00:00:00Z", "registrar": "Whois Reg"})
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", _fake_asyncwhois(rdap=rdap_no_expiry, whois=whois_ok))
+    monkeypatch.setattr(web_check_module, "_get_psl_extractor", lambda: object())
+    out = web_check_module._query_registration("example.com")
+    assert out["ok"] is True
+    assert out["source"] == "asyncwhois"
+    assert out["expires_at"].startswith("2028-05-05")
+
+
+def test_query_registration_both_incomplete_returns_whois_incomplete(monkeypatch, web_check_module):
+    def rdap_no_expiry(apex):
+        return ('{"events": [], "nameservers": []}', {})
+
+    def whois_no_expiry(apex, **kwargs):
+        return ("Domain Name: EXAMPLE.COM\n", {"registrar": "REG"})
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", _fake_asyncwhois(rdap=rdap_no_expiry, whois=whois_no_expiry))
+    monkeypatch.setattr(web_check_module, "_get_psl_extractor", lambda: object())
+    out = web_check_module._query_registration("example.com")
+    assert out["ok"] is False
+    assert out["error_code"] == "whois_incomplete"
+    assert out["days_to_expire"] == 0
+    assert out["provider_no_expiry"] is False
+
+
+def test_query_registration_whois_transport_error_surfaces(monkeypatch, web_check_module):
+    def rdap_no_server(apex):
+        raise NotImplementedError("No RDAP server found")
+
+    def whois_boom(apex, **kwargs):
+        raise OSError("connection refused")
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", _fake_asyncwhois(rdap=rdap_no_server, whois=whois_boom))
+    monkeypatch.setattr(web_check_module, "_get_psl_extractor", lambda: object())
+    monkeypatch.setattr(web_check_module.time, "sleep", lambda *_: None)
+    out = web_check_module._query_registration("example.ru")
+    assert out["ok"] is False
+    assert out["error_code"] == "whois_unreachable"

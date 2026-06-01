@@ -101,10 +101,13 @@ def test_query_whois_incomplete_gtld_returns_supported_error_payload(monkeypatch
     def fake_whois(domain, **kwargs):
         return ("Domain Name: SEAREGION.COM\nRegistrar WHOIS Server: whois.reg.ru\n", {"registrar": "REG.RU"})
 
-    monkeypatch.setitem(sys.modules, "asyncwhois", types.SimpleNamespace(whois=fake_whois))
+    def fake_rdap(domain):
+        raise NotImplementedError("No RDAP server found")
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", types.SimpleNamespace(whois=fake_whois, rdap=fake_rdap))
     monkeypatch.setattr(web_check_module, "_get_psl_extractor", lambda: object())
 
-    out = web_check_module._query_whois("searegion.com")
+    out = web_check_module._query_registration("searegion.com")
 
     assert out["ok"] is False
     assert out["error_code"] == "whois_incomplete"
@@ -150,7 +153,7 @@ def test_check_whois_cache_hit(monkeypatch, web_check_module, tmp_cache):
         called.append(_apex)
         return {"ok": False}
 
-    monkeypatch.setattr(web_check_module, "_query_whois", fake_query)
+    monkeypatch.setattr(web_check_module, "_query_registration", fake_query)
     out = web_check_module.check_whois("https://mail.itforprof.com", cache=tmp_cache)
     assert called == []
     assert out["registrar"] == "REG"
@@ -160,7 +163,7 @@ def test_check_whois_cache_hit(monkeypatch, web_check_module, tmp_cache):
 def test_query_whois_threads_offline_extractor_into_asyncwhois(monkeypatch, web_check_module):
     """Regression for the asyncwhois-internal-TLDExtract leak (2.1.5).
 
-    `_query_whois` MUST pass our offline `_PSL_EXTRACTOR` to
+    `_query_whois_port43` MUST pass our offline `_PSL_EXTRACTOR` to
     `asyncwhois.whois(...)` via the `tldextract_obj=` kwarg. Without it,
     asyncwhois constructs its own default `TLDExtract()` which (a) fetches
     the PSL over HTTP on first use and (b) tries to write to
@@ -185,7 +188,7 @@ def test_query_whois_threads_offline_extractor_into_asyncwhois(monkeypatch, web_
 
     monkeypatch.setattr(asyncwhois, "whois", fake_whois)
 
-    web_check_module._query_whois("itforprof.com")
+    web_check_module._query_whois_port43("itforprof.com")
 
     assert "tldextract_obj" in captured["kwargs"], (
         "asyncwhois.whois must receive tldextract_obj=our extractor; "
