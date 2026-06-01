@@ -121,16 +121,30 @@ invalidates any entries cached under 2.1.8 (e.g. a `hss.center` negative entry),
 forcing a one-time re-query through the new RDAP path. `WhoisCache.read` already
 rejects mismatched schema versions.
 
-## Source-transition behavior (the one honest caveat)
+## Source-transition behavior (verified value-neutral)
 
-On the first poll after deploy, the 7 gTLD owners (`.com`×6, `.center`×1) switch
-source `asyncwhois` → `rdap`. Registrar string, NS ordering, status text, and
-dnssec may differ once between the two sources, so the `change()`-based triggers
-(`Domain registrar changed`, `Domain name servers changed`, `Domain DNSSEC
-removed`) may fire a single time — the same class of one-time re-baseline as the
-2.1.8 dnssec boolean→string flip. Handling: **accept the one-cycle re-baseline**
-and document it in the CHANGELOG deploy steps. No suppression code is added; the
-`source` field makes the transition auditable.
+Concern: on the first poll after deploy, the 7 gTLD owners (`.com`×6,
+`.center`×1) switch source `asyncwhois` → `rdap`, which could differ in
+registrar string, NS ordering, status text, or dnssec and fire the
+`change()`-based triggers once.
+
+**Measured 2026-06-01 — it does not.** For every live gTLD owner, the
+RDAP-derived values are identical to what WHOIS produces / what is currently
+stored:
+
+- `searegion.com` / `itforprof.com`: WHOIS vs RDAP normalized `registrar`,
+  `name_servers`, `dnssec`, and `expires_at` are byte-identical.
+- All 6 `.com` owners: RDAP nameserver **order** exactly matches the value
+  currently stored in the `web_check.whois.name_servers` item.
+- `hss.center` is currently `ok=0` (broken), so there is no working baseline to
+  perturb — RDAP is pure gain (`ok=1`, expiry `2026-10-10`).
+
+Therefore **no `change()`-trigger fires** on cutover for the current fleet, and
+**no NS sorting / suppression logic is needed** (adding sorting would itself
+cause a one-time re-baseline, so we deliberately do not). The `source` field
+(`"rdap"`/`"asyncwhois"`) keeps the active source auditable. Residual note: a
+*future* domain whose registrar's RDAP and WHOIS disagree on a value could
+re-baseline once; that is acceptable and not a concern for any current host.
 
 ## Error taxonomy
 
@@ -143,14 +157,28 @@ dual-source miss.
 
 ## Testing (TDD, no network)
 
-Mirror the existing `test_whois.py` fixture style with recorded RDAP JSON:
+Mirror the existing `test_whois.py` fixture style with **recorded real RDAP
+JSON** captured 2026-06-01 (no network in tests). Verified fixture sources:
 
-- `_normalize_rdap`:
-  - `.com` fixture with `registrar expiration` eventAction → expiry parsed.
-  - `.com` fixture with `expiration` eventAction → expiry parsed.
-  - `secureDNS.delegationSigned` true/false/absent → `signed`/`unsigned`/`unknown`.
-  - missing registrar / missing abuse entity → `""` (no nulls).
-  - `name_servers` lowercased + dot-stripped; `statuses` passthrough.
+| fixture | captured from | exercises |
+|---------|---------------|-----------|
+| `rdap_com_registrar_expiration.json` | `searegion.com` | eventAction `registrar expiration`; registrar PDR / IANA 303 / abuse email; 4 NS |
+| `rdap_com_expiration.json` | `itforprof.com` | eventAction `expiration`; registrar REG.RU / IANA 1606 |
+| `rdap_center.json` | `hss.center` | `.center`; eventAction `expiration` |
+| `rdap_signed.json` | `cloudflare.com` | `secureDNS.delegationSigned=true` + `dsData` → `"signed"`; long status list |
+| `rdap_securedns_maxsiglife.json` | `nic.center` | `secureDNS={delegationSigned:false, maxSigLife:1}` → `"unsigned"` (not "signed") |
+
+- `_normalize_rdap` cases:
+  - `registrar expiration` eventAction → expiry parsed (searegion fixture).
+  - `expiration` eventAction → expiry parsed (itforprof fixture).
+  - `delegationSigned` true → `signed` (cloudflare); false → `unsigned`
+    (searegion); `secureDNS` key absent → `unknown`; `maxSigLife` present but
+    `delegationSigned:false` → `unsigned` (nic.center).
+  - registrar `fn` / IANA id via `publicIds` / nested abuse-entity email extracted;
+    missing registrar or abuse entity → `""` (no nulls).
+  - `name_servers` from `nameservers[].ldhName`, lowercased + dot-stripped,
+    source order preserved (verified to match stored values — do not sort);
+    `statuses` from top-level `status[]` passthrough.
 - `_query_registration`:
   - RDAP success → `source="rdap"`, no WHOIS call.
   - RDAP `NotImplementedError` (`.ru`) → WHOIS fallback, `source="asyncwhois"`.
