@@ -17,6 +17,18 @@ step until the legacy template is unlinked.
       must exit 0 and report `cache roundtrip: ok` on each node.
 - [ ] Import the template YAML in Zabbix UI (Configuration → Templates → Import):
       `templates/web-service-by-itforprof/template_web_service_by_itforprof_com.yaml`.
+- [ ] **After every template (re)import, re-run the apex dedup** so duplicate
+      hosts don't run redundant WHOIS checks:
+      ```
+      python3 scripts/sync-domain-registry-owners.py            # dry-run, review
+      python3 scripts/sync-domain-registry-owners.py --apply
+      ```
+      Re-import recreates the `web_check.whois.error_code`/`error_message`
+      dependent items *enabled* on duplicate hosts (harmless — no triggers, and
+      the duplicate's WHOIS master stays disabled); the re-run restores the clean
+      owner-only state. Host-level item/trigger status overrides set by the dedup
+      otherwise survive re-import. Needs `scripts/.env` (`ZABBIX_URL`,
+      `ZABBIX_TOKEN`).
 
 ## Inventory check
 

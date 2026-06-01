@@ -4,6 +4,49 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.6 / web_check 2.1.6] - 2026-06-01
+
+### Template 7.0-2.2.6 — harden WHOIS triggers + apex-dedup tooling
+Production was already at `7.0-2.2.5` via out-of-band `trigger.update`s; this
+entry codifies that state plus the hardening below into the YAML and a new
+script. (Interim `2.2.4`/`2.2.5` were out-of-band hotfixes with no standalone
+changelog entry.)
+
+- **WHOIS trigger false-positive hardening.** Registry data is frequently empty
+  or sentinel-valued for a poll or two (registry hiccups, RDAP gaps), which fired
+  spurious change/expiry alerts. Added guards:
+  - `Domain expired` and all three expiry tiers now require
+    `length(last(…whois.expires_at))>0` (and keep the existing
+    `length(…whois.apex)>0`) so a missing expiry can't read as "expired". The
+    extra item reference shifted the `{ITEM.LASTVALUE<N>}` indices (apex 4→5 on
+    the tiers); event names, descriptions and the `apex` tag were renumbered to
+    match.
+  - `Domain registrar changed` excludes `<>""` and `<>"null"`.
+  - `Domain name servers changed` excludes `<>"[]"`.
+  - `Domain DNSSEC removed` now requires the previous value
+    `last(…whois.dnssec,#2)="signed"` so it only fires on a real signed→unsigned
+    transition.
+- **`web_check.whois.error_code` / `web_check.whois.error_message`** dependent
+  items codified in the YAML (already present on hosts out-of-band), with
+  `CUSTOM_VALUE` empty-string error handlers so they never go UNSUPPORTED.
+- **`scripts/sync-domain-registry-owners.py` (new) — apex deduplication.** Picks
+  one deterministic WHOIS "owner" host per registered apex (bare-apex host if one
+  exists, else shortest URL hostname, tie-broken by lowest hostid), disables the
+  WHOIS items+triggers on the duplicates, and stamps
+  `{$WEB_SERVICE.REGISTRY.APEX/OWNER/ROLE}` transparency macros on every host.
+  Default dry-run; `--apply` writes; `--only-apex` scopes. Fail-closed: aborts
+  with zero writes if any host's WHOIS item/trigger inventory is incomplete.
+  - Two bugs fixed before first use: `fetch_trigger_state` must pass
+    `expandExpression=true` (the server returns `{functionid}`-form expressions,
+    so the `web_check.whois` substring guard otherwise matched nothing and the
+    run aborted); and `web_check.whois.statuses` was removed from
+    `WHOIS_DEPENDENT_KEYS` (no such item exists).
+- **Action required:** re-run `sync-domain-registry-owners.py --apply` after any
+  `configuration.import` of this template — re-import recreates the
+  error_code/error_message dependent items *enabled* on duplicate hosts (harmless:
+  they carry no triggers and the duplicate's WHOIS master stays disabled, but the
+  re-run restores the clean dedup state).
+
 ## [7.0-2.2.3 / web_check 2.1.6] - 2026-05-26
 
 ### web_check.py 2.1.6 — silence TLSv1/1.1 `DeprecationWarning` so `tls-scan` JSON stays parseable (weak-TLS alerting was dead fleet-wide)

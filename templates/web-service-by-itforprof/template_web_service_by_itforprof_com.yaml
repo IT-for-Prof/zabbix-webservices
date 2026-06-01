@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.2.3
+      version: 7.0-2.2.6
     groups:
     - name: Templates/Applications
     macros:
@@ -842,76 +842,76 @@ zabbix_export:
         - tag: url
           value: '{$WEB_SERVICE.URL}'
       - uuid: 057de41c671349f696b5c252b44d6ad0
-        expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<0 and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<0 and length(last(/Web service by itforprof.com/web_check.whois.apex))>0 and length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0
         name: Domain expired
-        event_name: 'Domain {ITEM.LASTVALUE3} expired ({ITEM.LASTVALUE2} past) (host: {HOST.HOST})'
+        event_name: 'Domain {ITEM.LASTVALUE4} expired ({ITEM.LASTVALUE3} past) (host: {HOST.HOST})'
         priority: DISASTER
         manual_close: 'YES'
-        description: The registered apex {ITEM.LASTVALUE3} for this host is past its expiry date.
+        description: The registered apex {ITEM.LASTVALUE4} for this host is past its expiry date.
         tags:
         - tag: scope
           value: whois
         - tag: apex
-          value: '{ITEM.LASTVALUE3}'
+          value: '{ITEM.LASTVALUE4}'
         - tag: url
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: WHOIS check failing
-          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0 and length(last(/Web service by itforprof.com/web_check.whois.error_code))>=0 and length(last(/Web service by itforprof.com/web_check.whois.error_message))>=0
       - uuid: d729f61ad62f4a83b920be54d2dfcae3
-        expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.CRIT_DAYS}
-          and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.CRIT_DAYS}
+          and length(last(/Web service by itforprof.com/web_check.whois.apex))>0 and length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0
         name: Domain expires within {$WEB_SERVICE.WHOIS.CRIT_DAYS} day(s)
-        event_name: 'Domain {ITEM.LASTVALUE4} expires in {ITEM.LASTVALUE2} (host: {HOST.HOST})'
+        event_name: 'Domain {ITEM.LASTVALUE5} expires in {ITEM.LASTVALUE3} (host: {HOST.HOST})'
         priority: HIGH
         manual_close: 'YES'
-        description: Apex {ITEM.LASTVALUE4} expires very soon (within {$WEB_SERVICE.WHOIS.CRIT_DAYS}d). Renew immediately.
+        description: Apex {ITEM.LASTVALUE5} expires very soon (within {$WEB_SERVICE.WHOIS.CRIT_DAYS}d). Renew immediately.
         dependencies:
         - name: Domain expired
-          expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<0 and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<0 and length(last(/Web service by itforprof.com/web_check.whois.apex))>0 and length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0
         tags:
         - tag: scope
           value: whois
         - tag: apex
-          value: '{ITEM.LASTVALUE4}'
+          value: '{ITEM.LASTVALUE5}'
         - tag: url
           value: '{$WEB_SERVICE.URL}'
       - uuid: e55e244dd58745d488534c31628a7a58
-        expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>={$WEB_SERVICE.WHOIS.CRIT_DAYS} and last(/Web
-          service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.NOTICE_DAYS} and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>={$WEB_SERVICE.WHOIS.CRIT_DAYS} and last(/Web
+          service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.NOTICE_DAYS} and length(last(/Web service by itforprof.com/web_check.whois.apex))>0 and length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0
         name: Domain expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS} days
-        event_name: 'Domain {ITEM.LASTVALUE4} expires in {ITEM.LASTVALUE2} (host: {HOST.HOST})'
+        event_name: 'Domain {ITEM.LASTVALUE5} expires in {ITEM.LASTVALUE3} (host: {HOST.HOST})'
         priority: AVERAGE
         manual_close: 'YES'
-        description: Apex {ITEM.LASTVALUE4} expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS}d.
+        description: Apex {ITEM.LASTVALUE5} expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS}d.
         dependencies:
         - name: Domain expires within {$WEB_SERVICE.WHOIS.CRIT_DAYS} day(s)
-          expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.CRIT_DAYS}
-            and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.CRIT_DAYS}
+            and length(last(/Web service by itforprof.com/web_check.whois.apex))>0 and length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0
         tags:
         - tag: scope
           value: whois
         - tag: apex
-          value: '{ITEM.LASTVALUE4}'
+          value: '{ITEM.LASTVALUE5}'
         - tag: url
           value: '{$WEB_SERVICE.URL}'
       - uuid: 5c7a37086368497e9a7033397e04e117
-        expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>={$WEB_SERVICE.WHOIS.NOTICE_DAYS} and
-          last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.WARN_DAYS} and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>={$WEB_SERVICE.WHOIS.NOTICE_DAYS} and
+          last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.WARN_DAYS} and length(last(/Web service by itforprof.com/web_check.whois.apex))>0 and length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0
         name: Domain expires within {$WEB_SERVICE.WHOIS.WARN_DAYS} days
-        event_name: 'Domain {ITEM.LASTVALUE4} expires in {ITEM.LASTVALUE2} (host: {HOST.HOST})'
+        event_name: 'Domain {ITEM.LASTVALUE5} expires in {ITEM.LASTVALUE3} (host: {HOST.HOST})'
         priority: WARNING
         manual_close: 'YES'
-        description: Apex {ITEM.LASTVALUE4} expires within {$WEB_SERVICE.WHOIS.WARN_DAYS}d.
+        description: Apex {ITEM.LASTVALUE5} expires within {$WEB_SERVICE.WHOIS.WARN_DAYS}d.
         dependencies:
         - name: Domain expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS} days
-          expression: last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>={$WEB_SERVICE.WHOIS.CRIT_DAYS} and
-            last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.NOTICE_DAYS} and length(last(/Web service by itforprof.com/web_check.whois.apex))>0
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)>={$WEB_SERVICE.WHOIS.CRIT_DAYS} and
+            last(/Web service by itforprof.com/web_check.whois.days_to_expire)<{$WEB_SERVICE.WHOIS.NOTICE_DAYS} and length(last(/Web service by itforprof.com/web_check.whois.apex))>0 and length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0
         tags:
         - tag: scope
           value: whois
         - tag: apex
-          value: '{ITEM.LASTVALUE4}'
+          value: '{ITEM.LASTVALUE5}'
         - tag: url
           value: '{$WEB_SERVICE.URL}'
     - uuid: ee511932fb464462b7c1116bf970770f
@@ -974,7 +974,7 @@ zabbix_export:
         value: whois
       triggers:
       - uuid: 2a36c6738f704d8ab1a87736d294e0b9
-        expression: change(/Web service by itforprof.com/web_check.whois.registrar)=1 and length(last(/Web service by itforprof.com/web_check.whois.registrar))>0
+        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and change(/Web service by itforprof.com/web_check.whois.registrar)=1 and length(last(/Web service by itforprof.com/web_check.whois.registrar))>0 and last(/Web service by itforprof.com/web_check.whois.registrar)<>"" and last(/Web service by itforprof.com/web_check.whois.registrar)<>"null"
         name: Domain registrar changed
         priority: WARNING
         description: Registrar string changed. Verify legitimacy of any domain transfer.
@@ -985,8 +985,8 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: WHOIS check failing
-          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
-        event_name: 'Registrar changed to {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0 and length(last(/Web service by itforprof.com/web_check.whois.error_code))>=0 and length(last(/Web service by itforprof.com/web_check.whois.error_message))>=0
+        event_name: 'Registrar changed to {ITEM.LASTVALUE2} — {$WEB_SERVICE.URL} on {HOST.HOST}'
         manual_close: 'YES'
     - uuid: bcf3b03fc3e54110bd88de0585999709
       name: 'WHOIS: name servers'
@@ -1009,7 +1009,7 @@ zabbix_export:
         value: whois
       triggers:
       - uuid: 17ab53ac72ba4068993da7b57037a22b
-        expression: change(/Web service by itforprof.com/web_check.whois.name_servers)=1 and length(last(/Web service by itforprof.com/web_check.whois.name_servers))>0
+        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and change(/Web service by itforprof.com/web_check.whois.name_servers)=1 and length(last(/Web service by itforprof.com/web_check.whois.name_servers))>0 and last(/Web service by itforprof.com/web_check.whois.name_servers)<>"[]"
         name: Domain name servers changed
         priority: INFO
         description: NS records changed at the registry level. Often legitimate (e.g. moving to Cloudflare).
@@ -1020,8 +1020,8 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: WHOIS check failing
-          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
-        event_name: 'Name servers changed to {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0 and length(last(/Web service by itforprof.com/web_check.whois.error_code))>=0 and length(last(/Web service by itforprof.com/web_check.whois.error_message))>=0
+        event_name: 'Name servers changed to {ITEM.LASTVALUE2} — {$WEB_SERVICE.URL} on {HOST.HOST}'
         manual_close: 'YES'
     - uuid: 0b69d2c9586e4a82aeeaadcc5b16e54f
       name: 'WHOIS: DNSSEC'
@@ -1044,7 +1044,7 @@ zabbix_export:
         value: whois
       triggers:
       - uuid: 04a755e85b394a3f983efd7f81268a22
-        expression: change(/Web service by itforprof.com/web_check.whois.dnssec)=1 and last(/Web service by itforprof.com/web_check.whois.dnssec)="unsigned"
+        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and change(/Web service by itforprof.com/web_check.whois.dnssec)=1 and last(/Web service by itforprof.com/web_check.whois.dnssec,#2)="signed" and last(/Web service by itforprof.com/web_check.whois.dnssec)="unsigned"
         name: Domain DNSSEC removed
         priority: WARNING
         description: DNSSEC went from signed to unsigned at the registry — investigate.
@@ -1055,7 +1055,7 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: WHOIS check failing
-          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
+          expression: last(/Web service by itforprof.com/web_check.whois.ok)=0 and length(last(/Web service by itforprof.com/web_check.whois.error_code))>=0 and length(last(/Web service by itforprof.com/web_check.whois.error_message))>=0
         event_name: DNSSEC went unsigned at registry — {$WEB_SERVICE.URL} on {HOST.HOST}
         manual_close: 'YES'
     - uuid: 2e72e2a48dce4650b79992953d2feca6
@@ -1115,6 +1115,44 @@ zabbix_export:
       tags:
       - tag: scope
         value: whois
+    - uuid: 4f9ed7c771064255a576bd6e85663234
+      name: 'WHOIS: error code'
+      type: DEPENDENT
+      key: web_check.whois.error_code
+      value_type: CHAR
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.error_code
+        error_handler: CUSTOM_VALUE
+        error_handler_params: ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: whois
+    - uuid: 30b437927a2a406795db646ab80935a9
+      name: 'WHOIS: error message'
+      type: DEPENDENT
+      key: web_check.whois.error_message
+      value_type: TEXT
+      master_item:
+        key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.error_message
+        error_handler: CUSTOM_VALUE
+        error_handler_params: ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: whois
     - uuid: 3addad2834f8422dbb09846ef686aa19
       name: 'WHOIS: check ok'
       type: DEPENDENT
@@ -1141,7 +1179,7 @@ zabbix_export:
         value: whois
       triggers:
       - uuid: b57234018c8e4d2f841c20eeda67e4f8
-        expression: last(/Web service by itforprof.com/web_check.whois.ok)=0
+        expression: last(/Web service by itforprof.com/web_check.whois.ok)=0 and length(last(/Web service by itforprof.com/web_check.whois.error_code))>=0 and length(last(/Web service by itforprof.com/web_check.whois.error_message))>=0
         name: WHOIS check failing
         priority: INFO
         description: web_check.py whois reports ok=false. Likely a transient registry hiccup or a TLD we don't parse — check the master JSON.
@@ -1153,7 +1191,7 @@ zabbix_export:
         dependencies:
         - name: WHOIS externalscript no data received
           expression: nodata(/Web service by itforprof.com/web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"],3h)=1
-        event_name: web_check.py whois reports ok=false — {$WEB_SERVICE.URL} on {HOST.HOST}
+        event_name: 'web_check.py whois reports {ITEM.LASTVALUE2}: {ITEM.LASTVALUE3} — {$WEB_SERVICE.URL} on {HOST.HOST}'
         manual_close: 'YES'
     - uuid: 9c73e6fbdccf49eaa3c9266f340ad871
       name: 'WHOIS: provider has no expiry data'
