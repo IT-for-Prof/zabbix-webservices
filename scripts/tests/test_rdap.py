@@ -228,3 +228,31 @@ def test_query_whois_port43_respects_shared_deadline(monkeypatch, web_check_modu
     monkeypatch.setattr(web_check_module, "_get_psl_extractor", lambda: object())
     out = web_check_module._query_whois_port43("example.com", web_check_module.time.monotonic() - 1)
     assert out["error_code"] == "whois_timeout"
+
+
+def test_query_rdap_threads_bounded_client_and_closes_it(monkeypatch, web_check_module):
+    """When a bounded whodap client is available, it is passed to asyncwhois.rdap
+    and its http client is closed. Overrides the autouse stub from conftest."""
+    raw = (FIX / "hss_center.json").read_text(encoding="utf-8")
+    sentinel = object()
+    closed = {"v": False}
+
+    class _HttpClient:
+        def close(self):
+            closed["v"] = True
+
+    monkeypatch.setattr(web_check_module, "_rdap_whodap_client", lambda timeout: (sentinel, _HttpClient()))
+
+    seen = {}
+
+    def fake_rdap(apex, **kwargs):
+        seen.update(kwargs)
+        return (raw, {})
+
+    monkeypatch.setitem(sys.modules, "asyncwhois", _fake_asyncwhois(rdap=fake_rdap))
+    out = web_check_module._query_rdap("hss.center", web_check_module.time.monotonic() + 10.0)
+
+    assert out is not None
+    assert out["expires_at"].startswith("2026-10-10")
+    assert seen.get("whodap_client") is sentinel  # bounded client threaded through
+    assert closed["v"] is True  # http client always closed

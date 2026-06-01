@@ -39,3 +39,19 @@ def web_check_module():
     import web_check  # noqa: PLC0415  — module-not-package, intentional path import
 
     return web_check
+
+
+@pytest.fixture(autouse=True)
+def _stub_rdap_client(monkeypatch):
+    """Force `_query_rdap` onto the unbounded `asyncwhois.rdap()` path in tests.
+
+    CI installs `asyncwhois` (which pulls in `whodap`+`httpx`), so without this
+    `_query_rdap` would build a real whodap client and do a live IANA bootstrap
+    fetch — non-hermetic and dependent on which deps are installed. Stubbing the
+    builder to `(None, None)` makes every test use the fake `asyncwhois` module
+    deterministically. Tests that need to exercise the bounded path override this
+    by monkeypatching `_rdap_whodap_client` themselves.
+    """
+    import web_check  # noqa: PLC0415
+
+    monkeypatch.setattr(web_check, "_rdap_whodap_client", lambda timeout: (None, None))
