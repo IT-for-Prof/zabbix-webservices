@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.2.6
+      version: 7.0-2.2.7
     groups:
     - name: Templates/Applications
     macros:
@@ -102,6 +102,13 @@ zabbix_export:
     - macro: '{$WEB_SERVICE.CERT.CRIT_DAYS}'
       value: '7'
       description: Cert expiry HIGH trigger threshold (days).
+    - macro: '{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}'
+      value: '14'
+      description: 'Late-rotation threshold (days). If a cert rotation is detected
+        (fingerprint changed) while the OUTGOING cert had fewer than this many days
+        left, raise the HIGH "rotated late" trigger. The trigger reads the
+        pre-rotation window (max over the 2h ending 15m ago), never the freshly
+        installed cert.'
     - macro: '{$WEB_SERVICE.CERT.MIN_KEY_RSA}'
       value: '2048'
       description: Minimum acceptable RSA key size (bits).
@@ -490,18 +497,22 @@ zabbix_export:
       - uuid: d03134c8f17c4610ace39c55e9d74e52
         expression: 'change(/Web service by itforprof.com/web_check.cert.fingerprint_sha256)=1 and
 
-          last(/Web service by itforprof.com/web_check.cert.days_to_expire)<14
+          max(/Web service by itforprof.com/web_check.cert.days_to_expire,2h:now-15m)<{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}
 
           '
         name: Cert rotated unexpectedly (was about to expire)
         priority: HIGH
-        description: 'The cert fingerprint changed but the days_to_expire reading just
+        description: 'The cert fingerprint changed (rotation) while the OUTGOING cert
+          was already inside the {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}-day window —
+          renewal happened dangerously late and the previous cert may have lapsed
+          (brief outage window). Investigate the renewal automation.
 
-          before rotation was already under 14d. That can mean the previous
 
-          cert expired before rotation (brief outage window) — investigate.
-
-          '
+          Reads max(days_to_expire) over the 2h ending 15m ago, i.e. the OLD cert''s
+          remaining days just before rotation — NOT last(), which on a dependent
+          item already reflects the new cert at the moment the fingerprint changes.
+          max() over the window also rides out transient error-envelope dips
+          (e.g. -1 / 0) from a single failed poll.'
         tags:
         - tag: scope
           value: tls
@@ -510,7 +521,8 @@ zabbix_export:
         dependencies:
         - name: Cert check failing
           expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
-        event_name: TLS cert rotated with <14d remaining — {$WEB_SERVICE.URL} on {HOST.HOST}
+        event_name: 'TLS cert rotated late: outgoing cert had <{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}d
+          left — {$WEB_SERVICE.URL} on {HOST.HOST}'
         manual_close: 'YES'
     - uuid: 127abf2af8b342839bba3ac01406154f
       name: 'Cert: signature algorithm'
