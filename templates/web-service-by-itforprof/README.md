@@ -5,7 +5,7 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.2.3`                              |
+| Version          | `7.0-2.2.7`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
 | Execution        | Whatever monitors the host (server / proxy) |
@@ -46,7 +46,7 @@ Validation matrix:  [`docs/validation.md`](../../docs/validation.md).
   venv layout (`/opt/web_check/venv`, Python 3.12 installed by `uv` — the host's system Python is not used; codebase floor is 3.11).
 - `fping` ≥ 3.10 on the monitor node (for Layer 4 ICMP items).
 
-## Macros (27)
+## Macros (28)
 
 Required:
 
@@ -64,29 +64,29 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.EXPECTED_CODE}` | `200` | HTTP codes considered healthy (`200,204,301-302`). |
 | `{$WEB_SERVICE.TIMEOUT}` | `15` | HTTP request timeout (s). |
 | `{$WEB_SERVICE.USER_AGENT}` | `Zabbix-WebService-by-itforprof/2.0` | UA header. |
-| `{$WEB_SERVICE.FOLLOW_REDIRECTS}` | `YES` | Follow 3xx. |
 | `{$WEB_SERVICE.CHECK.INTERVAL}` | `1m` | Web scenario delay. |
 | `{$WEB_SERVICE.CERT.CHECK.INTERVAL}` | `5m` | Cert master delay. |
 | `{$WEB_SERVICE.WHOIS.CHECK.INTERVAL}` | `1h` | WHOIS master delay (mostly cache hits). |
 | `{$WEB_SERVICE.WHOIS.CACHE.TTL}` | `86400` | WHOIS cache TTL (s). |
 | `{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}` | `1d` | Deep TLS scan delay. |
 | `{$WEB_SERVICE.DIAG.CHECK.INTERVAL}` | `5m` | Diag simple-check delay. |
-| `{$WEB_SERVICE.SLOW.WARN}` | `5` | Avg HTTP response > N (s, 10m) → WARNING. |
+| `{$WEB_SERVICE.SLOW.WARN}` | `10` | Avg HTTP response > N (s, 10m) → WARNING. |
 | `{$WEB_SERVICE.NODATA.PERIOD}` | `10m` | Web scenario no-data trigger window. |
 | `{$WEB_SERVICE.CERT.WARN_DAYS}` | `30` | Cert expiry INFO threshold. |
 | `{$WEB_SERVICE.CERT.NOTICE_DAYS}` | `14` | Cert expiry WARNING threshold. |
 | `{$WEB_SERVICE.CERT.CRIT_DAYS}` | `7` | Cert expiry HIGH threshold. |
+| `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` | `14` | "Rotated late" HIGH threshold: a rotation while the outgoing cert had fewer days left than this fires the alert. Reads the pre-rotation window, not the new cert. |
 | `{$WEB_SERVICE.CERT.MIN_KEY_RSA}` | `2048` | Min RSA key size (bits). |
 | `{$WEB_SERVICE.CERT.MIN_KEY_ECDSA}` | `256` | Min ECDSA key size (bits). |
 | `{$WEB_SERVICE.WHOIS.WARN_DAYS}` | `30` | Domain expiry WARNING threshold (days). |
 | `{$WEB_SERVICE.WHOIS.NOTICE_DAYS}` | `7` | Domain expiry AVERAGE threshold (days). |
 | `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | `1` | Domain expiry HIGH threshold (days). DISASTER fires on `days_to_expire < 0` (already expired). |
-| `{$WEB_SERVICE.TCP.SLOW_SEC}` | `1` | `net.tcp.service.perf` WARNING threshold. |
+| `{$WEB_SERVICE.TCP.SLOW_SEC}` | `3` | `net.tcp.service.perf` WARNING threshold. |
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | `5m` | HTTP/3 master item delay. |
 | `{$WEB_SERVICE.HTTP3.TIMEOUT}` | `8` | Combined HEAD + QUIC handshake timeout (s). |
-| `{$WEB_SERVICE.HTTP3.SLOW_MS}` | `250` | QUIC handshake time WARNING threshold (ms). |
+| `{$WEB_SERVICE.HTTP3.SLOW_MS}` | `1000` | QUIC handshake time WARNING threshold (ms). |
 
-## Triggers (34)
+## Triggers (32 + 1 LLD prototype)
 
 By scope:
 
@@ -97,12 +97,19 @@ By scope:
 | data-collection | 5   | AVERAGE          |
 | tls (cert + handshake) | 12 | DISASTER       |
 | whois         | 8     | DISASTER         |
-| diag          | 4     | HIGH             |
+| diag          | 2     | HIGH             |
 | http3         | 3     | HIGH             |
 | tls-scan (LLD item prototype) | 1 per finding | INFO (no trigger prototype) |
 
-Cert-expiry triggers cascade DISASTER → HIGH (<7d) → WARNING (<14d) → INFO
-(<30d) with `dependencies` so only the most severe fires.
+Cert-expiry triggers cascade DISASTER (expired) → HIGH (<7d) → WARNING (<14d)
+→ INFO (<30d) with `dependencies` so only the most severe fires. Separately,
+**Cert rotated** (INFO) fires on any fingerprint change, and **Cert rotated
+unexpectedly** (HIGH) fires when a rotation is detected while the *outgoing*
+cert was within `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` (default 14) days of
+expiry — i.e. a dangerously late renewal. It reads `max(days_to_expire)` over
+the 2h window ending 15m ago (the old cert), since on a dependent item
+`last()` already reflects the freshly installed cert at the instant the
+fingerprint changes.
 
 For internal endpoints signed by a corporate CA, the "Cert chain untrusted"
 trigger means the monitor node running `web_check.py cert` does not trust that

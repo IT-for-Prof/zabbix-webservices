@@ -4,6 +4,43 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.7] - 2026-06-02
+
+Template-only release (no `web_check` change).
+
+### Fixed — "Cert rotated unexpectedly (was about to expire)" was a no-op
+The HIGH trigger used `change(fingerprint)=1 and last(days_to_expire)<14`.
+`days_to_expire` and `fingerprint_sha256` are both DEPENDENT items off one
+cert master poll, so they update on the **same clock**: at the instant the
+fingerprint changes, `last(days_to_expire)` already reflects the *new* cert
+(~89), never the outgoing one — the condition could not become true as
+intended and never fired. Confirmed on prod history (mon.itforprof.com: days
+`60 → 89` and the fingerprint flip share clock `1780014013`).
+
+- New expression: `change(fingerprint_sha256)=1 and
+  max(days_to_expire,2h:now-15m) < {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}`.
+  The `now-15m` shift excludes the just-installed cert; the 2h window ≥ the
+  item's `DISCARD_UNCHANGED_HEARTBEAT(1h)` so old-cert data is always present;
+  `max()` reads the outgoing cert and rides out single-poll error-envelope
+  dips (e.g. `-1898` / `0`) that a naive `last(,#2)` would false-fire on.
+- New macro **`{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}`** (default `14`) separates
+  the late-rotation threshold from the expiry ladder (WARN 30 / NOTICE 14 /
+  CRIT 7). Macro count 27 → 28.
+- Validated on a live Zabbix engine (trapper scenarios: healthy rotation =
+  silent, late = HIGH fired, transient glitch before rotation = silent).
+- **Deploy:** applied to both `production` (template 14003) and `myzabbix`
+  (template 10690) via API (`usermacro.create` + `trigger.update` +
+  `template.update`). No host re-link needed — template propagation handles it.
+
+### Docs
+Fact-checked `docs/architecture.md` and the READMEs against the live template:
+corrected the cert/whois trigger tables (real thresholds `1/7/30` and
+severities, dropped never-shipped `DNS resolution failed` / `CAA disallows`
+/ `Domain expires within 60 days` / cert "rotated > 60d"), the macro catalog
+(`SLOW.WARN` 5→10, `TCP.SLOW_SEC` 1→3, `HTTP3.SLOW_MS` 250→1000, removed the
+phantom `FOLLOW_REDIRECTS` macro — it is a web-scenario field), the trigger
+count (34 → 32 + 1 LLD prototype), and stale version strings (2.2.3 → 2.2.7).
+
 ## [7.0-2.2.6 / web_check 2.2.0] - 2026-06-01
 
 ### web_check 2.2.0 — RDAP-first registration lookup
