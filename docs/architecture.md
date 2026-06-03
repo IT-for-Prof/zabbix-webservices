@@ -1,6 +1,6 @@
 # Architecture
 
-> Status: in production. Template `7.0-2.2.7`, externalscript
+> Status: in production. Template `7.0-2.2.8`, externalscript
 > `web_check.py` 2.2.0, installer, and migration script all shipped and
 > running on 6 Zabbix server/proxy nodes; 59 hosts migrated from
 > `Template Website metrics (itmicus.ru)` on 2026-05-14.
@@ -266,8 +266,8 @@ clamped to 0 and lost diagnostic information.
 | Cert expires within `{$…CERT.CRIT_DAYS}` days | HIGH | `… >= 0 and … < {$…CRIT_DAYS}` (7; depends on Expired) |
 | Cert expires within `{$…CERT.NOTICE_DAYS}` days | WARNING | `… >= {$…CRIT_DAYS} and … < {$…NOTICE_DAYS}` (14; depends on <7d) |
 | Cert expires within `{$…CERT.WARN_DAYS}` days | INFO | `… >= {$…NOTICE_DAYS} and … < {$…WARN_DAYS}` (30; depends on <14d) |
-| Cert rotated | INFO | `change(.../web_check.cert.fingerprint_sha256) = 1` (manual close) |
-| Cert rotated unexpectedly (was about to expire) | HIGH | `change(fingerprint_sha256)=1 and max(.../web_check.cert.days_to_expire,2h:now-15m) < {$…CERT.ROTATE_MIN_DAYS}` (14; manual close). Reads the *outgoing* cert's pre-rotation window — `last()` would already be the new cert. |
+| Cert rotated | INFO | `change(.../web_check.cert.fingerprint_sha256) = 1` (manual close). The fingerprint item discards the error-envelope `""` (`MATCHES_REGEX` / `DISCARD_VALUE`), so `change()` only ever sees a genuine `real→real` rotation — a check-outage recovery (`""→real`) is not a change. |
+| Cert rotated unexpectedly (was about to expire) | HIGH | `change(fingerprint_sha256)=1 and max(.../web_check.cert.days_to_expire,2h:now-15m) < {$…CERT.ROTATE_MIN_DAYS}` (14; manual close). Reads the *outgoing* cert's pre-rotation window — `last()` would already be the new cert. The fingerprint-discard keeps `change()` clean, so a late rotation that spanned a failed poll (`old→""→new`) still fires (the `""` is dropped, leaving `old→new`). |
 | Cert weak signature algorithm | WARNING | `find(.../web_check.cert.signature_algorithm,,"regexp","(?i)(sha1\|md5)") = 1` |
 | Cert weak public key | WARNING | RSA `public_key_bits < {$…MIN_KEY_RSA}` (2048) or ECDSA `< {$…MIN_KEY_ECDSA}` (256) |
 | Cert hostname not covered | HIGH | `last(.../web_check.cert.hostname_covered) = 0` |
@@ -380,9 +380,9 @@ are suppressed for the host (gated on `provider_no_expiry=0` and
 | Domain expires within `{$…WHOIS.CRIT_DAYS}` day(s) | HIGH | `… >= 0 and … < {$…CRIT_DAYS}` (1; depends on Expired) |
 | Domain expires within `{$…WHOIS.NOTICE_DAYS}` days | AVERAGE | `… >= {$…CRIT_DAYS} and … < {$…NOTICE_DAYS}` (7; depends on <1d) |
 | Domain expires within `{$…WHOIS.WARN_DAYS}` days | WARNING | `… >= {$…NOTICE_DAYS} and … < {$…WARN_DAYS}` (30; depends on <7d) |
-| Domain registrar changed | WARNING | `whois.ok=1 and change(.../web_check.whois.registrar)=1` (non-empty, ≠ `null`; potential transfer) |
-| Domain name servers changed | INFO | `whois.ok=1 and change(.../web_check.whois.name_servers)=1` (non-empty, ≠ `[]`) |
-| Domain DNSSEC removed | WARNING | previous `whois.dnssec="signed"`, now `"unsigned"` (gated on `whois.ok=1`) |
+| Domain registrar changed | WARNING | `whois.ok=1 and change(.../web_check.whois.registrar)=1` (potential transfer). The item discards the `""`/`null` sentinels (`NOT_MATCHES_REGEX`), so `change()` only sees a genuine registrar move — a WHOIS-outage recovery (`real→""→real`) is not a change. |
+| Domain name servers changed | INFO | `whois.ok=1 and change(.../web_check.whois.name_servers)=1`. The item discards the `[]` sentinel, so an outage recovery does not read as an NS change. |
+| Domain DNSSEC removed | WARNING | previous `whois.dnssec="signed"`, now `"unsigned"` (gated on `whois.ok=1`). The item keeps only `signed`/`unsigned` (discards `unknown`), so a removal that spanned a failed poll (`signed→unknown→unsigned`) still fires. |
 | WHOIS check failing | INFO | `last(.../web_check.whois.ok) = 0` |
 
 ## Layer 4 — Network diagnostics (native simple checks)

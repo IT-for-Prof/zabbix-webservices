@@ -4,6 +4,107 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.8] - 2026-06-03
+
+Template-only release (no `web_check` change).
+
+### Fixed — cert "rotated" triggers false-fired on recovery from a check outage
+On 2026-06-03 the HIGH **"Cert rotated unexpectedly (was about to expire)"**
+fired on `rdgw01.voffice24.com` and `avs.itforprof.ru` with no real rotation
+(events `20276842` / `20276895`). Root cause: a ~6h cert-check OUTAGE wrote the
+error envelope (`cert.ok=0`, `days_to_expire=0`, `fingerprint_sha256=""`) into
+the dependent items. On recovery the fingerprint went `""→<real>`, so
+`change(fingerprint)=1` even though the SHA-256 was unchanged across the gap
+(identical before/after; `not_after` confirmed ~81d / ~68d remaining — the
+certs never rotated and never expired). The `days_to_expire` window was full of
+the envelope's `0`s, so `max(days,2h:now-15m)<ROTATE_MIN_DAYS` was also true.
+The INFO **"Cert rotated"** trigger fired the same way.
+
+The `Cert check failing` dependency could not help: Zabbix dependencies are
+evaluated on the parent's *current* state, but `change()` fires exactly on the
+recovery tick when `cert.ok` is already back to `1` — a level dependency cannot
+suppress an edge trigger.
+
+- **Fix is at the item layer:** the `cert.fingerprint_sha256` item gains a
+  `MATCHES_REGEX` (`^[0-9A-Fa-f]{64}$`) preprocessing step with
+  `DISCARD_VALUE` on no-match, before `DISCARD_UNCHANGED_HEARTBEAT`. The
+  envelope's `""` (and any non-64-hex value) is dropped, so the fingerprint
+  history holds only real fingerprints and `change()` can only ever see a
+  genuine `<real>→<real>` rotation. The two triggers revert to their plain
+  2.2.7 form (`change(fingerprint_sha256)=1` [`and max(days_to_expire,
+  2h:now-15m)<{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` for HIGH]).
+- **Why not in-trigger guards.** An earlier cut added
+  `last(cert.ok)=1 and length(last(fp))>0 and length(last(fp,#2))>0` to mirror
+  the WHOIS change-triggers. Code review caught that the `,#2` guard introduces
+  a FALSE NEGATIVE on the flagship scenario: a genuinely late rotation that
+  spans a single failed poll (`<old>→""→<new>`) has `#2=""` → suppressed —
+  silently missing the very "renewed after the cert lapsed" case the HIGH
+  trigger exists to catch. In-trigger guards cannot win both edges (dropping
+  `#2` reinstates the false positive; keeping it causes the false negative).
+  Discarding `""` at ingestion fixes both: `<old>→""→<new>` stores
+  `<old>→<new>` (fires correctly) and `<real>→""→<real>` collapses to no change
+  (silent). `cert.ok`/`error_code`/`error_message` items still carry the
+  envelope for visibility; the level expiry triggers keep their `cert.ok=0`
+  dependency.
+- Validated on a live Zabbix engine (myzabbix): the exported preprocessing
+  serialises to exactly `MATCHES_REGEX` / `DISCARD_VALUE` (import-safe); and a
+  master→dependent trapper feed of `<real-A> → "" → <real-B>` produced a
+  dependent history of `[A, B]` (the `""` discarded), with `prevvalue=A` — i.e.
+  the late-rotation-through-an-outage case fires and the recovery case stays
+  silent. Contract tests added in `test_template_contract.py`.
+- **Deploy:** apply to `production` (template 14003) and `myzabbix` (template
+  10690) via `item.update` (add the preprocessing step) + `trigger.update`
+  (revert the two expressions). Existing false-positive events
+  (`20276842` / `20276895` on prod, plus the matching INFO "Cert rotated") are
+  not real — close them manually.
+
+### Fixed — WHOIS change-triggers had the same sentinel-flap (registrar/NS/DNSSEC)
+The same root cause was found — and confirmed firing in production — on the
+three WHOIS `change()` triggers. The WHOIS error envelope writes per-field
+sentinels (`registrar:""`, `name_servers:[]`, `dnssec:"unknown"`) into the
+dependent items, so a WHOIS-lookup outage makes them flap. Production proof
+(`elma.hss.center`, current template): `whois.registrar` went `""` (while
+`whois.ok=0`) → `…REG.RU…` on recovery → fired **"Registrar changed to REG.RU"**
+(WARNING) although the registrar was REG.RU before and after. Recurring across
+`searegion`, `cloud.searegion`, `misterlogistic`, `millystyle`, `elma`, … The
+pre-existing `last(ok)=1 / <>"" / <>"null" / <>"[]"` guards only mask the
+*entering-error* edge, not recovery (no `#2` check); `dnssec`'s `last(,#2)=
+"signed"` guard instead causes a FALSE NEGATIVE (a real `signed→unsigned`
+removal that spans a failed poll has `#2="unknown"` → suppressed).
+
+- **Same item-layer fix**, one mechanism (regex discard before
+  `DISCARD_UNCHANGED_HEARTBEAT`), chosen so each series holds only real values:
+  - `whois.registrar`: `NOT_MATCHES_REGEX ^(null)?$` → drops `""` and the
+    port-43 parser's literal `"null"`.
+  - `whois.name_servers`: `NOT_MATCHES_REGEX ^\[\]$` → drops `"[]"`.
+  - `whois.dnssec`: `MATCHES_REGEX ^(signed|unsigned)$` → drops `"unknown"`.
+    Deliberate tradeoff: `"unknown"` is also a legitimate "can't determine"
+    state, so for TLDs that never publish DNSSEC the item shows the last
+    definite state (or no data), not a live `"unknown"`. No trigger reads
+    `"unknown"`, and dropping it is what lets a real removal through an outage
+    still fire. The `ok`-gated (JS) alternative would preserve the `"unknown"`
+    display but adds a second mechanism for a value nothing alerts on —
+    overengineering here.
+- **Triggers left as-is (minimal change).** Unlike the cert triggers (whose
+  in-expression guards were added and removed within this same unshipped work),
+  the WHOIS guards are deployed and test-locked; the discard makes them
+  redundant but harmless (a value in history now implies a successful lookup),
+  so they are kept rather than ripped out in a bugfix. The discard alone fixes
+  both the registrar/NS recovery false positive and the DNSSEC removal-through-
+  outage false negative (with `"unknown"` gone, `#2` resolves to `signed`).
+- Validated on a live Zabbix engine (myzabbix), real master→dependent
+  preprocessing path: a single timeline `signed/GoDaddy/NS → envelope →
+  recovery(dnssec signed→unsigned) → genuine registrar+NS change` produced —
+  **"Domain DNSSEC removed"** fired on the recovery tick (removal-through-outage
+  caught); **"Domain registrar changed"** and **"Domain name servers changed"**
+  fired *only* on the genuine change, **not** on the recovery (false positive
+  gone). `NOT_MATCHES_REGEX` confirmed import-safe via export. Contract tests
+  added.
+- **Deploy:** add the preprocessing step to the three `whois.*` items on both
+  servers via `item.update`. Past sentinel-flap events
+  (`Registrar changed to null`, `Name servers changed to []`, the
+  `DNSSEC went unsigned` flaps) are not real registrar/NS/DNSSEC changes.
+
 ## [7.0-2.2.7] - 2026-06-02
 
 Template-only release (no `web_check` change).

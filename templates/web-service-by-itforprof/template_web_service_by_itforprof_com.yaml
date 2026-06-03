@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.2.7
+      version: 7.0-2.2.8
     groups:
     - name: Templates/Applications
     macros:
@@ -472,6 +472,19 @@ zabbix_export:
         - $.cert.fingerprint_sha256
         error_handler: CUSTOM_ERROR
         error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      # Discard the error-envelope fingerprint ("" on a failed cert check) so it
+      # never enters the history this item's change()-based rotation triggers read.
+      # A SHA-256 fingerprint is exactly 64 hex chars; anything else is an error
+      # sentinel. Keeping the series clean means change() can only ever see a
+      # genuine <real>→<real> rotation: it kills the "" →real recovery FALSE
+      # POSITIVE *and* preserves the <real>→""→<real-new> late-rotation case (the
+      # "" is dropped, leaving <old>→<new>) that an in-trigger last(,#2) guard
+      # would have wrongly suppressed. Runs before DISCARD_UNCHANGED so a
+      # discarded "" is not mistaken for an unchanged value.
+      - type: MATCHES_REGEX
+        parameters:
+        - ^[0-9A-Fa-f]{64}$
+        error_handler: DISCARD_VALUE
       - type: DISCARD_UNCHANGED_HEARTBEAT
         parameters:
         - 1d
@@ -483,7 +496,14 @@ zabbix_export:
         expression: change(/Web service by itforprof.com/web_check.cert.fingerprint_sha256)=1
         name: Cert rotated
         priority: INFO
-        description: The SHA-256 fingerprint changed since the last poll — a new cert was deployed. Informational; usually expected (Let's Encrypt renews every ~60 days).
+        description: 'The SHA-256 fingerprint changed since the last poll — a new cert
+          was deployed. Informational; usually expected (Let''s Encrypt renews every
+          ~60 days).
+
+
+          A check outage cannot trigger this: the item discards the error-envelope
+          fingerprint ("") via MATCHES_REGEX, so change() only ever sees a genuine
+          <real>→<real> rotation — never a ""→real recovery transition.'
         tags:
         - tag: scope
           value: tls
@@ -495,11 +515,7 @@ zabbix_export:
         event_name: TLS cert rotated (new fingerprint {ITEM.LASTVALUE1}) — {$WEB_SERVICE.URL} on {HOST.HOST}
         manual_close: 'YES'
       - uuid: d03134c8f17c4610ace39c55e9d74e52
-        expression: 'change(/Web service by itforprof.com/web_check.cert.fingerprint_sha256)=1 and
-
-          max(/Web service by itforprof.com/web_check.cert.days_to_expire,2h:now-15m)<{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}
-
-          '
+        expression: change(/Web service by itforprof.com/web_check.cert.fingerprint_sha256)=1 and max(/Web service by itforprof.com/web_check.cert.days_to_expire,2h:now-15m)<{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}
         name: Cert rotated unexpectedly (was about to expire)
         priority: HIGH
         description: 'The cert fingerprint changed (rotation) while the OUTGOING cert
@@ -512,7 +528,15 @@ zabbix_export:
           remaining days just before rotation — NOT last(), which on a dependent
           item already reflects the new cert at the moment the fingerprint changes.
           max() over the window also rides out transient error-envelope dips
-          (e.g. -1 / 0) from a single failed poll.'
+          (e.g. -1 / 0) from a single failed poll.
+
+
+          A check OUTAGE cannot false-fire this: the fingerprint item discards the
+          envelope "" (MATCHES_REGEX), so a ""→real recovery is not a change(). And
+          because the "" is dropped rather than stored, a genuinely late rotation
+          that happened to span a failed poll (<old>→""→<new>) still registers as
+          <old>→<new> and fires — which an in-trigger last(,#2) guard would have
+          wrongly suppressed.'
         tags:
         - tag: scope
           value: tls
@@ -978,6 +1002,16 @@ zabbix_export:
         - $.registrar
         error_handler: CUSTOM_ERROR
         error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      # Drop the non-registrar sentinels so they never enter the history the
+      # "Domain registrar changed" change()-trigger reads: "" (error envelope /
+      # absent on a successful lookup) and the literal "null" (port-43 parser).
+      # A real registrar is never empty/"null", so this only ever discards
+      # non-values — keeping change() to genuine registrar→registrar moves and
+      # killing the WHOIS-outage recovery ("real→""→real) false positive.
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^(null)?$
+        error_handler: DISCARD_VALUE
       - type: DISCARD_UNCHANGED_HEARTBEAT
         parameters:
         - 1d
@@ -1013,6 +1047,15 @@ zabbix_export:
         - $.name_servers
         error_handler: CUSTOM_ERROR
         error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      # Drop the empty-array sentinel "[]" (error envelope / unparsed response).
+      # A registered domain always has name servers, so "[]" is never a real
+      # value; discarding it keeps the "Domain name servers changed" change()
+      # trigger to genuine NS-set moves and kills the outage-recovery false
+      # positive ("[ns…]→[]→[ns…]").
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^\[\]$
+        error_handler: DISCARD_VALUE
       - type: DISCARD_UNCHANGED_HEARTBEAT
         parameters:
         - 1d
@@ -1048,6 +1091,19 @@ zabbix_export:
         - $.dnssec
         error_handler: CUSTOM_ERROR
         error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+      # Keep only the two actionable states in history. "unknown" is emitted
+      # both by the error envelope AND by a successful lookup that can't
+      # determine DNSSEC; we discard it either way. The only consumer is the
+      # "DNSSEC removed" (signed→unsigned) trigger, so dropping "unknown" both
+      # fixes the recovery false positive AND lets a real removal that spanned a
+      # failed poll (signed→unknown→unsigned ⇒ stored signed→unsigned) still
+      # fire — what last(,#2)="signed" alone would have suppressed. Tradeoff:
+      # for TLDs that never publish DNSSEC the item shows the last definite
+      # state (or no data), not a live "unknown"; no trigger reads "unknown".
+      - type: MATCHES_REGEX
+        parameters:
+        - ^(signed|unsigned)$
+        error_handler: DISCARD_VALUE
       - type: DISCARD_UNCHANGED_HEARTBEAT
         parameters:
         - 1d

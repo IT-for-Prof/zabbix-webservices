@@ -5,7 +5,7 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.2.7`                              |
+| Version          | `7.0-2.2.8`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
 | Execution        | Whatever monitors the host (server / proxy) |
@@ -109,7 +109,13 @@ cert was within `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` (default 14) days of
 expiry — i.e. a dangerously late renewal. It reads `max(days_to_expire)` over
 the 2h window ending 15m ago (the old cert), since on a dependent item
 `last()` already reflects the freshly installed cert at the instant the
-fingerprint changes.
+fingerprint changes. The fingerprint item discards any non-64-hex value
+(`MATCHES_REGEX` / `DISCARD_VALUE`), so the error-envelope empty fingerprint
+written during a cert-check outage never enters history — `change()` only ever
+sees a genuine `real→real` rotation. A recovery from an outage (`""→real`) is
+therefore not a rotation, while a genuinely late rotation that spanned a failed
+poll (`old→""→new`) still fires, because the `""` is dropped, leaving
+`old→new`.
 
 For internal endpoints signed by a corporate CA, the "Cert chain untrusted"
 trigger means the monitor node running `web_check.py cert` does not trust that
