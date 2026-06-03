@@ -4,6 +4,42 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.2.9] - 2026-06-03
+
+Follow-ups from code review of 2.2.8. Ships a `web_check.py` bump (**2.2.0 →
+2.2.1**) plus a template change.
+
+### Fixed — `name_servers` flapped on registry reordering (`web_check` 2.2.1)
+`web_check.py` emitted `name_servers` in whatever order the registry/RDAP
+returned, so the "Domain name servers changed" `change()` trigger could fire on
+a mere reorder of the same NS set (a false positive independent of the 2.2.8
+sentinel class). Both code paths (`_normalize_rdap`, `_normalize_whois`) now
+emit the NS list **sorted**, making the value canonical and `change()`
+meaningful. Tests added in `test_rdap.py` / `test_whois.py`. (Schema unchanged;
+same field/type, just ordered.) **Deploy:** redeploy `web_check.py` to every
+Zabbix server/proxy (`install.sh`) — this is the externalscript, not the
+template.
+
+### Changed — WHOIS change-triggers simplified to bare `change()` (template)
+With the 2.2.8 item-layer sentinel discard in place, the in-expression guards on
+the three WHOIS change-triggers (`ok=1`, `length()>0`, `<>""`/`<>"null"`/`<>"[]"`,
+and dnssec `#2="signed"`) are redundant. Code review flagged the asymmetry with
+the now-clean cert triggers as a latent trap (a future maintainer dropping a
+discard step would get *different* failure modes on the two halves). Simplified
+for one consistent contract — the discard is the single mechanism, and the
+contract tests assert every discard step exists, so removing one fails CI.
+
+- `Domain registrar changed`: `change(whois.registrar)=1`
+- `Domain name servers changed`: `change(whois.name_servers)=1`
+- `Domain DNSSEC removed`: `change(whois.dnssec)=1 and last(whois.dnssec)="unsigned"`
+  (drops the now-implied `#2="signed"`; `last(...)="unsigned"` is the removal
+  condition, not a guard).
+
+The `WHOIS check failing` dependencies are kept (parity with the cert triggers).
+Behaviour is unchanged given the discard — validated on a live engine in 2.2.8
+(recovery silent; genuine change fires; DNSSEC removal-through-outage fires).
+**Deploy:** `trigger.update` the three WHOIS triggers on both servers.
+
 ## [7.0-2.2.8] - 2026-06-03
 
 Template-only release (no `web_check` change).

@@ -56,6 +56,14 @@ def test_normalise_com_via_asyncwhois_shape(web_check_module):
     assert out["provider_no_expiry"] is False
 
 
+def test_normalise_name_servers_are_sorted(web_check_module):
+    # Same canonical-ordering contract as RDAP: port-43 parsers return NS in
+    # arbitrary order, so sort before emit to keep change() meaningful.
+    parsed = {"registrar": "X", "name_servers": ["NS2.REG.RU", "ns1.reg.ru"]}
+    out = web_check_module._normalize_whois(parsed, raw="", tld="com")
+    assert out["name_servers"] == ["ns1.reg.ru", "ns2.reg.ru"]
+
+
 def test_normalise_rf_invokes_augmenter(web_check_module):
     """asyncwhois .рф parser ships only registrar; expires comes from TCI raw."""
     parsed = {"registrar": "REGRU-RF"}

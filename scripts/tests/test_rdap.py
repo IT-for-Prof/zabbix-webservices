@@ -43,6 +43,15 @@ def test_rdap_center(web_check_module):
     assert out["name_servers"] == ["ns1.reg.ru", "ns2.reg.ru"]
 
 
+def test_rdap_name_servers_are_sorted(web_check_module):
+    # Registries return the NS set in arbitrary order; emit it canonically
+    # (sorted) so the "Domain name servers changed" change()-trigger only fires
+    # on a genuine set change, not on reordering.
+    d = {"nameservers": [{"ldhName": "NS2.example.com."}, {"ldhName": "ns1.example.com"}]}
+    out = web_check_module._normalize_rdap(d, "com")
+    assert out["name_servers"] == ["ns1.example.com", "ns2.example.com"]
+
+
 def test_rdap_dnssec_signed(web_check_module):
     out = web_check_module._normalize_rdap(load("cloudflare_com.json"), "com")
     assert out["dnssec"] == "signed"

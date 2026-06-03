@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 SCHEMA_VERSION = 3
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
@@ -1216,7 +1216,10 @@ def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, An
         "expires_at": iso(expires) or "",
         "days_to_expire": dte if dte is not None or not no_expiry else 0,
         "statuses": statuses,
-        "name_servers": [n.rstrip(".").lower() for n in ns if n],
+        # Sorted so the value is canonical: registries return the NS set in
+        # arbitrary order, and an unsorted list makes the "Domain name servers
+        # changed" change()-trigger fire on mere reordering.
+        "name_servers": sorted(n.rstrip(".").lower() for n in ns if n),
         "dnssec": dnssec_s,
         "abuse_email": parsed.get("registrar_abuse_email") or "",
         "provider_no_expiry": no_expiry,
@@ -1354,11 +1357,14 @@ def _normalize_rdap(d: dict[str, Any], tld: str) -> dict[str, Any]:
 
     registrar, iana_id, abuse_email = _rdap_registrar(d)
 
-    name_servers = [
+    # Sorted for a canonical value — see _normalize_whois; an unsorted NS list
+    # makes the "Domain name servers changed" change()-trigger fire on mere
+    # registry reordering rather than a genuine set change.
+    name_servers = sorted(
         ns["ldhName"].rstrip(".").lower()
         for ns in (d.get("nameservers") or [])
         if isinstance(ns, dict) and isinstance(ns.get("ldhName"), str)
-    ]
+    )
 
     statuses = d.get("status") or []
     if isinstance(statuses, str):

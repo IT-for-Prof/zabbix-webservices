@@ -1,7 +1,7 @@
 # Architecture
 
-> Status: in production. Template `7.0-2.2.8`, externalscript
-> `web_check.py` 2.2.0, installer, and migration script all shipped and
+> Status: in production. Template `7.0-2.2.9`, externalscript
+> `web_check.py` 2.2.1, installer, and migration script all shipped and
 > running on 6 Zabbix server/proxy nodes; 59 hosts migrated from
 > `Template Website metrics (itmicus.ru)` on 2026-05-14.
 
@@ -380,9 +380,9 @@ are suppressed for the host (gated on `provider_no_expiry=0` and
 | Domain expires within `{$…WHOIS.CRIT_DAYS}` day(s) | HIGH | `… >= 0 and … < {$…CRIT_DAYS}` (1; depends on Expired) |
 | Domain expires within `{$…WHOIS.NOTICE_DAYS}` days | AVERAGE | `… >= {$…CRIT_DAYS} and … < {$…NOTICE_DAYS}` (7; depends on <1d) |
 | Domain expires within `{$…WHOIS.WARN_DAYS}` days | WARNING | `… >= {$…NOTICE_DAYS} and … < {$…WARN_DAYS}` (30; depends on <7d) |
-| Domain registrar changed | WARNING | `whois.ok=1 and change(.../web_check.whois.registrar)=1` (potential transfer). The item discards the `""`/`null` sentinels (`NOT_MATCHES_REGEX`), so `change()` only sees a genuine registrar move — a WHOIS-outage recovery (`real→""→real`) is not a change. |
-| Domain name servers changed | INFO | `whois.ok=1 and change(.../web_check.whois.name_servers)=1`. The item discards the `[]` sentinel, so an outage recovery does not read as an NS change. |
-| Domain DNSSEC removed | WARNING | previous `whois.dnssec="signed"`, now `"unsigned"` (gated on `whois.ok=1`). The item keeps only `signed`/`unsigned` (discards `unknown`), so a removal that spanned a failed poll (`signed→unknown→unsigned`) still fires. |
+| Domain registrar changed | WARNING | `change(.../web_check.whois.registrar)=1` (potential transfer). The item discards the `""`/`null` sentinels (`NOT_MATCHES_REGEX`), so `change()` only sees a genuine registrar move — a WHOIS-outage recovery (`real→""→real`) is not a change. The registrar value is canonical (script sorts/normalises), so no guards needed in the trigger. |
+| Domain name servers changed | INFO | `change(.../web_check.whois.name_servers)=1`. The item discards the `[]` sentinel; `web_check.py` emits the NS set **sorted**, so reordering by the registry does not flap this trigger — only a genuine set change does. |
+| Domain DNSSEC removed | WARNING | `change(.../web_check.whois.dnssec)=1 and last(...)="unsigned"`. The item keeps only `signed`/`unsigned` (discards `unknown`), so a removal that spanned a failed poll (`signed→unknown→unsigned`) still fires; the `#2="signed"`/`ok=1` guards are no longer needed. |
 | WHOIS check failing | INFO | `last(.../web_check.whois.ok) = 0` |
 
 ## Layer 4 — Network diagnostics (native simple checks)

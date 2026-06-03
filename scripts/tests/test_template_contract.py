@@ -38,45 +38,37 @@ def test_whois_expiry_triggers_only_evaluate_when_whois_ok():
                 assert "web_check.whois.ok)=1" in expression, dependency["name"]
 
 
-def test_whois_change_triggers_only_evaluate_when_whois_ok():
-    master = next(item for item in _template()["items"] if item["key"].startswith('web_check.py["whois"'))
-    dependent_items = [item for item in _template()["items"] if item.get("key", "").startswith("web_check.whois.")]
-    triggers = [
-        trigger
-        for item in dependent_items
+def test_whois_change_triggers_are_clean_change_detectors():
+    """The WHOIS registrar/NS/DNSSEC change-triggers are bare change() detectors.
+
+    The sentinel discard at the item layer (see
+    test_whois_identity_items_discard_error_envelope_sentinels) makes change()
+    authoritative, so the old in-expression guards (ok=1, length>0, <>""/<>"null"
+    /<>"[]", dnssec #2="signed") are removed — they masked only the entering-error
+    edge, not recovery, and the dnssec #2 guard caused a removal-through-outage
+    false negative. One mechanism, mirroring the cert change-triggers.
+    """
+    by_name = {
+        trigger["name"]: trigger["expression"]
+        for item in _template()["items"]
         for trigger in item.get("triggers", []) or []
-        if trigger["name"] in {"Domain registrar changed", "Domain name servers changed", "Domain DNSSEC removed"}
-    ]
+    }
+    registrar = by_name["Domain registrar changed"]
+    name_servers = by_name["Domain name servers changed"]
+    dnssec = by_name["Domain DNSSEC removed"]
 
-    assert triggers
-    assert master
-    for trigger in triggers:
-        assert "web_check.whois.ok)=1" in trigger["expression"], trigger["name"]
-
-
-def test_whois_change_triggers_ignore_empty_registry_values():
-    triggers = [trigger for item in _template()["items"] for trigger in item.get("triggers", []) or []]
-    expression_by_name = {trigger["name"]: trigger["expression"] for trigger in triggers}
-
-    assert (
-        'last(/Web service by itforprof.com/web_check.whois.registrar)<>""'
-        in expression_by_name["Domain registrar changed"]
+    assert registrar == "change(/Web service by itforprof.com/web_check.whois.registrar)=1"
+    assert name_servers == "change(/Web service by itforprof.com/web_check.whois.name_servers)=1"
+    # DNSSEC keeps last(...)="unsigned" (that is the removal condition, not a
+    # redundant guard) but drops the now-implied #2="signed" and the ok=1 gate.
+    assert dnssec == (
+        "change(/Web service by itforprof.com/web_check.whois.dnssec)=1 and "
+        'last(/Web service by itforprof.com/web_check.whois.dnssec)="unsigned"'
     )
-    assert (
-        'last(/Web service by itforprof.com/web_check.whois.registrar)<>"null"'
-        in expression_by_name["Domain registrar changed"]
-    )
-    assert (
-        'last(/Web service by itforprof.com/web_check.whois.name_servers)<>"[]"'
-        in expression_by_name["Domain name servers changed"]
-    )
-
-
-def test_dnssec_removed_requires_previous_signed_state():
-    triggers = [trigger for item in _template()["items"] for trigger in item.get("triggers", []) or []]
-    expression = {trigger["name"]: trigger["expression"] for trigger in triggers}["Domain DNSSEC removed"]
-
-    assert 'last(/Web service by itforprof.com/web_check.whois.dnssec,#2)="signed"' in expression
+    for expr in (registrar, name_servers, dnssec):
+        assert "web_check.whois.ok)=1" not in expr
+        assert ",#2)" not in expr
+        assert "length(" not in expr
 
 
 def test_whois_expiry_triggers_require_valid_expiry_item():
@@ -201,7 +193,7 @@ def test_cert_rotated_late_still_reads_outgoing_cert_window():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.2.8"
+    assert _template()["vendor"]["version"] == "7.0-2.2.9"
 
 
 def test_whois_event_names_reference_data_items_after_ok_guard():

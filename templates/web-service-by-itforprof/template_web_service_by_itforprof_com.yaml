@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.2.8
+      version: 7.0-2.2.9
     groups:
     - name: Templates/Applications
     macros:
@@ -1020,7 +1020,7 @@ zabbix_export:
         value: whois
       triggers:
       - uuid: 2a36c6738f704d8ab1a87736d294e0b9
-        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and change(/Web service by itforprof.com/web_check.whois.registrar)=1 and length(last(/Web service by itforprof.com/web_check.whois.registrar))>0 and last(/Web service by itforprof.com/web_check.whois.registrar)<>"" and last(/Web service by itforprof.com/web_check.whois.registrar)<>"null"
+        expression: change(/Web service by itforprof.com/web_check.whois.registrar)=1
         name: Domain registrar changed
         priority: WARNING
         description: Registrar string changed. Verify legitimacy of any domain transfer.
@@ -1064,7 +1064,7 @@ zabbix_export:
         value: whois
       triggers:
       - uuid: 17ab53ac72ba4068993da7b57037a22b
-        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and change(/Web service by itforprof.com/web_check.whois.name_servers)=1 and length(last(/Web service by itforprof.com/web_check.whois.name_servers))>0 and last(/Web service by itforprof.com/web_check.whois.name_servers)<>"[]"
+        expression: change(/Web service by itforprof.com/web_check.whois.name_servers)=1
         name: Domain name servers changed
         priority: INFO
         description: NS records changed at the registry level. Often legitimate (e.g. moving to Cloudflare).
@@ -1112,7 +1112,7 @@ zabbix_export:
         value: whois
       triggers:
       - uuid: 04a755e85b394a3f983efd7f81268a22
-        expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and change(/Web service by itforprof.com/web_check.whois.dnssec)=1 and last(/Web service by itforprof.com/web_check.whois.dnssec,#2)="signed" and last(/Web service by itforprof.com/web_check.whois.dnssec)="unsigned"
+        expression: change(/Web service by itforprof.com/web_check.whois.dnssec)=1 and last(/Web service by itforprof.com/web_check.whois.dnssec)="unsigned"
         name: Domain DNSSEC removed
         priority: WARNING
         description: DNSSEC went from signed to unsigned at the registry — investigate.
