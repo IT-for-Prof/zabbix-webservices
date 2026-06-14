@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.2.9
+      version: 7.0-2.3.0
     groups:
     - name: Templates/Applications
     macros:
@@ -103,12 +103,15 @@ zabbix_export:
       value: '7'
       description: Cert expiry HIGH trigger threshold (days).
     - macro: '{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}'
-      value: '14'
+      value: '3'
       description: 'Late-rotation threshold (days). If a cert rotation is detected
         (fingerprint changed) while the OUTGOING cert had fewer than this many days
-        left, raise the HIGH "rotated late" trigger. The trigger reads the
-        pre-rotation window (max over the 2h ending 15m ago), never the freshly
-        installed cert.'
+        left, raise the WARNING "rotated late" trigger — a near-miss/hygiene signal,
+        not an outage (a fresh cert is already installed by the time it fires). The
+        trigger reads the pre-rotation window (max over the 2h ending 15m ago), never
+        the freshly installed cert. Default 3 keeps it quiet on provider-managed
+        hosts whose renewal cadence you do not control; raise it to flag earlier on
+        hosts where you own the renewal automation.'
     - macro: '{$WEB_SERVICE.CERT.MIN_KEY_RSA}'
       value: '2048'
       description: Minimum acceptable RSA key size (bits).
@@ -517,11 +520,17 @@ zabbix_export:
       - uuid: d03134c8f17c4610ace39c55e9d74e52
         expression: change(/Web service by itforprof.com/web_check.cert.fingerprint_sha256)=1 and max(/Web service by itforprof.com/web_check.cert.days_to_expire,2h:now-15m)<{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}
         name: Cert rotated unexpectedly (was about to expire)
-        priority: HIGH
+        priority: WARNING
         description: 'The cert fingerprint changed (rotation) while the OUTGOING cert
           was already inside the {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}-day window —
-          renewal happened dangerously late and the previous cert may have lapsed
-          (brief outage window). Investigate the renewal automation.
+          the renewal cut it close. This is a retrospective near-miss / hygiene
+          signal, NOT an active outage: a fresh cert is already installed by the
+          time this fires, and the genuine "cert actually lapses" risk is covered by
+          the separate cert-expiry triggers. WARNING (not HIGH) so it stays a
+          dashboard signal without escalating/ticketing. On hosts where you own the
+          renewal automation, a late rotation still means the automation is cutting
+          it dangerously close — investigate. On provider-managed hosts you do not
+          control the cadence; ignore or tune {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}.
 
 
           Reads max(days_to_expire) over the 2h ending 15m ago, i.e. the OLD cert''s

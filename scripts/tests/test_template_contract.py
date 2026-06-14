@@ -186,14 +186,22 @@ def test_whois_identity_items_discard_error_envelope_sentinels():
 
 
 def test_cert_rotated_late_still_reads_outgoing_cert_window():
-    """The HIGH late-rotation trigger must keep the 2h:now-15m max() window."""
+    """The WARNING late-rotation trigger must keep the 2h:now-15m max() window."""
     trigger = _cert_triggers_by_name()["Cert rotated unexpectedly (was about to expire)"]
     assert "max(/Web service by itforprof.com/web_check.cert.days_to_expire,2h:now-15m)" in trigger["expression"]
     assert "{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}" in trigger["expression"]
 
 
+def test_cert_rotated_late_is_warning_not_high():
+    """Late rotation is a retrospective near-miss (a fresh cert is already
+    installed), so it stays a dashboard WARNING below the Average ticketing
+    threshold — never HIGH. See docs/superpowers/specs/2026-06-14-*."""
+    trigger = _cert_triggers_by_name()["Cert rotated unexpectedly (was about to expire)"]
+    assert trigger["priority"] == "WARNING", trigger.get("priority")
+
+
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.2.9"
+    assert _template()["vendor"]["version"] == "7.0-2.3.0"
 
 
 def test_whois_event_names_reference_data_items_after_ok_guard():

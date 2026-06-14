@@ -4,6 +4,35 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.3.0] - 2026-06-14
+
+Recalibrates the **`Cert rotated unexpectedly (was about to expire)`** trigger to
+stop it being noise on hosting-provider-managed sites, where the renewal cadence
+is outside our control. Template-only; `web_check.py` unchanged.
+
+### Changed — "rotated late" downgraded to WARNING + threshold 14 → 3 (template)
+The trigger fired **HIGH** whenever a cert rotated while the outgoing cert had
+fewer than **14** days left. HIGH events auto-create Planfix tickets (the enabled
+ticketing actions fire at Average severity and above), so a provider that
+habitually renews at ~10 days out generated an un-actionable ticket every renewal
+cycle. But by the time this trigger fires a **fresh cert is already installed** —
+it is a retrospective *near-miss / hygiene* signal, not an active outage (the real
+"cert lapses" risk is covered by the cert-expiry triggers). Two changes:
+
+- **Severity `HIGH` → `WARNING`.** Drops below the Average ticketing threshold, so
+  it no longer auto-creates Planfix tasks; still visible on the dashboard.
+- **`{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` default `14` → `3`.** Fires only on a
+  genuinely alarming last-minute rotation (outgoing cert had under 3 days left).
+  On hosts where you own the renewal automation, a sub-3-day rotation is still a
+  real "certbot is cutting it dangerously close" signal worth a look.
+
+No per-host overrides of the macro exist, so the new default propagates to every
+linked host on re-import. Note: group-scoped WARNING-floor notification actions
+still fire — e.g. AVAKS (group 17) host `avs.itforprof.ru` keeps notifying ZNT via
+action 82 (severity ≥ WARNING); the downgrade removes Planfix ticketing, not all
+routing. **Deploy:** re-import the template to every Zabbix server — this is the
+template, not the externalscript.
+
 ## [7.0-2.2.9] - 2026-06-03
 
 Follow-ups from code review of 2.2.8. Ships a `web_check.py` bump (**2.2.0 →

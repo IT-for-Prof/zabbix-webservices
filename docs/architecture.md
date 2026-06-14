@@ -267,7 +267,7 @@ clamped to 0 and lost diagnostic information.
 | Cert expires within `{$…CERT.NOTICE_DAYS}` days | WARNING | `… >= {$…CRIT_DAYS} and … < {$…NOTICE_DAYS}` (14; depends on <7d) |
 | Cert expires within `{$…CERT.WARN_DAYS}` days | INFO | `… >= {$…NOTICE_DAYS} and … < {$…WARN_DAYS}` (30; depends on <14d) |
 | Cert rotated | INFO | `change(.../web_check.cert.fingerprint_sha256) = 1` (manual close). The fingerprint item discards the error-envelope `""` (`MATCHES_REGEX` / `DISCARD_VALUE`), so `change()` only ever sees a genuine `real→real` rotation — a check-outage recovery (`""→real`) is not a change. |
-| Cert rotated unexpectedly (was about to expire) | HIGH | `change(fingerprint_sha256)=1 and max(.../web_check.cert.days_to_expire,2h:now-15m) < {$…CERT.ROTATE_MIN_DAYS}` (14; manual close). Reads the *outgoing* cert's pre-rotation window — `last()` would already be the new cert. The fingerprint-discard keeps `change()` clean, so a late rotation that spanned a failed poll (`old→""→new`) still fires (the `""` is dropped, leaving `old→new`). |
+| Cert rotated unexpectedly (was about to expire) | WARNING | `change(fingerprint_sha256)=1 and max(.../web_check.cert.days_to_expire,2h:now-15m) < {$…CERT.ROTATE_MIN_DAYS}` (3; manual close). A retrospective near-miss/hygiene signal, not an outage — a fresh cert is already installed by the time it fires, so it sits below the Average ticketing threshold rather than escalating. Reads the *outgoing* cert's pre-rotation window — `last()` would already be the new cert. The fingerprint-discard keeps `change()` clean, so a late rotation that spanned a failed poll (`old→""→new`) still fires (the `""` is dropped, leaving `old→new`). |
 | Cert weak signature algorithm | WARNING | `find(.../web_check.cert.signature_algorithm,,"regexp","(?i)(sha1\|md5)") = 1` |
 | Cert weak public key | WARNING | RSA `public_key_bits < {$…MIN_KEY_RSA}` (2048) or ECDSA `< {$…MIN_KEY_ECDSA}` (256) |
 | Cert hostname not covered | HIGH | `last(.../web_check.cert.hostname_covered) = 0` |
@@ -512,7 +512,7 @@ in the legacy template, N = new.
 | tls | Cert expires within `{$…CERT.NOTICE_DAYS}` days | WARNING |
 | tls | Cert expires within `{$…CERT.WARN_DAYS}` days | INFO |
 | tls | Cert rotated | INFO |
-| tls | Cert rotated unexpectedly (was about to expire) | HIGH |
+| tls | Cert rotated unexpectedly (was about to expire) | WARNING |
 | tls | Cert weak signature algorithm | WARNING |
 | tls | Cert weak public key | WARNING |
 | tls | Cert hostname not covered | HIGH |
@@ -563,7 +563,7 @@ All 28 user macros the template declares:
 | `{$WEB_SERVICE.CERT.WARN_DAYS}` | 30 | Cert expiry INFO threshold (days). |
 | `{$WEB_SERVICE.CERT.NOTICE_DAYS}` | 14 | Cert expiry WARNING threshold (days). |
 | `{$WEB_SERVICE.CERT.CRIT_DAYS}` | 7 | Cert expiry HIGH threshold (days). |
-| `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` | 14 | "Rotated late" HIGH threshold (days) — outgoing cert had fewer days left at rotation. |
+| `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` | 3 | "Rotated late" WARNING threshold (days) — outgoing cert had fewer days left at rotation. Default 3 stays quiet on provider-managed hosts whose renewal cadence you don't control. |
 | `{$WEB_SERVICE.CERT.MIN_KEY_RSA}` | 2048 | Min acceptable RSA key size (bits). |
 | `{$WEB_SERVICE.CERT.MIN_KEY_ECDSA}` | 256 | Min acceptable ECDSA key size (bits). |
 | `{$WEB_SERVICE.WHOIS.WARN_DAYS}` | 30 | Domain expiry WARNING threshold (days). |
