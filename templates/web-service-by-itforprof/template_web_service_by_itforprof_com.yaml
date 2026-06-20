@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.3.0
+      version: 7.0-2.3.1
     groups:
     - name: Templates/Applications
     macros:
@@ -178,8 +178,8 @@ zabbix_export:
       - uuid: be5d249ccc8a4058ab24198c61ec5eec
         expression: last(/Web service by itforprof.com/web.test.fail[Web service])<>0
         name: Web service is failing
-        event_name: 'Web service failed: {$WEB_SERVICE.URL} — {HOST.NAME} ({HOST.HOST})'
-        opdata: 'HTTP {?last(//web.test.rspcode[Web service,GET])} | err: {?last(//web.test.error[Web service])}'
+        event_name: 'Web service failed: {$WEB_SERVICE.URL} — {HOST.NAME} ({HOST.HOST}) — HTTP {?last(//web.test.rspcode[Web service,GET])} / {?last(//web.test.error[Web service])}'
+        opdata: 'failed step: {ITEM.LASTVALUE1}'
         priority: HIGH
         description: 'The web scenario reports a failed step. Covers all hard failures:
 
@@ -219,6 +219,7 @@ zabbix_export:
         expression: nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=1
         name: Web service no data received
         event_name: 'Web service: no data for {$WEB_SERVICE.NODATA.PERIOD} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        opdata: 'no fresh data from web scenario'
         priority: AVERAGE
         description: The web scenario item has not received fresh data for the configured period.
         tags:
@@ -230,6 +231,7 @@ zabbix_export:
         expression: nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
         name: Cert externalscript no data received
         event_name: 'web_check.py cert: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        opdata: 'no fresh data from web_check.py'
         priority: AVERAGE
         description: 'The cert master item has not received a fresh value for 15m
 
@@ -875,6 +877,7 @@ zabbix_export:
         expression: nodata(/Web service by itforprof.com/web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"],3h)=1
         name: WHOIS externalscript no data received
         event_name: 'web_check.py whois: no fresh value in 3h — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        opdata: 'no fresh data from web_check.py'
         priority: AVERAGE
         description: 'The WHOIS master item has not received a fresh value for 3h
 
@@ -1371,6 +1374,7 @@ zabbix_export:
         expression: nodata(/Web service by itforprof.com/web_check.py["tls-scan","{$WEB_SERVICE.URL}"],3d)=1
         name: TLS scan externalscript no data received
         event_name: 'web_check.py tls-scan: no fresh value in 3 days — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        opdata: 'no fresh data from web_check.py'
         priority: INFO
         description: 'The TLS-scan master item has not received a fresh value for 3 days
 
@@ -1493,6 +1497,7 @@ zabbix_export:
         expression: nodata(/Web service by itforprof.com/web_check.py["http3","{$WEB_SERVICE.URL}"],15m)=1
         name: HTTP/3 externalscript no data received
         event_name: 'web_check.py http3: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        opdata: 'no fresh data from web_check.py'
         priority: AVERAGE
         description: 'The HTTP/3 master item has not received a fresh value for 15m
 
