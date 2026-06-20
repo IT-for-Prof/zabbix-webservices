@@ -4,6 +4,38 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.3.1] - 2026-06-20
+
+Fixes unparsed macros in `Web service is failing` notifications. Template-only;
+`web_check.py` unchanged.
+
+### Fixed — moved HTTP code / error from `opdata` to `event_name`
+The trigger's **Operational data** was
+`HTTP {?last(//web.test.rspcode[Web service,GET])} | err: {?last(//web.test.error[Web service])}`.
+Operational data only supports text + item-value macros (`{ITEM.LASTVALUE}`),
+**not** expression macros `{?...}` — `{?...}` is supported in the trigger name /
+**Event name** (and notification message bodies), but not in Operational data. So
+the literal `{?last(...)}` strings leaked verbatim into every
+notification body. Fix: the two expression macros now live in `event_name` (which
+does expand `{?...}`, including the empty-host `//key` form that rebinds on linked
+hosts), and `opdata` is set to a labelled value (`failed step: {ITEM.LASTVALUE1}`).
+**Deploy:** re-import the template to every Zabbix server (applied to production via
+API trigger update).
+
+### Fixed — "no fresh value" triggers dumped the raw JSON master value into notifications
+The four `… externalscript no data received` triggers (cert / whois / http3 /
+tls-scan) had an empty Operational data field. Per Zabbix, an empty `opdata` falls
+back to "the latest values of all items from the trigger's expression" — and those
+triggers' expression item is the **master JSON item**, so `{EVENT.OPDATA}` resolved
+to the entire ~400-char WHOIS/cert JSON blob in every notification (and, being the
+last *cached* value, it misleadingly looked like current data in a "no data" alert).
+Set a short static `opdata: 'no fresh data from web_check.py'` on all four — any
+non-empty opdata suppresses the fallback. Monitoring still targets the master item
+(the correct signal that the externalscript produced output); only the notification
+display changed. The sibling `Web service no data received` trigger (web-scenario
+nodata) got the same treatment (`opdata: 'no fresh data from web scenario'`) so a
+"no data" alert no longer shows a stale cached `web.test.fail` value.
+
 ## [7.0-2.3.0] - 2026-06-14
 
 Recalibrates the **`Cert rotated unexpectedly (was about to expire)`** trigger to
