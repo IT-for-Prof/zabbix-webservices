@@ -20,7 +20,12 @@ jobs:
       - name: Install yamllint
         run: pip install --quiet yamllint
       - name: Lint template YAML
+        # line-length is disabled on purpose: these files are Zabbix
+        # `configuration.export` output. Trigger expressions are emitted on a
+        # single line of unbounded length (the longest is ~380 chars today) and
+        # wrapping them would be reverted by the next export. Structure rules
+        # (indentation, duplicates, syntax) stay enforced.
         run: |
           yamllint \
-            -d "{extends: default, rules: {line-length: {max: 300}, indentation: {spaces: 2, indent-sequences: consistent}, document-start: disable, truthy: {check-keys: false}, comments: disable}}" \
+            -d "{extends: default, rules: {line-length: disable, indentation: {spaces: 2, indent-sequences: consistent}, document-start: disable, truthy: {check-keys: false}, comments: disable}}" \
             templates/
