@@ -4,6 +4,40 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.3.2] - 2026-08-19
+
+Two failure modes found while investigating a template unlink on
+`mon.itforprof.com` (host template list was replaced instead of appended, which
+dropped the `{$WEB_SERVICE.*}` macros and turned 25 items NOTSUPPORTED).
+Template-only; `web_check.py` unchanged.
+
+### Fixed — "no fresh value" triggers blamed the script, not the item
+
+The four externalscript no-data triggers (`cert`, `whois`, `tls-scan`, `http3`)
+stated *"Externalscript not executing"* in their description and
+`no fresh data from web_check.py` in Operational data. The most common cause is
+neither: the master item itself is NOTSUPPORTED (e.g.
+`Invalid update interval "{$WEB_SERVICE.CERT.CHECK.INTERVAL}"` after a template
+unlink), or it is disabled by design (WHOIS on `role=duplicate` hosts). The
+wording sent operators to the collector to debug a healthy script.
+
+- `opdata` → `no value for <window> — item NOTSUPPORTED, disabled, or script not running`
+- `description` → causes ranked by likelihood, starting with "read the item error".
+
+### Fixed — frozen problems could not be closed manually
+
+14 triggers still had `manual_close: NO`, among them `Web service is failing`.
+When a host is disabled, its triggers stop being evaluated and any open problem
+freezes forever — invisible in *Monitoring → Problems* (which hides disabled
+hosts) but present in the API, reports and SLA. With `manual_close: NO` such an
+event cannot be closed at all short of deleting the host. Production carried 13
+of them, aged 11–77 days, five at HIGH.
+
+- `manual_close: YES` on all 32 template triggers (was 18/32).
+
+**Deploy:** applied to production and myzabbix via API trigger update; both
+servers verified field-by-field against this file (0 diffs).
+
 ## [7.0-2.3.1] - 2026-06-20
 
 Fixes unparsed macros in `Web service is failing` notifications. Template-only;

@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.3.1
+      version: 7.0-2.3.2
     groups:
     - name: Templates/Applications
     macros:
@@ -181,6 +181,7 @@ zabbix_export:
         event_name: 'Web service failed: {$WEB_SERVICE.URL} — {HOST.NAME} ({HOST.HOST}) — HTTP {?last(//web.test.rspcode[Web service,GET])} / {?last(//web.test.error[Web service])}'
         opdata: 'failed step: {ITEM.LASTVALUE1}'
         priority: HIGH
+        manual_close: 'YES'
         description: 'The web scenario reports a failed step. Covers all hard failures:
 
           non-matching HTTP status code, missing required phrase, timeout,
@@ -202,6 +203,7 @@ zabbix_export:
         event_name: 'Web service slow: avg {ITEM.LASTVALUE1} over 10m (threshold {$WEB_SERVICE.SLOW.WARN}s) — {$WEB_SERVICE.URL} on {HOST.NAME} ({HOST.HOST})'
         opdata: 'avg(10m): {ITEM.LASTVALUE1}s'
         priority: WARNING
+        manual_close: 'YES'
         description: 'Average response time over the last 10 minutes exceeds the
 
           {$WEB_SERVICE.SLOW.WARN} threshold.
@@ -221,6 +223,7 @@ zabbix_export:
         event_name: 'Web service: no data for {$WEB_SERVICE.NODATA.PERIOD} — {$WEB_SERVICE.URL} on {HOST.HOST}'
         opdata: 'no fresh data from web scenario'
         priority: AVERAGE
+        manual_close: 'YES'
         description: The web scenario item has not received fresh data for the configured period.
         tags:
         - tag: scope
@@ -231,19 +234,20 @@ zabbix_export:
         expression: nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
         name: Cert externalscript no data received
         event_name: 'web_check.py cert: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}'
-        opdata: 'no fresh data from web_check.py'
+        opdata: 'no value for 15m — item NOTSUPPORTED, disabled, or script not running'
         priority: AVERAGE
-        description: 'The cert master item has not received a fresh value for 15m
-
-          (3× its default delay). The externalscript is not executing at all —
-
-          check `/usr/lib/zabbix/externalscripts/web_check.py` exists and is
-
-          executable on this host''s monitored_by, and that the venv at
-
-          /opt/web_check/venv is intact.
-
-          '
+        manual_close: 'YES'
+        description: |
+          The cert master item has not received a fresh value for 15m
+          (3× its default delay). Causes, in order of likelihood:
+          - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
+            interval "{$WEB_SERVICE.CERT.CHECK.INTERVAL}", which happens when the
+            template gets unlinked from the host and its macros disappear);
+          - the item is disabled;
+          - web_check.py is not executing: check that
+            /usr/lib/zabbix/externalscripts/web_check.py exists and is executable
+            on this host's monitored_by, and that the venv at /opt/web_check/venv
+            is intact.
         tags:
         - tag: scope
           value: data-collection
@@ -584,6 +588,7 @@ zabbix_export:
         name: Cert weak signature algorithm
         event_name: 'TLS cert signed with weak algorithm: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
         priority: WARNING
+        manual_close: 'YES'
         description: The leaf certificate is signed with SHA-1 or MD5 — modern clients distrust both.
         tags:
         - tag: scope
@@ -619,6 +624,7 @@ zabbix_export:
         name: Cert weak public key
         event_name: 'TLS cert weak key: {ITEM.LASTVALUE1} {ITEM.LASTVALUE2} bits — {$WEB_SERVICE.URL} on {HOST.HOST}'
         priority: WARNING
+        manual_close: 'YES'
         description: Certificate public key is shorter than the configured minimum for its algorithm.
         tags:
         - tag: scope
@@ -676,6 +682,7 @@ zabbix_export:
         expression: last(/Web service by itforprof.com/web_check.cert.hostname_covered)=0
         name: Cert hostname not covered
         priority: HIGH
+        manual_close: 'YES'
         description: The current certificate has no SAN/CN that matches the host being monitored.
         tags:
         - tag: scope
@@ -711,6 +718,7 @@ zabbix_export:
         name: Cert chain untrusted
         event_name: TLS cert chain {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}
         priority: HIGH
+        manual_close: 'YES'
         description: 'TLS chain validation failed.
 
           For internal/self-hosted services signed by a corporate CA, install the
@@ -791,6 +799,7 @@ zabbix_export:
         name: TLS protocol weak (currently negotiating)
         event_name: 'Live TLS negotiated weak protocol: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
         priority: WARNING
+        manual_close: 'YES'
         description: 'The live cert-master handshake just negotiated a deprecated TLS
 
           protocol (SSLv3 / TLSv1.0 / TLSv1.1). Distinct from Layer 5''s
@@ -877,13 +886,18 @@ zabbix_export:
         expression: nodata(/Web service by itforprof.com/web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"],3h)=1
         name: WHOIS externalscript no data received
         event_name: 'web_check.py whois: no fresh value in 3h — {$WEB_SERVICE.URL} on {HOST.HOST}'
-        opdata: 'no fresh data from web_check.py'
+        opdata: 'no value for 3h — item NOTSUPPORTED, disabled, or script not running'
         priority: AVERAGE
-        description: 'The WHOIS master item has not received a fresh value for 3h
-
-          (3× its default 1h delay). Externalscript not executing.
-
-          '
+        manual_close: 'YES'
+        description: |
+          The WHOIS master item has not received a fresh value for 3h
+          (3× its default 1h delay). Causes, in order of likelihood:
+          - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
+            interval "{$WEB_SERVICE.WHOIS.CHECK.INTERVAL}", which happens when the
+            template gets unlinked from the host and its macros disappear);
+          - the item is disabled — normal on hosts whose registry role is
+            'duplicate' (WHOIS is polled once per apex domain by the owner host);
+          - web_check.py is not executing on this host's monitored_by.
         tags:
         - tag: scope
           value: data-collection
@@ -1374,13 +1388,17 @@ zabbix_export:
         expression: nodata(/Web service by itforprof.com/web_check.py["tls-scan","{$WEB_SERVICE.URL}"],3d)=1
         name: TLS scan externalscript no data received
         event_name: 'web_check.py tls-scan: no fresh value in 3 days — {$WEB_SERVICE.URL} on {HOST.HOST}'
-        opdata: 'no fresh data from web_check.py'
+        opdata: 'no value for 3 days — item NOTSUPPORTED, disabled, or script not running'
         priority: INFO
-        description: 'The TLS-scan master item has not received a fresh value for 3 days
-
-          (3× its default 1d delay). Externalscript not executing.
-
-          '
+        manual_close: 'YES'
+        description: |
+          The TLS-scan master item has not received a fresh value for 3 days
+          (3× its default 1d delay). Causes, in order of likelihood:
+          - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
+            interval "{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}", which happens when
+            the template gets unlinked from the host and its macros disappear);
+          - the item is disabled;
+          - web_check.py is not executing on this host's monitored_by.
         tags:
         - tag: scope
           value: data-collection
@@ -1449,6 +1467,7 @@ zabbix_export:
         name: HTTP/3 advertised but unreachable
         event_name: 'HTTP/3 advertised but unreachable: {$WEB_SERVICE.URL} on {HOST.HOST}'
         priority: HIGH
+        manual_close: 'YES'
         description: 'The server advertises HTTP/3 in its Alt-Svc header but our QUIC
 
           handshake from this proxy fails. Causes: UDP/443 dropped on the
@@ -1469,6 +1488,7 @@ zabbix_export:
         name: HTTP/3 handshake slow
         event_name: 'HTTP/3 handshake to {$WEB_SERVICE.URL} slow: avg {ITEM.LASTVALUE1} over 1h (threshold {$WEB_SERVICE.HTTP3.SLOW_MS}ms) — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
+        manual_close: 'YES'
         description: QUIC handshake average over 1h exceeds {$WEB_SERVICE.HTTP3.SLOW_MS}ms. http3 master polls every 5m so 1h gives a stable rolling sample.
         tags:
         - tag: scope
@@ -1497,11 +1517,17 @@ zabbix_export:
         expression: nodata(/Web service by itforprof.com/web_check.py["http3","{$WEB_SERVICE.URL}"],15m)=1
         name: HTTP/3 externalscript no data received
         event_name: 'web_check.py http3: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}'
-        opdata: 'no fresh data from web_check.py'
+        opdata: 'no value for 15m — item NOTSUPPORTED, disabled, or script not running'
         priority: AVERAGE
-        description: 'The HTTP/3 master item has not received a fresh value for 15m
-
-          (3× its default 5m delay). Externalscript not executing.'
+        manual_close: 'YES'
+        description: |
+          The HTTP/3 master item has not received a fresh value for 15m
+          (3× its default 5m delay). Causes, in order of likelihood:
+          - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
+            interval "{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}", which happens when the
+            template gets unlinked from the host and its macros disappear);
+          - the item is disabled;
+          - web_check.py is not executing on this host's monitored_by.
         tags:
         - tag: scope
           value: data-collection
