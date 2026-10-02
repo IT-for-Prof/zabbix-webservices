@@ -43,7 +43,7 @@ flowchart LR
 
 | Путь | Назначение |
 |------|------------|
-| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | Шаблон Zabbix `Web service by itforprof.com` (6 слоёв, один шаблон на хост). |
+| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | Полный шаблон `Web service by itforprof.com` и отдельный профиль `Web service by itforprof.com - Certificate/TLS` для произвольных TLS-сервисов. |
 | [`scripts/externalscripts/web_check.py`](scripts/externalscripts/web_check.py) | Внешний скрипт (`cert`/`whois`/`tls-scan`/`discover-tls`/`self-test`). |
 | [`scripts/deploy/`](scripts/deploy/) | `install.sh` (однострочник) + закреплённый `requirements.lock` для развёртывания в `/opt/web_check/venv`. |
 | [`scripts/migrate-from-itmicus.py`](scripts/migrate-from-itmicus.py) | Идемпотентная миграция с устаревшего `Template Website metrics (itmicus.ru)`. |

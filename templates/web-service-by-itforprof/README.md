@@ -16,7 +16,7 @@ Replaces the legacy [`Template Website metrics (itmicus.ru)`](https://github.com
 and its abandoned `website_metrics.py` externalscript (built on the
 unmaintained `whois==0.9` PyPI package and a `requests` monkey-patch).
 
-Six layers, single template per host:
+The original template remains the full web-service profile:
 
 | # | Concern              | Mechanism                                                       |
 | - | -------------------- | --------------------------------------------------------------- |
@@ -26,6 +26,28 @@ Six layers, single template per host:
 | 4 | Network diagnostics  | Native simple checks (`net.tcp.service.perf`). |
 | 5 | Deep TLS scan (daily) | EXTERNAL `web_check.py tls-scan` + LLD per weak finding.         |
 | 6 | HTTP/3 advertise + QUIC reachability | EXTERNAL `web_check.py http3` (Alt-Svc + aioquic handshake; silent on hosts that don't advertise h3). |
+
+For arbitrary TLS endpoints, import [`template_web_service_by_itforprof_com_tls.yaml`](template_web_service_by_itforprof_com_tls.yaml)
+and link only **Web service by itforprof.com - Certificate/TLS**. It contains the
+certificate master item, certificate metadata, expiry/rotation checks, and live
+TLS protocol/cipher/handshake items. The URL keeps its port, so SQL Server can
+use `https://ifp-vps03.itforprof.com:1433`; HTTP, WHOIS, HTTP/3, TLS scan, and
+TCP 80/443 checks are absent from this profile.
+
+The endpoint must accept a direct TLS handshake. Legacy SQL Server TDS 7.x
+normally sends a PRELOGIN exchange before TLS; this endpoint was verified from
+the monitoring server and negotiated TLS directly.
+
+Its expiry defaults are host-overridable: `WARN_DAYS=90`, `NOTICE_DAYS=30`,
+`CRIT_DAYS=7`, with the same RSA/ECDSA key floors as the full profile.
+
+For `IFP-VPS03`, set `{$WEB_SERVICE.URL}` to
+`https://ifp-vps03.itforprof.com:1433` and override the certificate interval
+and expiry thresholds on the host as needed. Before enabling it, run
+`web_check.py cert https://ifp-vps03.itforprof.com:1433` on the Zabbix
+server/proxy that monitors the host. The corporate CA must be trusted on that
+node for `chain_status=ok`; the agent check on the SQL host does not validate
+external-script reachability.
 
 All checks run from the host's `monitored_by` (server or proxy), so request
 egress matches the rest of the host's monitoring (correct for

@@ -1,0 +1,686 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: bd327ca2dab24c4aa6ba757655aa052f
+    name: Templates/Applications
+  templates:
+  - uuid: 167fc96887ef519d80d7e651e330f69a
+    template: Web service by itforprof.com - Certificate/TLS
+    name: Web service by itforprof.com - Certificate/TLS
+    description: 'Certificate and live TLS monitoring profile for arbitrary TLS services.
+
+
+      Includes the `web_check.py cert` master external item, certificate metadata,
+
+      expiry and rotation triggers, chain/hostname validation, and live negotiated
+
+      TLS protocol, cipher, and handshake time. The URL may include a non-standard
+
+      TLS port, for example `https://sql.example.com:1433`.
+
+
+      Checks execute from the host''s monitored_by (server or proxy). The host running
+
+      this profile must be able to reach the endpoint and trust its CA chain when
+
+      chain validation is required.'
+    vendor:
+      name: itforprof.com
+      version: 7.0-1.0.0
+    groups:
+    - name: Templates/Applications
+    macros:
+    - macro: '{$WEB_SERVICE.URL}'
+      description: TLS endpoint URL, including a non-standard port when needed, e.g. https://sql.example.com:1433. REQUIRED.
+    - macro: '{$WEB_SERVICE.CERT.CHECK.INTERVAL}'
+      value: 5m
+      description: How often the TLS certificate probe runs. Override per host.
+    - macro: '{$WEB_SERVICE.CERT.WARN_DAYS}'
+      value: '90'
+      description: Cert expiry INFO threshold in days. Override per host.
+    - macro: '{$WEB_SERVICE.CERT.NOTICE_DAYS}'
+      value: '30'
+      description: Cert expiry WARNING threshold in days. Override per host.
+    - macro: '{$WEB_SERVICE.CERT.CRIT_DAYS}'
+      value: '7'
+      description: Cert expiry HIGH threshold in days. Override per host.
+    - macro: '{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}'
+      value: '3'
+      description: Late-rotation threshold in days. Override per host.
+    - macro: '{$WEB_SERVICE.CERT.MIN_KEY_RSA}'
+      value: '2048'
+      description: Minimum acceptable RSA key size in bits. Override per host.
+    - macro: '{$WEB_SERVICE.CERT.MIN_KEY_ECDSA}'
+      value: '256'
+      description: Minimum acceptable ECDSA key size in bits. Override per host.
+    tags:
+    - tag: class
+      value: tls-service
+    items:
+    - uuid: aaed3959aa7056cc86ea0aeecd5a8323
+      name: 'Cert: probe (master JSON)'
+      type: EXTERNAL
+      key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      delay: '{$WEB_SERVICE.CERT.CHECK.INTERVAL}'
+      history: 7d
+      trends: '0'
+      value_type: TEXT
+      description: 'Runs `web_check.py cert <url>` on the host''s monitored_by.
+
+        Output is a JSON object consumed by the dependent items below
+
+        (subject/issuer/SANs/fingerprint/days-to-expire/chain_status/...).
+
+        Always exits 0; failures encode as {"ok": false, "error_code": ...}.
+
+        '
+      tags:
+      - tag: scope
+        value: tls
+      - tag: layer
+        value: '2'
+      triggers:
+      - uuid: ee239d19e84a5de6a581f1561f32f754
+        expression: nodata(/Web service by itforprof.com - Certificate/TLS/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
+        name: Cert externalscript no data received
+        event_name: 'web_check.py cert: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        opdata: no value for 15m — item NOTSUPPORTED, disabled, or script not running
+        priority: AVERAGE
+        manual_close: 'YES'
+        description: "The cert master item has not received a fresh value for 15m\n(3× its default delay). Causes, in order\
+          \ of likelihood:\n- the item is NOTSUPPORTED — read its error first (e.g. Invalid update\n  interval \"{$WEB_SERVICE.CERT.CHECK.INTERVAL}\"\
+          , which happens when the\n  template gets unlinked from the host and its macros disappear);\n- the item is disabled;\n\
+          - web_check.py is not executing: check that\n  /usr/lib/zabbix/externalscripts/web_check.py exists and is executable\n\
+          \  on this host's monitored_by, and that the venv at /opt/web_check/venv\n  is intact.\n"
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+    - uuid: 2fcf9991d1a255b4a09f4f51fd2f0ccf
+      name: 'Cert: days to expire'
+      type: DEPENDENT
+      key: web_check.cert.days_to_expire
+      value_type: FLOAT
+      units: d
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.days_to_expire
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: 4bf94233cd3d543a8f357e5bdbe1d79f
+        expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)<0
+        name: Cert expired
+        event_name: TLS cert expired ({ITEM.LASTVALUE1} past not_after) — {$WEB_SERVICE.URL} on {HOST.HOST}
+        priority: DISASTER
+        manual_close: 'YES'
+        description: The current TLS certificate is past its not_after date.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.ok)=0
+      - uuid: fcbec80a79bb5f76920a001b0121328b
+        expression: 'last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)>=0 and
+
+          last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.CRIT_DAYS}
+
+          '
+        name: Cert expires within {$WEB_SERVICE.CERT.CRIT_DAYS} days
+        priority: HIGH
+        manual_close: 'YES'
+        description: The TLS certificate will expire soon. Rotate now.
+        dependencies:
+        - name: Cert expired
+          expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)<0
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        event_name: TLS cert expires in {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.CRIT_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}
+      - uuid: 90b47f446bc65fcbad3a78cdacd82304
+        expression: 'last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)>={$WEB_SERVICE.CERT.CRIT_DAYS}
+          and
+
+          last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.NOTICE_DAYS}
+
+          '
+        name: Cert expires within {$WEB_SERVICE.CERT.NOTICE_DAYS} days
+        priority: WARNING
+        manual_close: 'YES'
+        description: The TLS certificate will expire within the WARNING threshold.
+        dependencies:
+        - name: Cert expires within {$WEB_SERVICE.CERT.CRIT_DAYS} days
+          expression: 'last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)>=0 and
+
+            last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.CRIT_DAYS}
+
+            '
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        event_name: TLS cert expires in {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.NOTICE_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}
+      - uuid: 56bf6a3f066d57f5808816cb9043b855
+        expression: 'last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)>={$WEB_SERVICE.CERT.NOTICE_DAYS}
+          and
+
+          last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.WARN_DAYS}
+
+          '
+        name: Cert expires within {$WEB_SERVICE.CERT.WARN_DAYS} days
+        priority: INFO
+        manual_close: 'YES'
+        description: 'Heads-up: cert renewal window approaching.'
+        dependencies:
+        - name: Cert expires within {$WEB_SERVICE.CERT.NOTICE_DAYS} days
+          expression: 'last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)>={$WEB_SERVICE.CERT.CRIT_DAYS}
+            and
+
+            last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.NOTICE_DAYS}
+
+            '
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        event_name: TLS cert expires in {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.WARN_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}
+    - uuid: 69bb2c1a9fb85313b7590bd9e9d04a88
+      name: 'Cert: not_after'
+      type: DEPENDENT
+      key: web_check.cert.not_after
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.not_after
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 652934f59f0a5881a1f9d18d85721f4b
+      name: 'Cert: subject CN'
+      type: DEPENDENT
+      key: web_check.cert.subject_cn
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.subject_cn
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: cef6f17aa626531e8448344df07799ad
+      name: 'Cert: issuer CN'
+      type: DEPENDENT
+      key: web_check.cert.issuer_cn
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.issuer_cn
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: b3d7654a77ac5fd38f15cf1a03d67d8c
+      name: 'Cert: issuer organization'
+      type: DEPENDENT
+      key: web_check.cert.issuer_org
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.issuer_org
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 25a824603cbc517a847fe2bcb2a1c0ed
+      name: 'Cert: serial'
+      type: DEPENDENT
+      key: web_check.cert.serial
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.serial
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 6ab04b8d90aa59ca966f6b8a211646fe
+      name: 'Cert: SANs'
+      type: DEPENDENT
+      key: web_check.cert.sans
+      value_type: TEXT
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.sans
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: c16be81c131a586ba7dd1ce10cd4fd65
+      name: 'Cert: SHA-256 fingerprint'
+      type: DEPENDENT
+      key: web_check.cert.fingerprint_sha256
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.fingerprint_sha256
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: MATCHES_REGEX
+        parameters:
+        - ^[0-9A-Fa-f]{64}$
+        error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: 0c5bf499b2a15e29b9ed83cfa050ad01
+        expression: change(/Web service by itforprof.com - Certificate/TLS/web_check.cert.fingerprint_sha256)=1
+        name: Cert rotated
+        priority: INFO
+        description: 'The SHA-256 fingerprint changed since the last poll — a new cert was deployed. Informational; usually
+          expected (Let''s Encrypt renews every ~60 days).
+
+
+          A check outage cannot trigger this: the item discards the error-envelope fingerprint ("") via MATCHES_REGEX, so
+          change() only ever sees a genuine <real>→<real> rotation — never a ""→real recovery transition.'
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.ok)=0
+        event_name: TLS cert rotated (new fingerprint {ITEM.LASTVALUE1}) — {$WEB_SERVICE.URL} on {HOST.HOST}
+        manual_close: 'YES'
+      - uuid: ea15b01cb2db51039011c57149814fe0
+        expression: change(/Web service by itforprof.com - Certificate/TLS/web_check.cert.fingerprint_sha256)=1 and max(/Web
+          service by itforprof.com - Certificate/TLS/web_check.cert.days_to_expire,2h:now-15m)<{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}
+        name: Cert rotated unexpectedly (was about to expire)
+        priority: WARNING
+        description: 'The cert fingerprint changed (rotation) while the OUTGOING cert was already inside the {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}-day
+          window — the renewal cut it close. This is a retrospective near-miss / hygiene signal, NOT an active outage: a fresh
+          cert is already installed by the time this fires, and the genuine "cert actually lapses" risk is covered by the
+          separate cert-expiry triggers. WARNING (not HIGH) so it stays a dashboard signal without escalating/ticketing. On
+          hosts where you own the renewal automation, a late rotation still means the automation is cutting it dangerously
+          close — investigate. On provider-managed hosts you do not control the cadence; ignore or tune {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}.
+
+
+          Reads max(days_to_expire) over the 2h ending 15m ago, i.e. the OLD cert''s remaining days just before rotation —
+          NOT last(), which on a dependent item already reflects the new cert at the moment the fingerprint changes. max()
+          over the window also rides out transient error-envelope dips (e.g. -1 / 0) from a single failed poll.
+
+
+          A check OUTAGE cannot false-fire this: the fingerprint item discards the envelope "" (MATCHES_REGEX), so a ""→real
+          recovery is not a change(). And because the "" is dropped rather than stored, a genuinely late rotation that happened
+          to span a failed poll (<old>→""→<new>) still registers as <old>→<new> and fires — which an in-trigger last(,#2)
+          guard would have wrongly suppressed.'
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.ok)=0
+        event_name: 'TLS cert rotated late: outgoing cert had <{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}d left — {$WEB_SERVICE.URL}
+          on {HOST.HOST}'
+        manual_close: 'YES'
+    - uuid: 8ad76ea82a4759f183645b4718ca65b7
+      name: 'Cert: signature algorithm'
+      type: DEPENDENT
+      key: web_check.cert.signature_algorithm
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.signature_algorithm
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: 936d895fae195cb0b7403f48970a7cfc
+        expression: find(/Web service by itforprof.com - Certificate/TLS/web_check.cert.signature_algorithm,,"regexp","(?i)(sha1|md5)")=1
+        name: Cert weak signature algorithm
+        event_name: 'TLS cert signed with weak algorithm: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: WARNING
+        manual_close: 'YES'
+        description: The leaf certificate is signed with SHA-1 or MD5 — modern clients distrust both.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.ok)=0
+    - uuid: 3950610894a75641aabc19da6efa6dc8
+      name: 'Cert: public key algorithm'
+      type: DEPENDENT
+      key: web_check.cert.public_key_algorithm
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.public_key_algorithm
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: e06d384dc8c15aa98e9ad33747e4fe5f
+        expression: "(last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.public_key_algorithm)=\"rsa\" and\n\
+          \ last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.public_key_bits)<{$WEB_SERVICE.CERT.MIN_KEY_RSA})\
+          \ or\n(last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.public_key_algorithm)=\"ecdsa\" and\n\
+          \ last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.public_key_bits)<{$WEB_SERVICE.CERT.MIN_KEY_ECDSA})\n"
+        name: Cert weak public key
+        event_name: 'TLS cert weak key: {ITEM.LASTVALUE1} {ITEM.LASTVALUE2} bits — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: WARNING
+        manual_close: 'YES'
+        description: Certificate public key is shorter than the configured minimum for its algorithm.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.ok)=0
+    - uuid: 5b416a10342453c1b012a68a8e180acc
+      name: 'Cert: public key bits'
+      type: DEPENDENT
+      key: web_check.cert.public_key_bits
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.public_key_bits
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1d
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: caa9d5f486ab569590b10fa793d93b82
+      name: 'Cert: hostname covered'
+      type: DEPENDENT
+      key: web_check.cert.hostname_covered
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.hostname_covered
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      valuemap:
+        name: 'web_check: boolean'
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: 889fc2be80d95e4a9174cf477c29b8e2
+        expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.hostname_covered)=0
+        name: Cert hostname not covered
+        priority: HIGH
+        manual_close: 'YES'
+        description: The current certificate has no SAN/CN that matches the host being monitored.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.ok)=0
+        event_name: TLS cert SAN/CN does not cover {$WEB_SERVICE.URL} on {HOST.HOST}
+    - uuid: 26abd94db75f5399bca50f86acc46f71
+      name: 'Cert: chain status'
+      type: DEPENDENT
+      key: web_check.cert.chain_status
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.cert.chain_status
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: 4adac660d77d586e927b80198d8b16bc
+        expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.chain_status)="untrusted"
+        name: Cert chain untrusted
+        event_name: TLS cert chain {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}
+        priority: HIGH
+        manual_close: 'YES'
+        description: 'TLS chain validation failed.
+
+          For internal/self-hosted services signed by a corporate CA, install the corporate root/intermediate CA certificates
+          into the trust store on the Zabbix server/proxy that monitors this host, then restart/retry the web_check.py cert
+          check. Also verify the web server sends the leaf plus any required intermediate certificates.'
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.ok)=0
+    - uuid: 0e05aa2a4fa45777a4b8c231280119a2
+      name: 'Cert: check ok'
+      type: DEPENDENT
+      key: web_check.cert.ok
+      value_type: UNSIGNED
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.ok
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: BOOL_TO_DECIMAL
+        parameters:
+        - ''
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 10m
+      valuemap:
+        name: 'web_check: boolean'
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: e05c024d3f035e4bbf84f6ae0915ebda
+        expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.ok)=0
+        name: Cert check failing
+        event_name: web_check.py cert reports ok=false — {$WEB_SERVICE.URL} on {HOST.HOST}
+        priority: INFO
+        description: The cert externalscript itself failed (DNS, TCP, parse) — investigate via the master item JSON.
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert externalscript no data received
+          expression: nodata(/Web service by itforprof.com - Certificate/TLS/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
+        manual_close: 'YES'
+    - uuid: f6a31f7b5ac45eea9f2d3f534d49befd
+      name: 'TLS: negotiated protocol (live)'
+      type: DEPENDENT
+      key: web_check.tls.protocol
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.tls.protocol
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: tls
+      triggers:
+      - uuid: 893eff8b018b511d9b08e9480828be65
+        expression: find(/Web service by itforprof.com - Certificate/TLS/web_check.tls.protocol,,"regexp","^(SSLv3|TLSv1|TLSv1\\.0|TLSv1\\.1)$")=1
+        name: TLS protocol weak (currently negotiating)
+        event_name: 'Live TLS negotiated weak protocol: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: WARNING
+        manual_close: 'YES'
+        description: 'The live cert-master handshake just negotiated a deprecated TLS
+
+          protocol (SSLv3 / TLSv1.0 / TLSv1.1). Distinct from Layer 5''s
+
+          "TLS weak protocol" LLD trigger which reflects what''s *negotiable*
+
+          at all; this one fires when our client is actually getting one of
+
+          those on every poll, indicating a default-protocol misconfig.
+
+          '
+        tags:
+        - tag: scope
+          value: tls
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Cert check failing
+          expression: last(/Web service by itforprof.com - Certificate/TLS/web_check.cert.ok)=0
+    - uuid: 27cc09081376507e95569392427dbed6
+      name: 'TLS: negotiated cipher (live)'
+      type: DEPENDENT
+      key: web_check.tls.cipher
+      value_type: CHAR
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.tls.cipher
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters:
+        - 1h
+      tags:
+      - tag: scope
+        value: tls
+    - uuid: 2953f6a0252b5ce8842cca1294b6a1b5
+      name: 'TLS: handshake time'
+      type: DEPENDENT
+      key: web_check.tls.handshake_ms
+      value_type: FLOAT
+      units: ms
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.tls.handshake_ms
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No cert data: web_check.py cert returned error envelope (see master item JSON).'
+      tags:
+      - tag: scope
+        value: tls

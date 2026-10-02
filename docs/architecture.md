@@ -11,7 +11,8 @@ Replace `Template Website metrics (itmicus.ru)` (legacy, templateid 10329 in
 production, linked to 59 hosts (migration completed 2026-05-14, see CHANGELOG)) with a Zabbix-7.0 native + single-externalscript
 design that:
 
-- Attaches as one template to any web-host, just like the legacy template did.
+- Keeps the existing full web-service template for ordinary websites.
+- Provides a certificate/TLS-only template for arbitrary TLS services such as SQL Server, SMTP, LDAP, and RDP Gateway.
 - Runs every check from the same proxy or server that already monitors that
   host (correct egress for GEO/RKN/internal-DNS scenarios — same property the
   legacy template had).
@@ -30,9 +31,9 @@ design that:
 
 ## Principles
 
-1. **One template per concern, attached to any host.** No probe-host siblings.
-   No host duplication. The web-host that already exists in Zabbix is the
-   only host that gets touched.
+1. **One profile per concern, attached to any host.** No probe-host siblings.
+   No host duplication. A website uses the full profile; a non-HTTP TLS service
+   uses `Web service by itforprof.com - Certificate/TLS`.
 
 2. **Native Zabbix wherever it suffices.** Web scenarios for HTTP. Simple
    checks for DNS / TCP-perf / ICMP-perf. LLD for things that come in
