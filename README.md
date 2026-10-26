@@ -148,7 +148,7 @@ external checks из-под него вынесли в UI-матрицу 1–600
 
 ## Версионирование
 
-Шаблон `Web service by itforprof.com` имеет версию `7.0-2.3.3`; профиль
+Шаблон `Web service by itforprof.com` имеет версию `7.0-2.3.4`; профиль
 `Web service by itforprof.com - Certificate-TLS` имеет версию `7.0-1.0.1`.
 Оба содержат `vendor: { name: itforprof.com, version: <zabbix-major>-<semver> }`.
 Правила увеличения версии:

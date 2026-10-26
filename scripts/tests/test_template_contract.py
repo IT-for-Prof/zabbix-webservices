@@ -201,7 +201,7 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.3.3"
+    assert _template()["vendor"]["version"] == "7.0-2.3.4"
 
 
 def test_http3_unreachable_needs_three_consecutive_failed_checks():
@@ -303,3 +303,56 @@ def test_trigger_dependency_expressions_match_target_triggers():
     for trigger in triggers:
         for dependency in trigger.get("dependencies", []) or []:
             assert dependency["expression"] == expression_by_name[dependency["name"]], dependency["name"]
+
+
+def test_tls_scan_timeout_trigger_matches_the_script_payload(monkeypatch, web_check_module):
+    """Two timed-out nightly scans in a row raise an INFO event, unless TCP 443 already reports the host down.
+
+    The like-pattern is checked against the script's real tls_scan_timeout payload, so a renamed
+    error code cannot silently disable the trigger.
+    """
+    import json
+    import time
+
+    pattern = "tls_scan_timeout"
+    items = {item["key"]: item for item in _template()["items"]}
+    trigger = next(
+        t
+        for t in items['web_check.py["tls-scan","{$WEB_SERVICE.URL}"]']["triggers"]
+        if t["name"] == "TLS scan does not finish within its time limit"
+    )
+    assert trigger["expression"] == (
+        'count(/Web service by itforprof.com/web_check.py["tls-scan","{$WEB_SERVICE.URL}"],#2,"like","'
+        + pattern
+        + '")=2'
+    )
+    assert trigger["priority"] == "INFO"
+    assert [d["name"] for d in trigger["dependencies"]] == ["TCP 443 connect failed"]
+
+    monkeypatch.setattr(web_check_module, "run_tls_scan", lambda url, timeout=10.0: time.sleep(1) or {})
+    monkeypatch.setattr(web_check_module, "TLS_SCAN_BUDGET", 0.05)
+    payload = json.dumps(web_check_module.bounded_tls_scan("https://example.com"), separators=(",", ":"))
+    assert f'"error_code":"{pattern}"' in payload
+
+
+def test_tls_scan_dependents_fail_on_error_envelope_instead_of_storing_defaults(monkeypatch, web_check_module):
+    """The error envelope carries supported_protocols=[] and weak_count=0, so JSONPath alone would
+    overwrite the last real values on every failed scan. A leading regex check turns it into the
+    item error the CUSTOM_ERROR message already describes."""
+    import json
+    import re
+    import time
+
+    monkeypatch.setattr(web_check_module, "run_tls_scan", lambda url, timeout=10.0: time.sleep(1) or {})
+    monkeypatch.setattr(web_check_module, "TLS_SCAN_BUDGET", 0.05)
+    failed = json.dumps(web_check_module.bounded_tls_scan("https://example.com"), separators=(",", ":"))
+    ok = failed.replace('"ok":false', '"ok":true')
+
+    items = {item["key"]: item for item in _template()["items"]}
+    for key in ("web_check.tls_scan.supported_protocols", "web_check.tls_scan.weak_count"):
+        steps = items[key]["preprocessing"]
+        assert steps[0]["type"] == "NOT_MATCHES_REGEX", (key, steps[0])
+        assert steps[0]["error_handler"] == "CUSTOM_ERROR", (key, steps[0])
+        assert steps[1]["type"] == "JSONPATH", (key, steps[1])
+        assert re.search(steps[0]["parameters"][0], failed), key
+        assert not re.search(steps[0]["parameters"][0], ok), key

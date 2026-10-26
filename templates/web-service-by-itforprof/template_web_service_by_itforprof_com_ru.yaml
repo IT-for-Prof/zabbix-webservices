@@ -42,7 +42,7 @@ zabbix_export:
       Лицензия:     MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.3.3
+      version: 7.0-2.3.4
     groups:
     - name: Templates/Applications
     macros:
@@ -1301,6 +1301,27 @@ zabbix_export:
           value: data-collection
         - tag: url
           value: '{$WEB_SERVICE.URL}'
+      - uuid: 8ffbb997f39544f784a20a091ece0d28
+        expression: count(/Web service by itforprof.com/web_check.py["tls-scan","{$WEB_SERVICE.URL}"],#2,"like","tls_scan_timeout")=2
+        name: Скан TLS не укладывается в лимит времени
+        event_name: 'web_check.py tls-scan: нет результата за 25 с два запуска подряд — {$WEB_SERVICE.URL} на {HOST.HOST}'
+        priority: INFO
+        manual_close: 'YES'
+        description: |
+          Два последних ежедневных скана TLS вернули error_code=tls_scan_timeout.
+          Сервер отвечает слишком медленно, и пробы протоколов и слабых шифров
+          не успевают за 25 с (Zabbix останавливает внешние проверки на 30 с).
+          Поддерживаемые протоколы и находки по слабым шифрам пока не обновляются,
+          правило LLD сохраняет уже найденное. Триггер молчит, пока не проходит
+          соединение TCP 443: о недоступной цели уже сообщает другой триггер.
+        tags:
+        - tag: scope
+          value: tls-scan
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        dependencies:
+        - name: Нет соединения TCP 443
+          expression: last(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443])=0
     - uuid: 4ff2ca946d4844e9a030b157dc5e16c7
       name: 'Скан TLS: поддерживаемые протоколы'
       type: DEPENDENT
@@ -1309,6 +1330,11 @@ zabbix_export:
       master_item:
         key: web_check.py["tls-scan","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No tls-scan data: web_check.py tls-scan returned error envelope (see master item JSON).'
       - type: JSONPATH
         parameters:
         - $.supported_protocols
@@ -1328,6 +1354,11 @@ zabbix_export:
       master_item:
         key: web_check.py["tls-scan","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: CUSTOM_ERROR
+        error_handler_params: 'No tls-scan data: web_check.py tls-scan returned error envelope (see master item JSON).'
       - type: JSONPATH
         parameters:
         - $.weak_count

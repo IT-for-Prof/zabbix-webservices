@@ -5,7 +5,7 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.3.3`                              |
+| Version          | `7.0-2.3.4`                              |
 | TLS profile      | `7.0-1.0.1`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
@@ -143,7 +143,7 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | `5m` | HTTP/3 master item delay. |
 | `{$WEB_SERVICE.HTTP3.SLOW_MS}` | `1000` | QUIC handshake time WARNING threshold (ms). |
 
-## Triggers (32 + 1 LLD prototype)
+## Triggers (33 + 1 LLD prototype)
 
 By scope:
 
@@ -155,7 +155,8 @@ By scope:
 | tls (cert + handshake) | 12 | DISASTER       |
 | whois         | 8     | DISASTER         |
 | diag          | 2     | HIGH             |
-| http3         | 3     | HIGH             |
+| http3         | 3     | AVERAGE          |
+| tls-scan      | 1     | INFO             |
 | tls-scan (LLD item prototype) | 1 per finding | INFO (no trigger prototype) |
 
 Cert-expiry triggers cascade DISASTER (expired) → HIGH (<7d) → WARNING (<14d)
