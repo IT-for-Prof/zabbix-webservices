@@ -51,7 +51,7 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install --quiet -r tests/requirements-test.txt
-      - run: pip install --quiet 'cryptography>=41' 'asyncwhois>=1.1.12' 'tldextract>=5.1.2'
+      - run: pip install --quiet 'cryptography>=41' 'asyncwhois>=1.1.12' 'tldextract>=5.1.2' 'aioquic>=1.0,<2.0'
       - run: pytest -q
 
   release:

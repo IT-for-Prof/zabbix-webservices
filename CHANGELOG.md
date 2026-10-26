@@ -4,6 +4,45 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.3.3] - 2026-10-26
+
+From 23 to 25 October about 30% of DNS queries on the myzabbix server were lost
+(the resolver retries after 5s). HTTP/3 on ehcall.ru worked the whole time, yet
+`HTTP/3 advertised but unreachable` (HIGH) fired 45-52 times per host and
+`HTTP/3 handshake slow` 38-53 times. Template 7.0-2.3.3 + `web_check.py` 2.2.2.
+
+### Fixed — DNS time was counted as QUIC handshake time (`web_check.py` 2.2.2)
+
+aioquic's `connect()` resolves the host itself, inside the handshake timer and
+inside the 8s `wait_for`. One lost DNS reply pushed `handshake_ms` to ~5100ms,
+two produced `h3_timeout`, which looks the same as a blocked UDP path.
+
+- `http3` resolves first, then runs the QUIC handshake against the IP with
+  SNI = host. The timeout and `handshake_ms` now cover the handshake only.
+- A resolver failure is reported as `error_code: dns_error`, not
+  `h3_unreachable`.
+- `cert`: `tls.handshake_ms` now times the TLS handshake only, without DNS
+  and TCP connect.
+
+### Changed — `HTTP/3 advertised but unreachable` needs 3 failed checks, AVERAGE
+
+- Expression: `min(alt_svc_advertised,#3)=1 and max(reachable,#3)=0`, so it
+  fires after 3 consecutive checks where h3 is advertised and QUIC fails
+  (~10-15 min) instead of after one.
+- `DISCARD_UNCHANGED_HEARTBEAT` removed from `web_check.http3.alt_svc_advertised`
+  and `web_check.http3.reachable`. `#3` counts stored values; with the discard a
+  run of zeros was one value, and the trigger would have waited for hourly
+  heartbeats.
+- Priority HIGH -> AVERAGE: the site still answers over HTTP/2.
+- A check that failed on the QUIC-path resolve (`error_code: dns_error`) is not
+  a QUIC attempt: `NOT_MATCHES_REGEX` + `DISCARD_VALUE` drops it from both
+  inputs, so their `#3` windows stay on the same checks. Dropping it from
+  `reachable` alone would pair fresh `advertised=1` values with zeros from
+  older checks where Alt-Svc itself failed.
+
+CI now installs aioquic, so `tests/test_http3.py` runs instead of being
+skipped.
+
 ## [7.0-2.3.2] - 2026-08-19
 
 Two failure modes found while investigating a template unlink on

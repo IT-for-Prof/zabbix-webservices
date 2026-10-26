@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-__version__ = "2.2.1"
+__version__ = "2.2.2"
 SCHEMA_VERSION = 3
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
@@ -448,7 +448,6 @@ def check_cert(url: str, timeout: float = 15.0) -> CertResult:  # noqa: C901, PL
         )
 
     ctx = ssl.create_default_context()
-    t0 = time.monotonic()
     chain_status = "ok"
     chain: list[Any] = []
     leaf_der: bytes
@@ -457,8 +456,10 @@ def check_cert(url: str, timeout: float = 15.0) -> CertResult:  # noqa: C901, PL
     alpn = None
 
     # Attempt 1 — strict verification. Captures most healthy cases.
+    # handshake_ms times the TLS handshake only: t0 starts after DNS + TCP connect.
     try:
         with socket.create_connection((host, port), timeout=timeout) as sock:
+            t0 = time.monotonic()
             with ctx.wrap_socket(sock, server_hostname=host) as ss:
                 handshake_ms = (time.monotonic() - t0) * 1000.0
                 leaf_der = ss.getpeercert(binary_form=True) or b""
@@ -481,8 +482,8 @@ def check_cert(url: str, timeout: float = 15.0) -> CertResult:  # noqa: C901, PL
             ctx_no = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             ctx_no.check_hostname = False
             ctx_no.verify_mode = ssl.CERT_NONE
-            t0 = time.monotonic()
             with socket.create_connection((host, port), timeout=timeout) as sock:
+                t0 = time.monotonic()
                 with ctx_no.wrap_socket(sock, server_hostname=host) as ss:
                     handshake_ms = (time.monotonic() - t0) * 1000.0
                     leaf_der = ss.getpeercert(binary_form=True) or b""
@@ -840,8 +841,10 @@ def tls_scan_to_lld(scan: dict[str, Any]) -> list[dict[str, str]]:
 #   1. HEAD over TCP-TLS to read Alt-Svc. If h3 is not advertised, stop here
 #      (return advertised=False, no false positive on hosts that don't serve
 #      h3 — which is the common case for stock nginx).
-#   2. QUIC handshake to UDP/port using aioquic + ALPN h3. Record handshake_ms,
-#      negotiated ALPN, QUIC version.
+#   2. Resolve the host (dns_error on failure), then QUIC handshake to the IP on
+#      UDP/port using aioquic + ALPN h3, SNI = host. The timeout and
+#      handshake_ms cover the handshake only. Record handshake_ms, negotiated
+#      ALPN, QUIC version.
 #
 # `cmd_http3` writes JSON to stdout exactly once and exits 0. aioquic + asyncio
 # can emit `StreamWriter.__del__` "Exception ignored" and "Future exception was
@@ -873,8 +876,8 @@ def _alt_svc_advertises_h3(host: str, port: int, timeout: float) -> bool:
     return bool(ALT_SVC_H3_RE.search(alt_svc))
 
 
-async def _quic_handshake(host: str, port: int, timeout: float) -> dict[str, Any]:
-    """Open a QUIC connection with ALPN=h3. Return handshake metrics."""
+async def _quic_handshake(host: str, ip: str, port: int, timeout: float) -> dict[str, Any]:
+    """Open a QUIC connection with ALPN=h3 to an already-resolved `ip`. Return handshake metrics."""
     from aioquic.asyncio.client import connect
     from aioquic.h3.connection import H3_ALPN
     from aioquic.quic.configuration import QuicConfiguration
@@ -882,7 +885,7 @@ async def _quic_handshake(host: str, port: int, timeout: float) -> dict[str, Any
     cfg = QuicConfiguration(is_client=True, alpn_protocols=H3_ALPN, verify_mode=ssl.CERT_REQUIRED)
     cfg.server_name = host
     t0 = time.monotonic()
-    async with connect(host, port, configuration=cfg, wait_connected=True) as conn:
+    async with connect(ip, port, configuration=cfg, wait_connected=True) as conn:
         dt_ms = (time.monotonic() - t0) * 1000.0
         tls = conn._quic.tls
         version_int = conn._quic._version  # noqa: SLF001 — stable enough across aioquic 1.x
@@ -920,6 +923,19 @@ def run_http3_check(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
         # No Alt-Svc h3 advertisement → skip the UDP probe entirely. Silent.
         return result
 
+    # Resolve outside the handshake timer and timeout: aioquic's connect() would
+    # resolve inside both, so a lost DNS reply (5s resolver retry) read as a
+    # blocked UDP path and inflated handshake_ms.
+    # shortcut: no own DNS deadline (resolver bounds it at timeout*attempts per
+    # nameserver); add a daemon-thread join(timeout) if a collector has several
+    # nameservers and the probe nears timeout_external_check (30s).
+    try:
+        ip = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)[0][4][0]
+    except socket.gaierror as e:
+        result["error_code"] = "dns_error"
+        result["error_message"] = str(e)[:300]
+        return result
+
     # Run the QUIC handshake on a fresh, isolated event loop so we can install a
     # custom exception handler that suppresses aioquic's "Future exception was
     # never retrieved" / StreamWriter __del__ noise without disturbing the rest
@@ -927,7 +943,7 @@ def run_http3_check(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
     loop = asyncio.new_event_loop()
     loop.set_exception_handler(lambda _loop, _ctx: None)
     try:
-        h3 = loop.run_until_complete(asyncio.wait_for(_quic_handshake(host, port, timeout), timeout=timeout))
+        h3 = loop.run_until_complete(asyncio.wait_for(_quic_handshake(host, ip, port, timeout), timeout=timeout))
         result.update(h3)
     except TimeoutError:
         result["error_code"] = "h3_timeout"

@@ -538,7 +538,7 @@ in the legacy template, N = new.
 | whois | WHOIS check failing | INFO |
 | diag | TCP 443 connect failed | HIGH |
 | diag | TCP 443 connect slow | WARNING |
-| http3 | HTTP/3 advertised but unreachable | HIGH |
+| http3 | HTTP/3 advertised but unreachable | AVERAGE |
 | http3 | HTTP/3 handshake slow | WARNING |
 | http3 | HTTP/3 check failing | INFO |
 | tls-scan | (per-finding LLD trigger prototype) | per finding |

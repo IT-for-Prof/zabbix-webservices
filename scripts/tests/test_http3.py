@@ -6,9 +6,80 @@ Network-isolated: we mock the two leaf helpers (`_alt_svc_advertises_h3` and
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import ipaddress
+import socket
+import time
+import types
+
 import pytest
 
 pytest.importorskip("aioquic")
+
+_REAL_GETADDRINFO = socket.getaddrinfo
+
+
+def _fake_dns(delay: float = 0.0, *, fail: bool = False):
+    """`socket.getaddrinfo` stand-in: names resolve to 192.0.2.10 after `delay`; IP literals pass through."""
+
+    def gai(host, port, *a, **kw):
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            time.sleep(delay)
+            if fail:
+                raise socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution") from None
+            return [(socket.AF_INET, socket.SOCK_DGRAM, 17, "", ("192.0.2.10", port))]
+        return _REAL_GETADDRINFO(host, port, *a, **kw)
+
+    return gai
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_dns(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_dns())
+
+
+def _fake_aioquic_connect(seen: dict):
+    """Mirror aioquic 1.x `connect()`: it resolves `host` itself before the handshake."""
+
+    @contextlib.asynccontextmanager
+    async def connect(host, port, *, configuration, wait_connected=True):
+        await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_DGRAM)
+        seen.update(host=host, server_name=configuration.server_name)
+        tls = types.SimpleNamespace(alpn_negotiated="h3")
+        yield types.SimpleNamespace(_quic=types.SimpleNamespace(tls=tls, _version=1))
+
+    return connect
+
+
+def test_http3_dns_delay_not_counted_as_quic_timeout(monkeypatch, web_check_module):
+    """A slow resolver (lost UDP query, 5s retry) must not turn into h3_timeout or inflate handshake_ms."""
+    import aioquic.asyncio.client
+
+    seen: dict = {}
+    monkeypatch.setattr(web_check_module, "_alt_svc_advertises_h3", lambda *a, **kw: True)
+    monkeypatch.setattr(aioquic.asyncio.client, "connect", _fake_aioquic_connect(seen))
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_dns(0.5))
+
+    result = web_check_module.run_http3_check("https://ehcall.ru:8448/x", timeout=0.3)
+    assert result["error_code"] == ""
+    assert result["h3_reachable"] is True
+    assert result["handshake_ms"] < 300
+    assert seen == {"host": "192.0.2.10", "server_name": "ehcall.ru"}
+
+
+def test_http3_dns_failure_reports_dns_error(monkeypatch, web_check_module):
+    """A resolver failure is reported as dns_error, not as h3_unreachable (UDP blocked)."""
+    monkeypatch.setattr(web_check_module, "_alt_svc_advertises_h3", lambda *a, **kw: True)
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_dns(fail=True))
+
+    result = web_check_module.run_http3_check("https://ehcall.ru:8448/x", timeout=0.3)
+    assert result["ok"] is True
+    assert result["alt_svc_advertised"] is True
+    assert result["h3_reachable"] is False
+    assert result["error_code"] == "dns_error"
 
 
 def test_http3_skipped_when_alt_svc_missing(monkeypatch, web_check_module):
@@ -38,7 +109,7 @@ def test_http3_happy_path(monkeypatch, web_check_module):
     """Advertised + QUIC handshake succeeds → reachable=True with handshake metrics."""
     monkeypatch.setattr(web_check_module, "_alt_svc_advertises_h3", lambda *a, **kw: True)
 
-    async def fake_handshake(host, port, timeout):
+    async def fake_handshake(host, ip, port, timeout):
         return {
             "h3_reachable": True,
             "handshake_ms": 42.0,
