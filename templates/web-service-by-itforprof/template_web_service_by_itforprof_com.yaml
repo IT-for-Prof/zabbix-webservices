@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.3.2
+      version: 7.0-2.3.3
     groups:
     - name: Templates/Applications
     macros:
@@ -1463,18 +1463,22 @@ zabbix_export:
         value: '6'
       triggers:
       - uuid: 4df09b7121514ffc853a17a40a13ba32
-        expression: last(/Web service by itforprof.com/web_check.http3.alt_svc_advertised)=1 and last(/Web service by itforprof.com/web_check.http3.reachable)=0
+        expression: min(/Web service by itforprof.com/web_check.http3.alt_svc_advertised,#3)=1 and max(/Web service by itforprof.com/web_check.http3.reachable,#3)=0
         name: HTTP/3 advertised but unreachable
         event_name: 'HTTP/3 advertised but unreachable: {$WEB_SERVICE.URL} on {HOST.HOST}'
-        priority: HIGH
+        priority: AVERAGE
         manual_close: 'YES'
         description: 'The server advertises HTTP/3 in its Alt-Svc header but our QUIC
 
-          handshake from this proxy fails. Causes: UDP/443 dropped on the
+          handshake from this proxy failed on 3 consecutive checks (~10-15 min).
 
-          path, server-side QUIC stack misconfigured, or CDN regression.
+          The site still answers over HTTP/2. Causes: UDP/443 dropped on the
 
-          Cross-check with the network-diagnostic items.'
+          path, server-side QUIC stack misconfigured, or CDN regression. If the
+
+          master item shows error_code=dns_error, the resolver on this proxy is
+
+          failing, not HTTP/3. Cross-check with the network-diagnostic items.'
         tags:
         - tag: scope
           value: http3
@@ -1497,7 +1501,7 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: HTTP/3 advertised but unreachable
-          expression: last(/Web service by itforprof.com/web_check.http3.alt_svc_advertised)=1 and last(/Web service by itforprof.com/web_check.http3.reachable)=0
+          expression: min(/Web service by itforprof.com/web_check.http3.alt_svc_advertised,#3)=1 and max(/Web service by itforprof.com/web_check.http3.reachable,#3)=0
       - uuid: 1b8861a5003f4f2082c745335694954a
         expression: last(/Web service by itforprof.com/web_check.http3.ok)=0
         name: HTTP/3 check failing
@@ -1549,9 +1553,6 @@ zabbix_export:
       - type: BOOL_TO_DECIMAL
         parameters:
         - ''
-      - type: DISCARD_UNCHANGED_HEARTBEAT
-        parameters:
-        - 1h
       tags:
       - tag: scope
         value: http3
@@ -1573,9 +1574,6 @@ zabbix_export:
       - type: BOOL_TO_DECIMAL
         parameters:
         - ''
-      - type: DISCARD_UNCHANGED_HEARTBEAT
-        parameters:
-        - 1h
       tags:
       - tag: scope
         value: http3

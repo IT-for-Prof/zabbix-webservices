@@ -90,6 +90,27 @@ def test_cert_happy_path(monkeypatch, web_check_module):
     assert res.tls["protocol"].startswith("TLSv1.")
 
 
+def test_cert_handshake_ms_excludes_connect(monkeypatch, web_check_module):
+    """tls.handshake_ms is the TLS handshake only: DNS and TCP connect time stay out of it."""
+    import time
+
+    ca = trustme.CA()
+    leaf = ca.issue_cert("127.0.0.1")
+    _patch_default_ssl(monkeypatch, ca)
+    real_connect = socket.create_connection
+
+    def slow_connect(*a, **kw):
+        time.sleep(0.3)
+        return real_connect(*a, **kw)
+
+    monkeypatch.setattr(socket, "create_connection", slow_connect)
+    with _tls_server(leaf) as port:
+        monkeypatch.setattr(web_check_module, "url_host", lambda u, **kw: ("127.0.0.1", port))
+        res = web_check_module.check_cert(f"https://127.0.0.1:{port}", timeout=5)
+    assert res.ok is True
+    assert res.tls["handshake_ms"] < 300
+
+
 def test_cert_self_signed_marks_untrusted(monkeypatch, web_check_module):
     """No CA-trust patching → leaf cert is untrusted to the default store."""
     ca = trustme.CA()

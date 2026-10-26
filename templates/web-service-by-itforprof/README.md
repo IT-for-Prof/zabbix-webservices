@@ -5,7 +5,7 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.3.2`                              |
+| Version          | `7.0-2.3.3`                              |
 | TLS profile      | `7.0-1.0.1`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
@@ -173,10 +173,10 @@ NODATA coverage:
 
 HTTP/3 layer is silent by design on hosts whose servers don't advertise
 `h3` in their `Alt-Svc` response header — no triggers fire on `advertised=false`.
-The only HIGH-severity trigger is `HTTP/3 advertised but unreachable`,
-which catches the case where the server claims h3 support but our proxy
-can't actually complete the QUIC handshake (UDP/443 dropped on the path,
-CDN regression, etc).
+`HTTP/3 advertised but unreachable` (AVERAGE) catches the case where the
+server claims h3 support but our proxy can't complete the QUIC handshake on
+3 consecutive checks (UDP/443 dropped on the path, CDN regression, etc). The
+site still answers over HTTP/2, so it is not HIGH.
 
 ## Caveats
 

@@ -201,7 +201,29 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.3.2"
+    assert _template()["vendor"]["version"] == "7.0-2.3.3"
+
+
+def test_http3_unreachable_needs_three_consecutive_failed_checks():
+    """One lost DNS or UDP packet must not page anyone.
+
+    `#3` counts stored values, so both inputs must be stored on every check: with
+    DISCARD_UNCHANGED_HEARTBEAT a run of zeros is one value, and the trigger would
+    wait for heartbeats (hours) instead of three checks.
+    """
+    items = {item["key"]: item for item in _template()["items"]}
+    for key in ("web_check.http3.alt_svc_advertised", "web_check.http3.reachable"):
+        types = [s["type"] for s in items[key]["preprocessing"]]
+        assert not any(t.startswith("DISCARD_UNCHANGED") for t in types), (key, types)
+
+    trigger = next(
+        t
+        for t in items['web_check.py["http3","{$WEB_SERVICE.URL}"]']["triggers"]
+        if t["name"] == "HTTP/3 advertised but unreachable"
+    )
+    assert "min(/Web service by itforprof.com/web_check.http3.alt_svc_advertised,#3)=1" in trigger["expression"]
+    assert "max(/Web service by itforprof.com/web_check.http3.reachable,#3)=0" in trigger["expression"]
+    assert trigger["priority"] == "AVERAGE", trigger["priority"]
 
 
 def test_whois_event_names_reference_data_items_after_ok_guard():
