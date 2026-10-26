@@ -1,0 +1,510 @@
+# Russian display strings for the itforprof.com templates, keyed by the exact English string.
+# scripts/translate-templates.py builds the *_ru.yaml templates from this file.
+# Run it with --missing to list English strings that still need a translation.
+Web service by itforprof.com: Веб-сервис (itforprof.com)
+? |
+  Full-stack web-service monitoring template for Zabbix 7.0.
+  Replaces legacy "Template Website metrics (itmicus.ru)" without
+  abandoned PyPI deps. Six layers, single host, single template:
+
+    1. HTTP availability  — native web scenario.
+    2. TLS + certificate  — externalscript `web_check.py cert`.
+    3. Domain WHOIS       — externalscript `web_check.py whois`
+                            (apex-deduped via 24h FS cache).
+    4. Network diagnostics — native simple checks (TCP).
+    5. Deep TLS scan      — externalscript `web_check.py tls-scan`
+                            + LLD for weak-protocol findings.
+    6. HTTP/3 availability— externalscript `web_check.py http3`
+                            (Alt-Svc detection + QUIC handshake, aioquic).
+
+  All checks execute from the host's monitored_by (server or proxy),
+  so request egress matches the rest of the host's monitoring.
+
+  Design rationale and full taxonomy: docs/architecture.md.
+  Validation matrix:               docs/validation.md.
+
+  Author:  Konstantin Tyutyunnik / Константин Тютюнник
+  Site:    https://itforprof.com
+  Repo:    https://github.com/IT-for-Prof/zabbix-webservices
+  Issues:  https://github.com/IT-for-Prof/zabbix-webservices/issues
+  Credits: replaces the conceptually-similar Zabbix template
+           `Template Website metrics (itmicus.ru)` by itmicus —
+           https://github.com/itmicus/zabbix/tree/master/Template%20Web%20Site.
+           No code was copied; macro names are kept compatible
+           with existing host macros.
+  License: MIT (c) 2025-2026 Konstantin Tyutyunnik
+: |
+  Шаблон Zabbix 7.0 для полного мониторинга веб-сервиса.
+  Заменяет устаревший «Template Website metrics (itmicus.ru)» и работает
+  без заброшенных пакетов PyPI. Шесть слоёв на одном хосте и в одном шаблоне:
+
+    1. Доступность HTTP    — встроенный веб-сценарий.
+    2. TLS и сертификат    — внешний скрипт `web_check.py cert`.
+    3. WHOIS домена        — внешний скрипт `web_check.py whois`
+                             (один запрос на регистрируемый домен, кеш на диске 24 ч).
+    4. Сетевая диагностика — встроенные простые проверки (TCP).
+    5. Глубокий скан TLS   — внешний скрипт `web_check.py tls-scan`
+                             и LLD по слабым протоколам и шифрам.
+    6. Доступность HTTP/3  — внешний скрипт `web_check.py http3`
+                             (заголовок Alt-Svc и рукопожатие QUIC через aioquic).
+
+  Все проверки выполняются там, где мониторится хост (сервер или прокси),
+  поэтому запросы идут с того же адреса, что и остальной мониторинг хоста.
+
+  Обоснование решений и полная классификация: docs/architecture.md.
+  Матрица проверок:                            docs/validation.md.
+
+  Автор:        Константин Тютюнник / Konstantin Tyutyunnik
+  Сайт:         https://itforprof.com
+  Репозиторий:  https://github.com/IT-for-Prof/zabbix-webservices
+  Ошибки:       https://github.com/IT-for-Prof/zabbix-webservices/issues
+  Предшественник: похожий по задаче шаблон Zabbix
+                `Template Website metrics (itmicus.ru)` от itmicus —
+                https://github.com/itmicus/zabbix/tree/master/Template%20Web%20Site.
+                Код не копировался; имена макросов совместимы
+                с макросами существующих хостов.
+  Лицензия:     MIT (c) 2025-2026 Konstantin Tyutyunnik
+Full URL to monitor, e.g. https://example.com/healthz. REQUIRED.: Полный URL для проверки, например https://example.com/healthz. Обязательный.
+Substring/regex expected on the response body. Optional - leave empty to skip phrase check.: 'Подстрока или регулярное выражение, которые должны быть в теле ответа. Необязательный: пустое значение отключает проверку фразы.'
+? PCRE flag prefix applied to {$WEB_SERVICE.PHRASE}. Default '(?i)' = case-insensitive. Set to empty string for case-sensitive matching, or '(?s)' for dotall, etc.
+: Префикс флагов PCRE для {$WEB_SERVICE.PHRASE}. По умолчанию «(?i)» — без учёта регистра. Пустое значение — с учётом регистра, «(?s)» — точка совпадает и с переводом строки.
+HTTP request timeout in seconds.: Таймаут HTTP-запроса в секундах.
+HTTP status code(s) considered healthy. Comma-separated, ranges supported (e.g. "200,204,301-302").: Коды ответа HTTP, которые считаются нормальными. Через запятую, можно указывать диапазоны, например «200,204,301-302».
+User-Agent header for the web scenario.: Заголовок User-Agent для веб-сценария.
+How often the web scenario runs.: Интервал запуска веб-сценария.
+How often the TLS-cert master item runs.: Интервал основного элемента проверки сертификата.
+How often the WHOIS master item runs (mostly cache hits).: Интервал основного элемента WHOIS (обычно ответ берётся из кеша).
+WHOIS cache TTL in seconds (passed to web_check.py whois --ttl).: Время жизни кеша WHOIS в секундах (передаётся в web_check.py whois --ttl).
+How often the deep TLS scan runs.: Интервал глубокого скана TLS.
+How often the HTTP/3 master item runs.: Интервал основного элемента HTTP/3.
+? QUIC handshake WARNING threshold in milliseconds. Default 1000ms tolerates intercontinental UDP+QUIC handshake. Drop to 250 for LAN.
+: Порог предупреждения для рукопожатия QUIC в миллисекундах. 1000 мс по умолчанию учитывают межконтинентальные задержки. Для локальной сети — 250.
+How often diagnostic simple-check items run.: Интервал диагностических простых проверок.
+? Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
+: Среднее время ответа HTTP за 10 мин в секундах, выше которого срабатывает предупреждение. 10 с по умолчанию учитывают межконтинентальные задержки, для региональных сайтов — 5.
+Period of no-data before the No-data trigger fires (web scenario item).: Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных».
+Cert expiry INFO trigger threshold (days).: Порог триггера уровня «Информация» по сроку сертификата, дни.
+Cert expiry WARNING trigger threshold (days).: Порог триггера уровня «Предупреждение» по сроку сертификата, дни.
+Cert expiry HIGH trigger threshold (days).: Порог триггера уровня «Высокая» по сроку сертификата, дни.
+? Late-rotation threshold (days). If a cert rotation is detected (fingerprint changed) while the OUTGOING cert had fewer than this many days left, raise the WARNING "rotated late" trigger — a near-miss/hygiene signal, not an outage (a fresh cert is already installed by the time it fires). The trigger reads the pre-rotation window (max over the 2h ending 15m ago), never the freshly installed cert. Default 3 keeps it quiet on provider-managed hosts whose renewal cadence you do not control; raise it to flag earlier on hosts where you own the renewal automation.
+: 'Порог поздней замены сертификата, дни. Если сертификат заменён (сменился отпечаток), а у прежнего оставалось меньше этого числа дней, срабатывает предупреждение «сертификат заменён поздно». Это сигнал о малом запасе. Аварии нет: к моменту срабатывания новый сертификат уже установлен. Триггер смотрит на окно до замены (максимум за 2 ч, закончившиеся 15 мин назад) и не видит новый сертификат. Значение 3 по умолчанию не шумит на хостах, где продлением управляет провайдер. Увеличьте его там, где автоматизация продления ваша, чтобы узнавать раньше.'
+Minimum acceptable RSA key size (bits).: Минимальная длина ключа RSA, бит.
+Minimum acceptable ECDSA key size (bits).: Минимальная длина ключа ECDSA, бит.
+Domain expires within N days WARNING trigger threshold.: 'Порог триггера уровня «Предупреждение»: домен истекает через N дней.'
+Domain expires within N days AVERAGE trigger threshold.: 'Порог триггера уровня «Средняя»: домен истекает через N дней.'
+Domain expires within N days HIGH trigger threshold.: 'Порог триггера уровня «Высокая»: домен истекает через N дней.'
+? Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
+: Хост или IP для диагностических простых проверок (net.dns.record, net.tcp.service.perf). По умолчанию — хост из {$WEB_SERVICE.URL}, при необходимости переопределяется на хосте.
+? net.tcp.service.perf WARNING threshold in seconds. Default 3s tolerates intercontinental TCP+TLS handshake (~300-800ms typical) plus headroom. Drop to 1 for LAN/regional monitoring.
+: Порог предупреждения для net.tcp.service.perf в секундах. 3 с по умолчанию покрывают межконтинентальное соединение TCP и TLS (обычно 300–800 мс) с запасом. Для локальной сети и проверок внутри региона — 1.
+'Cert: probe (master JSON)': 'Сертификат: проверка (основной JSON)'
+? |
+  Runs `web_check.py cert <url>` on the host's monitored_by.
+  Output is a JSON object consumed by the dependent items below
+  (subject/issuer/SANs/fingerprint/days-to-expire/chain_status/...).
+  Always exits 0; failures encode as {"ok": false, "error_code": ...}.
+: |
+  Запускает `web_check.py cert <url>` там, где мониторится хост.
+  Результат — объект JSON, из которого читают зависимые элементы ниже
+  (subject, issuer, SAN, отпечаток, дни до истечения, chain_status и т. д.).
+  Код выхода всегда 0, ошибка кодируется как {"ok": false, "error_code": ...}.
+Web service is failing: Сбой веб-сервиса
+? 'Web service failed: {$WEB_SERVICE.URL} — {HOST.NAME} ({HOST.HOST}) — HTTP {?last(//web.test.rspcode[Web service,GET])} / {?last(//web.test.error[Web service])}'
+: 'Сбой веб-сервиса: {$WEB_SERVICE.URL} — {HOST.NAME} ({HOST.HOST}) — HTTP {?last(//web.test.rspcode[Web service,GET])} / {?last(//web.test.error[Web service])}'
+'failed step: {ITEM.LASTVALUE1}': 'шаг с ошибкой: {ITEM.LASTVALUE1}'
+? |
+  The web scenario reports a failed step. Covers all hard failures:
+  non-matching HTTP status code, missing required phrase, timeout,
+  DNS resolution error, TLS handshake failure, or connection refused.
+: |
+  Шаг веб-сценария завершился с ошибкой. Сюда входят все жёсткие сбои:
+  неожиданный код HTTP, нет нужной фразы, таймаут,
+  ошибка DNS, сбой TLS-рукопожатия или отказ в соединении.
+Web service no data received: Нет данных веб-сервиса
+Web service slow response time: Веб-сервис отвечает медленно
+? 'Web service slow: avg {ITEM.LASTVALUE1} over 10m (threshold {$WEB_SERVICE.SLOW.WARN}s) — {$WEB_SERVICE.URL} on {HOST.NAME} ({HOST.HOST})'
+: 'Веб-сервис отвечает медленно: в среднем {ITEM.LASTVALUE1} за 10 мин (порог {$WEB_SERVICE.SLOW.WARN} с) — {$WEB_SERVICE.URL} на {HOST.NAME} ({HOST.HOST})'
+'avg(10m): {ITEM.LASTVALUE1}s': 'среднее за 10 мин: {ITEM.LASTVALUE1} с'
+? |
+  Average response time over the last 10 minutes exceeds the
+  {$WEB_SERVICE.SLOW.WARN} threshold.
+: |
+  Среднее время ответа за последние 10 минут выше порога
+  {$WEB_SERVICE.SLOW.WARN}.
+'Web service: no data for {$WEB_SERVICE.NODATA.PERIOD} — {$WEB_SERVICE.URL} on {HOST.HOST}': 'Веб-сервис: нет данных {$WEB_SERVICE.NODATA.PERIOD} — {$WEB_SERVICE.URL} на {HOST.HOST}'
+no fresh data from web scenario: нет свежих данных веб-сценария
+The web scenario item has not received fresh data for the configured period.: Элемент веб-сценария не получал свежих данных дольше заданного периода.
+Cert externalscript no data received: Нет данных внешнего скрипта сертификата
+'web_check.py cert: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py cert: нет свежего значения 15 мин — {$WEB_SERVICE.URL} на {HOST.HOST}'
+no value for 15m — item NOTSUPPORTED, disabled, or script not running: нет значения 15 мин — элемент не поддерживается, отключён или скрипт не запускается
+? |
+  The cert master item has not received a fresh value for 15m
+  (3× its default delay). Causes, in order of likelihood:
+  - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
+    interval "{$WEB_SERVICE.CERT.CHECK.INTERVAL}", which happens when the
+    template gets unlinked from the host and its macros disappear);
+  - the item is disabled;
+  - web_check.py is not executing: check that
+    /usr/lib/zabbix/externalscripts/web_check.py exists and is executable
+    on this host's monitored_by, and that the venv at /opt/web_check/venv
+    is intact.
+: |
+  Основной элемент сертификата не получал свежего значения 15 мин
+  (втрое дольше интервала по умолчанию). Причины по убыванию вероятности:
+  - элемент не поддерживается — сначала прочитайте его ошибку (например,
+    Invalid update interval "{$WEB_SERVICE.CERT.CHECK.INTERVAL}": так бывает,
+    когда шаблон отвязали от хоста и его макросы пропали);
+  - элемент отключён;
+  - web_check.py не запускается: проверьте, что
+    /usr/lib/zabbix/externalscripts/web_check.py есть и исполняемый
+    там, где мониторится хост, и что venv в /opt/web_check/venv
+    в порядке.
+'Cert: days to expire': 'Сертификат: дней до истечения'
+Cert expired: Сертификат истёк
+TLS cert expired ({ITEM.LASTVALUE1} past not_after) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS истёк ({ITEM.LASTVALUE1} после not_after) — {$WEB_SERVICE.URL} на {HOST.HOST}
+The current TLS certificate is past its not_after date.: Срок текущего сертификата TLS (not_after) прошёл.
+Cert check failing: Проверка сертификата не работает
+Cert expires within {$WEB_SERVICE.CERT.CRIT_DAYS} days: Сертификат истекает в ближайшие {$WEB_SERVICE.CERT.CRIT_DAYS} дн.
+The TLS certificate will expire soon. Rotate now.: Сертификат TLS скоро истечёт. Замените его сейчас.
+TLS cert expires in {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.CRIT_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS истекает через {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.CRIT_DAYS} дн.) — {$WEB_SERVICE.URL} на {HOST.HOST}
+Cert expires within {$WEB_SERVICE.CERT.NOTICE_DAYS} days: Сертификат истекает в ближайшие {$WEB_SERVICE.CERT.NOTICE_DAYS} дн.
+The TLS certificate will expire within the WARNING threshold.: Сертификат TLS истечёт в пределах порога предупреждения.
+TLS cert expires in {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.NOTICE_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS истекает через {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.NOTICE_DAYS} дн.) — {$WEB_SERVICE.URL} на {HOST.HOST}
+Cert expires within {$WEB_SERVICE.CERT.WARN_DAYS} days: Сертификат истекает в ближайшие {$WEB_SERVICE.CERT.WARN_DAYS} дн.
+'Heads-up: cert renewal window approaching.': Подходит срок продления сертификата.
+TLS cert expires in {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.WARN_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS истекает через {ITEM.LASTVALUE1} (< {$WEB_SERVICE.CERT.WARN_DAYS} дн.) — {$WEB_SERVICE.URL} на {HOST.HOST}
+'Cert: not_after': 'Сертификат: not_after'
+'Cert: subject CN': 'Сертификат: CN субъекта'
+'Cert: issuer CN': 'Сертификат: CN издателя'
+'Cert: issuer organization': 'Сертификат: организация издателя'
+'Cert: serial': 'Сертификат: серийный номер'
+'Cert: SANs': 'Сертификат: SAN'
+'Cert: SHA-256 fingerprint': 'Сертификат: отпечаток SHA-256'
+Cert rotated: Сертификат заменён
+? |-
+  The SHA-256 fingerprint changed since the last poll — a new cert was deployed. Informational; usually expected (Let's Encrypt renews every ~60 days).
+
+  A check outage cannot trigger this: the item discards the error-envelope fingerprint ("") via MATCHES_REGEX, so change() only ever sees a genuine <real>→<real> rotation — never a ""→real recovery transition.
+: |-
+  Отпечаток SHA-256 изменился с прошлого опроса: установлен новый сертификат. Это информационное событие и обычно ожидаемое (Let's Encrypt продлевает сертификат примерно раз в 60 дней).
+
+  Сбой проверки это событие не вызывает. Элемент отбрасывает пустой отпечаток ("") из ответа с ошибкой шагом MATCHES_REGEX, поэтому change() видит только настоящую замену <прежний>→<новый> и никогда — восстановление ""→<настоящий>.
+TLS cert rotated (new fingerprint {ITEM.LASTVALUE1}) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS заменён (новый отпечаток {ITEM.LASTVALUE1}) — {$WEB_SERVICE.URL} на {HOST.HOST}
+Cert rotated unexpectedly (was about to expire): Сертификат заменён поздно (почти истёк)
+? |-
+  The cert fingerprint changed (rotation) while the OUTGOING cert was already inside the {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}-day window — the renewal cut it close. This is a retrospective near-miss / hygiene signal, NOT an active outage: a fresh cert is already installed by the time this fires, and the genuine "cert actually lapses" risk is covered by the separate cert-expiry triggers. WARNING (not HIGH) so it stays a dashboard signal without escalating/ticketing. On hosts where you own the renewal automation, a late rotation still means the automation is cutting it dangerously close — investigate. On provider-managed hosts you do not control the cadence; ignore or tune {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}.
+
+  Reads max(days_to_expire) over the 2h ending 15m ago, i.e. the OLD cert's remaining days just before rotation — NOT last(), which on a dependent item already reflects the new cert at the moment the fingerprint changes. max() over the window also rides out transient error-envelope dips (e.g. -1 / 0) from a single failed poll.
+
+  A check OUTAGE cannot false-fire this: the fingerprint item discards the envelope "" (MATCHES_REGEX), so a ""→real recovery is not a change(). And because the "" is dropped rather than stored, a genuinely late rotation that happened to span a failed poll (<old>→""→<new>) still registers as <old>→<new> and fires — which an in-trigger last(,#2) guard would have wrongly suppressed.
+: |-
+  Отпечаток сертификата изменился (замена), когда у прежнего сертификата оставалось меньше {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS} дн.: продление прошло впритык. Это сигнал о малом запасе. Аварии нет: к моменту срабатывания новый сертификат уже установлен, а за риск настоящего истечения отвечают отдельные триггеры срока. Уровень «Предупреждение»: событие остаётся на панели и не уходит в эскалацию и тикеты. Если автоматизация продления ваша, поздняя замена значит, что она работает опасно близко к сроку, — разберитесь. Если продлением управляет провайдер, график вы не контролируете: не обращайте внимания на событие или настройте {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}.
+
+  Триггер читает max(days_to_expire) за 2 ч, закончившиеся 15 мин назад, то есть остаток дней прежнего сертификата перед заменой. last() для этого не подходит: у зависимого элемента в момент смены отпечатка он уже показывает новый сертификат. max() по окну заодно не замечает кратковременных провалов (например, -1 или 0) от одного неудачного опроса.
+
+  Сбой проверки не вызывает ложного срабатывания. Элемент отпечатка отбрасывает пустое значение "" из ответа с ошибкой (MATCHES_REGEX), поэтому восстановление ""→<настоящий> для change() изменением не считается. А раз "" отбрасывается и не сохраняется, поздняя замена, пришедшаяся на неудачный опрос (<прежний>→""→<новый>), всё равно видна как <прежний>→<новый> и вызывает срабатывание. Проверка last(,#2) внутри триггера ошибочно подавила бы такой случай.
+'TLS cert rotated late: outgoing cert had <{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}d left — {$WEB_SERVICE.URL} on {HOST.HOST}': 'Сертификат TLS заменён поздно: у прежнего оставалось < {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS} дн. — {$WEB_SERVICE.URL} на {HOST.HOST}'
+'Cert: signature algorithm': 'Сертификат: алгоритм подписи'
+Cert weak signature algorithm: Слабый алгоритм подписи сертификата
+'TLS cert signed with weak algorithm: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}': 'Сертификат TLS подписан слабым алгоритмом: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} на {HOST.HOST}'
+The leaf certificate is signed with SHA-1 or MD5 — modern clients distrust both.: Конечный сертификат подписан SHA-1 или MD5. Современные клиенты не доверяют ни одному из этих алгоритмов.
+'Cert: public key algorithm': 'Сертификат: алгоритм открытого ключа'
+Cert weak public key: Слабый открытый ключ сертификата
+'TLS cert weak key: {ITEM.LASTVALUE1} {ITEM.LASTVALUE2} bits — {$WEB_SERVICE.URL} on {HOST.HOST}': 'Слабый ключ сертификата TLS: {ITEM.LASTVALUE1} {ITEM.LASTVALUE2} бит — {$WEB_SERVICE.URL} на {HOST.HOST}'
+Certificate public key is shorter than the configured minimum for its algorithm.: Открытый ключ сертификата короче заданного минимума для его алгоритма.
+'Cert: public key bits': 'Сертификат: длина открытого ключа, бит'
+'Cert: hostname covered': 'Сертификат: покрывает имя хоста'
+Cert hostname not covered: Сертификат не покрывает имя хоста
+The current certificate has no SAN/CN that matches the host being monitored.: В текущем сертификате нет SAN или CN, совпадающего с проверяемым хостом.
+TLS cert SAN/CN does not cover {$WEB_SERVICE.URL} on {HOST.HOST}: SAN/CN сертификата TLS не покрывает {$WEB_SERVICE.URL} на {HOST.HOST}
+'Cert: chain status': 'Сертификат: статус цепочки'
+Cert chain untrusted: Недоверенная цепочка сертификата
+TLS cert chain {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}: 'Цепочка сертификата TLS: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} на {HOST.HOST}'
+? |-
+  TLS chain validation failed.
+  For internal/self-hosted services signed by a corporate CA, install the corporate root/intermediate CA certificates into the trust store on the Zabbix server/proxy that monitors this host, then restart/retry the web_check.py cert check. Also verify the web server sends the leaf plus any required intermediate certificates.
+: |-
+  Проверка цепочки TLS не прошла.
+  Для внутренних сервисов, подписанных корпоративным удостоверяющим центром (УЦ), установите корневой и промежуточные сертификаты этого УЦ в хранилище доверенных сертификатов на сервере или прокси Zabbix, который мониторит хост, и перезапустите проверку web_check.py cert. Проверьте и то, что веб-сервер отдаёт конечный сертификат вместе со всеми нужными промежуточными.
+'Cert: check ok': 'Сертификат: проверка успешна'
+web_check.py cert reports ok=false — {$WEB_SERVICE.URL} on {HOST.HOST}: web_check.py cert вернул ok=false — {$WEB_SERVICE.URL} на {HOST.HOST}
+The cert externalscript itself failed (DNS, TCP, parse) — investigate via the master item JSON.: Сбой самого внешнего скрипта сертификата (DNS, TCP, разбор). Подробности — в JSON основного элемента.
+'TLS: negotiated protocol (live)': 'TLS: согласованный протокол (текущий)'
+TLS protocol weak (currently negotiating): Слабый протокол TLS (согласуется сейчас)
+'Live TLS negotiated weak protocol: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}': 'Согласован слабый протокол TLS: {ITEM.LASTVALUE1} — {$WEB_SERVICE.URL} на {HOST.HOST}'
+? |
+  The live cert-master handshake just negotiated a deprecated TLS
+  protocol (SSLv3 / TLSv1.0 / TLSv1.1). Distinct from Layer 5's
+  "TLS weak protocol" LLD trigger which reflects what's *negotiable*
+  at all; this one fires when our client is actually getting one of
+  those on every poll, indicating a default-protocol misconfig.
+: |
+  Рукопожатие основной проверки сертификата согласовало устаревший
+  протокол TLS (SSLv3, TLSv1.0 или TLSv1.1). Это другой триггер, чем LLD-триггер
+  «слабый протокол TLS» слоя 5: тот показывает, что сервер допускает в принципе.
+  Этот срабатывает, когда наш клиент получает такой протокол при каждом
+  опросе, а значит, протокол по умолчанию настроен неверно.
+'TLS: negotiated cipher (live)': 'TLS: согласованный шифр (текущий)'
+'TLS: handshake time': 'TLS: время рукопожатия'
+'WHOIS: probe (master JSON)': 'WHOIS: проверка (основной JSON)'
+? |
+  Runs `web_check.py whois <url>` on the host's monitored_by.
+  Output is JSON consumed by the dependent items below.
+  Apex-deduped: many hosts on the same root domain share one
+  registry round-trip per {$WEB_SERVICE.WHOIS.CACHE.TTL} seconds.
+  Hungarian (.hu) registry omits expiry — those hosts get
+  `provider_no_expiry: true` and the expiry triggers stay silent.
+: |
+  Запускает `web_check.py whois <url>` там, где мониторится хост.
+  Результат — JSON, из которого читают зависимые элементы ниже.
+  Хосты одного регистрируемого домена делят один запрос к реестру
+  раз в {$WEB_SERVICE.WHOIS.CACHE.TTL} секунд.
+  Реестр Венгрии (.hu) не отдаёт срок регистрации: у таких хостов
+  `provider_no_expiry: true`, и триггеры срока не срабатывают.
+WHOIS externalscript no data received: Нет данных внешнего скрипта WHOIS
+'web_check.py whois: no fresh value in 3h — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py whois: нет свежего значения 3 ч — {$WEB_SERVICE.URL} на {HOST.HOST}'
+no value for 3h — item NOTSUPPORTED, disabled, or script not running: нет значения 3 ч — элемент не поддерживается, отключён или скрипт не запускается
+? |
+  The WHOIS master item has not received a fresh value for 3h
+  (3× its default 1h delay). Causes, in order of likelihood:
+  - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
+    interval "{$WEB_SERVICE.WHOIS.CHECK.INTERVAL}", which happens when the
+    template gets unlinked from the host and its macros disappear);
+  - the item is disabled — normal on hosts whose registry role is
+    'duplicate' (WHOIS is polled once per apex domain by the owner host);
+  - web_check.py is not executing on this host's monitored_by.
+: |
+  Основной элемент WHOIS не получал свежего значения 3 ч
+  (втрое дольше интервала по умолчанию, 1 ч). Причины по убыванию вероятности:
+  - элемент не поддерживается — сначала прочитайте его ошибку (например,
+    Invalid update interval "{$WEB_SERVICE.WHOIS.CHECK.INTERVAL}": так бывает,
+    когда шаблон отвязали от хоста и его макросы пропали);
+  - элемент отключён — это нормально на хостах с ролью реестра
+    'duplicate' (WHOIS опрашивает один хост-владелец на домен);
+  - web_check.py не запускается там, где мониторится хост.
+Domain expired: Домен истёк
+'Domain {ITEM.LASTVALUE4} expired ({ITEM.LASTVALUE3} past) (host: {HOST.HOST})': 'Домен {ITEM.LASTVALUE4} истёк ({ITEM.LASTVALUE3} назад) (хост: {HOST.HOST})'
+The registered apex {ITEM.LASTVALUE4} for this host is past its expiry date.: Срок регистрации домена {ITEM.LASTVALUE4} этого хоста истёк.
+WHOIS check failing: Проверка WHOIS не работает
+Domain expires within {$WEB_SERVICE.WHOIS.CRIT_DAYS} day(s): Домен истекает в ближайшие {$WEB_SERVICE.WHOIS.CRIT_DAYS} дн.
+'Domain {ITEM.LASTVALUE5} expires in {ITEM.LASTVALUE3} (host: {HOST.HOST})': 'Домен {ITEM.LASTVALUE5} истекает через {ITEM.LASTVALUE3} (хост: {HOST.HOST})'
+Apex {ITEM.LASTVALUE5} expires very soon (within {$WEB_SERVICE.WHOIS.CRIT_DAYS}d). Renew immediately.: Домен {ITEM.LASTVALUE5} истекает в ближайшие {$WEB_SERVICE.WHOIS.CRIT_DAYS} дн. Продлите его сейчас.
+Domain expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS} days: Домен истекает в ближайшие {$WEB_SERVICE.WHOIS.NOTICE_DAYS} дн.
+Apex {ITEM.LASTVALUE5} expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS}d.: Домен {ITEM.LASTVALUE5} истекает в ближайшие {$WEB_SERVICE.WHOIS.NOTICE_DAYS} дн.
+Domain expires within {$WEB_SERVICE.WHOIS.WARN_DAYS} days: Домен истекает в ближайшие {$WEB_SERVICE.WHOIS.WARN_DAYS} дн.
+Apex {ITEM.LASTVALUE5} expires within {$WEB_SERVICE.WHOIS.WARN_DAYS}d.: Домен {ITEM.LASTVALUE5} истекает в ближайшие {$WEB_SERVICE.WHOIS.WARN_DAYS} дн.
+'WHOIS: days to expire': 'WHOIS: дней до истечения'
+'WHOIS: expires at': 'WHOIS: дата истечения'
+'WHOIS: registrar': 'WHOIS: регистратор'
+Domain registrar changed: Сменился регистратор домена
+Registrar string changed. Verify legitimacy of any domain transfer.: Изменилось значение регистратора. Убедитесь, что перенос домена законный.
+Registrar changed to {ITEM.LASTVALUE2} — {$WEB_SERVICE.URL} on {HOST.HOST}: Регистратор сменился на {ITEM.LASTVALUE2} — {$WEB_SERVICE.URL} на {HOST.HOST}
+'WHOIS: name servers': 'WHOIS: серверы имён'
+Domain name servers changed: Сменились серверы имён домена
+NS records changed at the registry level. Often legitimate (e.g. moving to Cloudflare).: Записи NS изменились в реестре. Часто это штатная смена, например переезд на Cloudflare.
+Name servers changed to {ITEM.LASTVALUE2} — {$WEB_SERVICE.URL} on {HOST.HOST}: Серверы имён сменились на {ITEM.LASTVALUE2} — {$WEB_SERVICE.URL} на {HOST.HOST}
+'WHOIS: DNSSEC': 'WHOIS: DNSSEC'
+Domain DNSSEC removed: У домена отключён DNSSEC
+DNSSEC went from signed to unsigned at the registry — investigate.: В реестре домен перестал быть подписан DNSSEC. Выясните причину.
+DNSSEC went unsigned at registry — {$WEB_SERVICE.URL} on {HOST.HOST}: DNSSEC отключён в реестре — {$WEB_SERVICE.URL} на {HOST.HOST}
+'WHOIS: cache age': 'WHOIS: возраст кеша'
+'WHOIS: apex domain': 'WHOIS: регистрируемый домен'
+? Registered apex extracted via PSL — shared across all hosts under the same root domain. Referenced by WHOIS expiry triggers so alerts show the apex (not just the host) and can be deduped by tag.
+: 'Регистрируемый домен, выделенный по PSL, общий для всех хостов этого домена. Его используют триггеры срока WHOIS: в алерте виден домен, а не только хост, и алерты можно сгруппировать по тегу.'
+'WHOIS: data source': 'WHOIS: источник данных'
+'WHOIS: error code': 'WHOIS: код ошибки'
+'WHOIS: error message': 'WHOIS: текст ошибки'
+'WHOIS: check ok': 'WHOIS: проверка успешна'
+web_check.py whois reports ok=false. Likely a transient registry hiccup or a TLD we don't parse — check the master JSON.: web_check.py whois вернул ok=false. Вероятно, временный сбой реестра или домен верхнего уровня, который скрипт не разбирает. Подробности — в JSON основного элемента.
+'web_check.py whois reports {ITEM.LASTVALUE2}: {ITEM.LASTVALUE3} — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py whois вернул {ITEM.LASTVALUE2}: {ITEM.LASTVALUE3} — {$WEB_SERVICE.URL} на {HOST.HOST}'
+'WHOIS: provider has no expiry data': 'WHOIS: реестр не отдаёт срок'
+True for ccTLDs like .hu where the registry intentionally omits expiry. Used to gate the WHOIS-expiry triggers.: Истина для национальных доменов вроде .hu, где реестр намеренно не отдаёт срок регистрации. Отключает триггеры срока WHOIS.
+'Diag: TCP 443 performance': 'Диагностика: время соединения TCP 443'
+TCP 443 connect failed: Нет соединения TCP 443
+TCP/443 to the monitored host is refused or unreachable.: Соединение TCP/443 с хостом отклонено, или хост недоступен.
+TCP/443 connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST}): Нет соединения TCP/443 с {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
+TCP 443 connect slow: Медленное соединение TCP 443
+? TCP/443 average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold via the macro on hosts behind a CDN with intentionally-distant POPs.
+: 'Среднее время соединения TCP/443 за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
+? 'TCP/443 to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
+: 'Медленное соединение TCP/443 с {$WEB_SERVICE.HOST}: в среднем {ITEM.LASTVALUE1} за 30 мин (порог {$WEB_SERVICE.TCP.SLOW_SEC} с) — {HOST.NAME} ({HOST.HOST})'
+'Diag: TCP 80 performance': 'Диагностика: время соединения TCP 80'
+'TLS scan: matrix (master JSON)': 'Скан TLS: матрица (основной JSON)'
+? |
+  Runs `web_check.py tls-scan <url>` daily. Returns supported
+  TLS-protocol set + weak-cipher matches as JSON. The LLD rule
+  below drives one item-prototype/trigger-prototype pair per
+  weak finding (deprecated protocol or weak cipher).
+: |
+  Раз в сутки запускает `web_check.py tls-scan <url>`. Возвращает в JSON
+  поддерживаемые протоколы TLS и найденные слабые шифры. Правило LLD
+  ниже создаёт прототип элемента и прототип триггера на каждую
+  находку (устаревший протокол или слабый шифр).
+TLS scan externalscript no data received: Нет данных внешнего скрипта скана TLS
+'web_check.py tls-scan: no fresh value in 3 days — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py tls-scan: нет свежего значения 3 дня — {$WEB_SERVICE.URL} на {HOST.HOST}'
+no value for 3 days — item NOTSUPPORTED, disabled, or script not running: нет значения 3 дня — элемент не поддерживается, отключён или скрипт не запускается
+? |
+  The TLS-scan master item has not received a fresh value for 3 days
+  (3× its default 1d delay). Causes, in order of likelihood:
+  - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
+    interval "{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}", which happens when
+    the template gets unlinked from the host and its macros disappear);
+  - the item is disabled;
+  - web_check.py is not executing on this host's monitored_by.
+: |
+  Основной элемент скана TLS не получал свежего значения 3 дня
+  (втрое дольше интервала по умолчанию, 1 сутки). Причины по убыванию вероятности:
+  - элемент не поддерживается — сначала прочитайте его ошибку (например,
+    Invalid update interval "{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}": так бывает,
+    когда шаблон отвязали от хоста и его макросы пропали);
+  - элемент отключён;
+  - web_check.py не запускается там, где мониторится хост.
+'TLS scan: supported protocols': 'Скан TLS: поддерживаемые протоколы'
+'TLS scan: weak finding count': 'Скан TLS: число слабых находок'
+'HTTP/3: probe (master JSON)': 'HTTP/3: проверка (основной JSON)'
+? |-
+  Runs `web_check.py http3 <url>` on the host's monitored_by.
+  Two-step probe: HEAD request reads Alt-Svc; if h3 is advertised
+  a QUIC handshake (ALPN=h3) is attempted on UDP/port. Returns
+  alt_svc_advertised, h3_reachable, handshake_ms, alpn, quic_version.
+  Hosts that do not advertise h3 stay silent (no triggers fire).
+: |-
+  Запускает `web_check.py http3 <url>` там, где мониторится хост.
+  Проверка идёт в два шага. Запрос HEAD читает Alt-Svc; если h3 объявлен,
+  выполняется рукопожатие QUIC (ALPN=h3) на UDP-порт. Возвращает
+  alt_svc_advertised, h3_reachable, handshake_ms, alpn, quic_version.
+  На хостах, которые не объявляют h3, триггеры не срабатывают.
+HTTP/3 advertised but unreachable: HTTP/3 объявлен, но недоступен
+'HTTP/3 advertised but unreachable: {$WEB_SERVICE.URL} on {HOST.HOST}': 'HTTP/3 объявлен, но недоступен: {$WEB_SERVICE.URL} на {HOST.HOST}'
+? |-
+  The server advertises HTTP/3 in its Alt-Svc header but the QUIC
+  handshake from this proxy failed on 3 consecutive checks (~10-15 min).
+  The site still answers over HTTP/2. Causes: UDP/443 dropped on the
+  path, server-side QUIC stack misconfigured, or CDN regression. Checks
+  that failed on DNS (error_code=dns_error) are not counted. Cross-check
+  with the network-diagnostic items.
+: |-
+  Сервер объявляет HTTP/3 в заголовке Alt-Svc, но рукопожатие QUIC
+  с этого прокси не прошло на трёх проверках подряд (около 10–15 мин).
+  Сайт продолжает отвечать по HTTP/2. Причины: UDP/443 режется по пути,
+  стек QUIC на сервере настроен неверно или регрессия CDN. Проверки,
+  упавшие на DNS (error_code=dns_error), не учитываются. Сверьтесь
+  с диагностическими элементами сети.
+HTTP/3 check failing: Проверка HTTP/3 не работает
+HTTP/3 handshake slow: Медленное рукопожатие HTTP/3
+? 'HTTP/3 handshake to {$WEB_SERVICE.URL} slow: avg {ITEM.LASTVALUE1} over 1h (threshold {$WEB_SERVICE.HTTP3.SLOW_MS}ms) — {HOST.NAME} ({HOST.HOST})'
+: 'Медленное рукопожатие HTTP/3 с {$WEB_SERVICE.URL}: в среднем {ITEM.LASTVALUE1} за 1 ч (порог {$WEB_SERVICE.HTTP3.SLOW_MS} мс) — {HOST.NAME} ({HOST.HOST})'
+? QUIC handshake average over 1h exceeds {$WEB_SERVICE.HTTP3.SLOW_MS}ms. http3 master polls every 5m so 1h gives a stable rolling sample.
+: Среднее время рукопожатия QUIC за 1 ч выше {$WEB_SERVICE.HTTP3.SLOW_MS} мс. Основной элемент http3 опрашивает раз в 5 мин, поэтому за час набирается устойчивая выборка.
+web_check.py http3 reports ok=false — {$WEB_SERVICE.URL} on {HOST.HOST}: web_check.py http3 вернул ok=false — {$WEB_SERVICE.URL} на {HOST.HOST}
+The http3 externalscript itself failed (bad URL, etc). Investigate via master item.: Сбой самого внешнего скрипта http3 (неверный URL и т. п.). Подробности — в основном элементе.
+HTTP/3 externalscript no data received: Нет данных внешнего скрипта HTTP/3
+'web_check.py http3: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py http3: нет свежего значения 15 мин — {$WEB_SERVICE.URL} на {HOST.HOST}'
+? |
+  The HTTP/3 master item has not received a fresh value for 15m
+  (3× its default 5m delay). Causes, in order of likelihood:
+  - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
+    interval "{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}", which happens when the
+    template gets unlinked from the host and its macros disappear);
+  - the item is disabled;
+  - web_check.py is not executing on this host's monitored_by.
+: |
+  Основной элемент HTTP/3 не получал свежего значения 15 мин
+  (втрое дольше интервала по умолчанию, 5 мин). Причины по убыванию вероятности:
+  - элемент не поддерживается — сначала прочитайте его ошибку (например,
+    Invalid update interval "{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}": так бывает,
+    когда шаблон отвязали от хоста и его макросы пропали);
+  - элемент отключён;
+  - web_check.py не запускается там, где мониторится хост.
+'HTTP/3: Alt-Svc advertises h3': 'HTTP/3: Alt-Svc объявляет h3'
+'HTTP/3: reachable via QUIC': 'HTTP/3: доступен по QUIC'
+'HTTP/3: QUIC handshake time': 'HTTP/3: время рукопожатия QUIC'
+'HTTP/3: negotiated ALPN': 'HTTP/3: согласованный ALPN'
+'HTTP/3: QUIC version': 'HTTP/3: версия QUIC'
+'HTTP/3: check ok': 'HTTP/3: проверка успешна'
+TLS findings discovery: Обнаружение находок TLS
+? |
+  Emits one LLD entry per weak protocol/cipher reported by tls-scan.
+  Macros: {#TLS_FINDING}, {#TLS_FINDING.CATEGORY}, {#TLS_FINDING.SEVERITY}.
+: |
+  Создаёт по записи LLD на каждый слабый протокол или шифр из tls-scan.
+  Макросы: {#TLS_FINDING}, {#TLS_FINDING.CATEGORY}, {#TLS_FINDING.SEVERITY}.
+'TLS scan finding: {#TLS_FINDING}': 'Находка скана TLS: {#TLS_FINDING}'
+'TLS weak {#TLS_FINDING.CATEGORY}: {#TLS_FINDING}': 'Слабый TLS ({#TLS_FINDING.CATEGORY}): {#TLS_FINDING}'
+'TLS weak {#TLS_FINDING.CATEGORY} negotiable: {#TLS_FINDING} on {$WEB_SERVICE.URL} ({HOST.HOST})': 'Сервер допускает слабый TLS ({#TLS_FINDING.CATEGORY}): {#TLS_FINDING} на {$WEB_SERVICE.URL} ({HOST.HOST})'
+? |
+  The daily TLS scan negotiated a deprecated protocol or weak
+  cipher family. Investigate the server's TLS configuration.
+: |
+  Ежедневный скан TLS согласовал устаревший протокол или слабое
+  семейство шифров. Проверьте настройки TLS на сервере.
+'no': нет
+'yes': да
+Web service by itforprof.com - Certificate-TLS: Веб-сервис (itforprof.com) — сертификат и TLS
+? |-
+  Certificate and live TLS monitoring profile for TLS endpoints checked with an https://host[:port] URL.
+
+  Includes the `web_check.py cert` master external item, certificate metadata,
+  expiry and rotation triggers, chain/hostname validation, and live negotiated
+  TLS protocol, cipher, and handshake time. The URL may include a non-standard
+  TLS port, for example `https://sql.example.com:1433`.
+
+  Checks execute from the host's monitored_by (server or proxy). The host running
+  this profile must be able to reach the endpoint and trust its CA chain when
+  chain validation is required.
+: |-
+  Профиль мониторинга сертификата и текущего TLS для конечных точек TLS, которые проверяются по URL вида https://host[:port].
+
+  Включает основной внешний элемент `web_check.py cert`, метаданные сертификата,
+  триггеры срока и замены, проверку цепочки и имени хоста, а также текущие
+  протокол TLS, шифр и время рукопожатия. В URL можно указать нестандартный
+  порт TLS, например `https://sql.example.com:1433`.
+
+  Проверки выполняются там, где мониторится хост (сервер или прокси). У хоста с этим
+  профилем должен быть доступ к конечной точке, а если нужна проверка цепочки,
+  он должен доверять её цепочке УЦ.
+TLS endpoint URL, including a non-standard port when needed, e.g. https://sql.example.com:1433. REQUIRED.: URL конечной точки TLS, при необходимости с нестандартным портом, например https://sql.example.com:1433. Обязательный.
+How often the TLS certificate probe runs. Override per host.: Интервал проверки сертификата TLS. Переопределяется на хосте.
+No-data period for the certificate master item. Keep at least three times the check interval.: Период без данных для основного элемента сертификата. Не меньше трёх интервалов проверки.
+Cert expiry WARNING threshold in days. Override per host.: Порог уровня «Предупреждение» по сроку сертификата, дни. Переопределяется на хосте.
+Cert expiry AVERAGE threshold in days. Override per host.: Порог уровня «Средняя» по сроку сертификата, дни. Переопределяется на хосте.
+Cert expiry High threshold in days. Override per host.: Порог уровня «Высокая» по сроку сертификата, дни. Переопределяется на хосте.
+Late-rotation threshold in days. Override per host.: Порог поздней замены сертификата, дни. Переопределяется на хосте.
+Minimum acceptable RSA key size in bits. Override per host.: Минимальная длина ключа RSA, бит. Переопределяется на хосте.
+Minimum acceptable ECDSA key size in bits. Override per host.: Минимальная длина ключа ECDSA, бит. Переопределяется на хосте.
+'web_check.py cert: no fresh value in {$WEB_SERVICE.CERT.NODATA.PERIOD} — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py cert: нет свежего значения {$WEB_SERVICE.CERT.NODATA.PERIOD} — {$WEB_SERVICE.URL} на {HOST.HOST}'
+no value for {$WEB_SERVICE.CERT.NODATA.PERIOD} — item NOTSUPPORTED, disabled, or script not running: нет значения {$WEB_SERVICE.CERT.NODATA.PERIOD} — элемент не поддерживается, отключён или скрипт не запускается
+? |
+  The cert master item has not received a fresh value for {$WEB_SERVICE.CERT.NODATA.PERIOD}
+  (3× its default delay). Causes, in order of likelihood:
+  - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
+    interval "{$WEB_SERVICE.CERT.CHECK.INTERVAL}", which happens when the
+    template gets unlinked from the host and its macros disappear);
+  - the item is disabled;
+  - web_check.py is not executing: check that
+    /usr/lib/zabbix/externalscripts/web_check.py exists and is executable
+    on this host's monitored_by, and that the venv at /opt/web_check/venv
+    is intact.
+: |
+  Основной элемент сертификата не получал свежего значения {$WEB_SERVICE.CERT.NODATA.PERIOD}
+  (втрое дольше интервала по умолчанию). Причины по убыванию вероятности:
+  - элемент не поддерживается — сначала прочитайте его ошибку (например,
+    Invalid update interval "{$WEB_SERVICE.CERT.CHECK.INTERVAL}": так бывает,
+    когда шаблон отвязали от хоста и его макросы пропали);
+  - элемент отключён;
+  - web_check.py не запускается: проверьте, что
+    /usr/lib/zabbix/externalscripts/web_check.py есть и исполняемый
+    там, где мониторится хост, и что venv в /opt/web_check/venv
+    в порядке.
+TLS cert expired ({ITEM.VALUE1} past not_after) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS истёк ({ITEM.VALUE1} после not_after) — {$WEB_SERVICE.URL} на {HOST.HOST}
+TLS cert expires in {ITEM.VALUE1} (< {$WEB_SERVICE.CERT.CRIT_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS истекает через {ITEM.VALUE1} (< {$WEB_SERVICE.CERT.CRIT_DAYS} дн.) — {$WEB_SERVICE.URL} на {HOST.HOST}
+The TLS certificate will expire within the AVERAGE threshold.: Сертификат TLS истечёт в пределах порога уровня «Средняя».
+TLS cert expires in {ITEM.VALUE1} (< {$WEB_SERVICE.CERT.NOTICE_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS истекает через {ITEM.VALUE1} (< {$WEB_SERVICE.CERT.NOTICE_DAYS} дн.) — {$WEB_SERVICE.URL} на {HOST.HOST}
+Certificate renewal is due within the warning threshold.: Сертификат нужно продлить в пределах порога предупреждения.
+TLS cert expires in {ITEM.VALUE1} (< {$WEB_SERVICE.CERT.WARN_DAYS}d) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS истекает через {ITEM.VALUE1} (< {$WEB_SERVICE.CERT.WARN_DAYS} дн.) — {$WEB_SERVICE.URL} на {HOST.HOST}
+TLS cert rotated (new fingerprint {ITEM.VALUE1}) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS заменён (новый отпечаток {ITEM.VALUE1}) — {$WEB_SERVICE.URL} на {HOST.HOST}
+'TLS cert signed with weak algorithm: {ITEM.VALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}': 'Сертификат TLS подписан слабым алгоритмом: {ITEM.VALUE1} — {$WEB_SERVICE.URL} на {HOST.HOST}'
+The leaf certificate is signed with SHA-1 or MD5; TLS clients reject both algorithms.: Конечный сертификат подписан SHA-1 или MD5. Клиенты TLS отвергают оба алгоритма.
+'TLS cert weak key: {ITEM.VALUE1} {ITEM.VALUE2} bits — {$WEB_SERVICE.URL} on {HOST.HOST}': 'Слабый ключ сертификата TLS: {ITEM.VALUE1} {ITEM.VALUE2} бит — {$WEB_SERVICE.URL} на {HOST.HOST}'
+TLS cert chain {ITEM.VALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}: 'Цепочка сертификата TLS: {ITEM.VALUE1} — {$WEB_SERVICE.URL} на {HOST.HOST}'
+'Live TLS negotiated weak protocol: {ITEM.VALUE1} — {$WEB_SERVICE.URL} on {HOST.HOST}': 'Согласован слабый протокол TLS: {ITEM.VALUE1} — {$WEB_SERVICE.URL} на {HOST.HOST}'

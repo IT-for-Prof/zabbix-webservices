@@ -47,6 +47,12 @@ important for GEO / RKN / internal-DNS scenarios.
 | [`scripts/deploy/`](scripts/deploy/) | `install.sh` one-liner + pinned `requirements.lock` for the `/opt/web_check/venv` deploy. |
 | [`docs/`](docs/) | Architecture and validation matrix. |
 
+## Russian and English templates
+
+Both templates ship in English and Russian (`*_ru.yaml`) with the same UUIDs,
+so a server switches language by importing the other file over the template.
+See [Languages](templates/web-service-by-itforprof/README.md#languages).
+
 ## Quick deploy (per monitor node)
 
 ```
