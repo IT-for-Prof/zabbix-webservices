@@ -43,6 +43,28 @@ two produced `h3_timeout`, which looks the same as a blocked UDP path.
 CI now installs aioquic, so `tests/test_http3.py` runs instead of being
 skipped.
 
+### Added — Russian templates
+
+`template_web_service_by_itforprof_com_ru.yaml` and
+`template_web_service_by_itforprof_com_tls_ru.yaml` are generated from the
+English templates and `templates/web-service-by-itforprof/i18n/ru.yaml` by
+`scripts/translate-templates.py`. Same UUIDs, technical name, keys,
+expressions, macros and tags; only display text is translated, so importing
+the other language over an existing template renames objects in place and
+keeps history. `tests/test_template_i18n.py` fails when a translation is
+missing, unused, drops a macro, or the generated file is stale.
+
+### Removed — `{$WEB_SERVICE.HTTP3.TIMEOUT}`
+
+The macro was never passed to the `http3` item key, so the script always
+used its 8s default. Wiring it in would change the key and drop the item
+history, so the macro is removed; behaviour is unchanged.
+
+### Fixed — documentation
+
+- `TCP 443 connect slow` description said 10m; the expression averages 30m.
+- Double period in the template description.
+
 ## [7.0-2.3.2] - 2026-08-19
 
 Two failure modes found while investigating a template unlink on

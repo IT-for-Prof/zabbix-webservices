@@ -16,7 +16,7 @@ zabbix_export:
         2. TLS + certificate  — externalscript `web_check.py cert`.
         3. Domain WHOIS       — externalscript `web_check.py whois`
                                 (apex-deduped via 24h FS cache).
-        4. Network diagnostics — native simple checks (TCP)..
+        4. Network diagnostics — native simple checks (TCP).
         5. Deep TLS scan      — externalscript `web_check.py tls-scan`
                                 + LLD for weak-protocol findings.
         6. HTTP/3 availability— externalscript `web_check.py http3`
@@ -78,9 +78,6 @@ zabbix_export:
     - macro: '{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}'
       value: 5m
       description: How often the HTTP/3 master item runs.
-    - macro: '{$WEB_SERVICE.HTTP3.TIMEOUT}'
-      value: '8'
-      description: Combined HEAD + QUIC handshake timeout in seconds.
     - macro: '{$WEB_SERVICE.HTTP3.SLOW_MS}'
       value: '1000'
       description: QUIC handshake WARNING threshold in milliseconds. Default 1000ms tolerates intercontinental UDP+QUIC handshake. Drop to 250 for LAN.
@@ -1339,7 +1336,7 @@ zabbix_export:
         expression: avg(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],30m)>{$WEB_SERVICE.TCP.SLOW_SEC}
         name: TCP 443 connect slow
         priority: WARNING
-        description: TCP/443 average connect time over 10m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold
+        description: TCP/443 average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold
           via the macro on hosts behind a CDN with intentionally-distant POPs.
         dependencies:
         - name: TCP 443 connect failed

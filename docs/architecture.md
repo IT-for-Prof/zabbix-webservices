@@ -564,7 +564,6 @@ All 28 user macros the template declares:
 | `{$WEB_SERVICE.WHOIS.CACHE.TTL}` | 86400 | Whois cache TTL in seconds. |
 | `{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}` | 1d | Daily deep TLS scan delay. |
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | 5m | HTTP/3 master-item delay. |
-| `{$WEB_SERVICE.HTTP3.TIMEOUT}` | 8 | Combined HEAD + QUIC handshake timeout (seconds). |
 | `{$WEB_SERVICE.HTTP3.SLOW_MS}` | 1000 | QUIC handshake WARNING threshold (ms). |
 | `{$WEB_SERVICE.DIAG.CHECK.INTERVAL}` | 5m | Diag simple-check delay. |
 | `{$WEB_SERVICE.SLOW.WARN}` | 10 | Slow-response trigger threshold (seconds, avg over 10m). |

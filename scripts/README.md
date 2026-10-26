@@ -4,7 +4,7 @@
 |--------|---------|:---:|:---:|
 | [`externalscripts/web_check.py`](externalscripts/web_check.py) | Externalscript for cert / WHOIS / TLS-scan / discover-tls / HTTP3 / self-test. Single-file, deployed to the configured Zabbix `ExternalScripts` directory via [`deploy/install.sh`](deploy/install.sh). Always emits valid JSON, exits 0; errors encoded as `{"ok": false, "error_code": …}`. | ✓ | n/a |
 | [`_zabbix_client.py`](_zabbix_client.py) | API token auth and env loading. Imported by `sync-domain-registry-owners.py`. | — | — |
-
+| [`translate-templates.py`](translate-templates.py) | Build the Russian `*_ru.yaml` templates from the English ones and `templates/web-service-by-itforprof/i18n/ru.yaml`. `--missing` lists untranslated strings, `--check` verifies without writing (CI runs the same check). | ✓ | `--check` |
 | [`sync-domain-registry-owners.py`](sync-domain-registry-owners.py) | Enable WHOIS on one owner per registered domain; rerun after Full template imports. Runs on the administration node. | ✓ | ✓ (default; `--apply` to write) |
 
 ## Deploy `web_check.py` to a monitor node

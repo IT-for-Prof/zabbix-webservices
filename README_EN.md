@@ -47,6 +47,20 @@ important for GEO / RKN / internal-DNS scenarios.
 | [`scripts/deploy/`](scripts/deploy/) | `install.sh` one-liner + pinned `requirements.lock` for the `/opt/web_check/venv` deploy. |
 | [`docs/`](docs/) | Architecture and validation matrix. |
 
+## Russian and English templates
+
+Both templates ship in two languages: `*_ru.yaml` is Russian, the file without
+the suffix is English. They share UUIDs, the technical template name, keys,
+trigger expressions, macros and tags; only display text differs. To switch a
+server's language, import the other file over the existing template with
+"Update existing" checked. Zabbix matches objects by UUID and renames them in
+place, so history, host links and macro overrides stay. One server holds one
+language at a time.
+
+The English file is the source. `scripts/translate-templates.py` builds the
+Russian one from it and `templates/web-service-by-itforprof/i18n/ru.yaml`; CI
+fails when they drift.
+
 ## Quick deploy (per monitor node)
 
 ```

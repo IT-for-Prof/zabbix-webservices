@@ -71,6 +71,26 @@ GEO/RKN/internal-DNS scenarios).
 Design rationale: [`docs/architecture.md`](../../docs/architecture.md).
 Validation matrix:  [`docs/validation.md`](../../docs/validation.md).
 
+## Languages
+
+Each template ships in English and Russian:
+
+| Template | English | Russian |
+|---|---|---|
+| Full profile | `template_web_service_by_itforprof_com.yaml` | `template_web_service_by_itforprof_com_ru.yaml` |
+| Certificate-TLS profile | `template_web_service_by_itforprof_com_tls.yaml` | `template_web_service_by_itforprof_com_tls_ru.yaml` |
+
+Both languages share UUIDs, the technical template name, item keys, trigger
+expressions, macros and tags; only display text differs (item and trigger
+names, event names, descriptions, value map labels, the visible template
+name). To switch a server's language, import the other file over the existing
+template with "Update existing" checked: Zabbix matches every object by UUID
+and renames it in place, so history, host links and macro overrides stay. One
+server holds one language at a time.
+
+The English file is the source. `*_ru.yaml` is generated from it and
+`i18n/ru.yaml` by `scripts/translate-templates.py`; CI fails when the two drift.
+
 ## Requirements
 
 - Zabbix 7.0+.
@@ -83,7 +103,7 @@ Validation matrix:  [`docs/validation.md`](../../docs/validation.md).
   venv layout (`/opt/web_check/venv`, Python 3.12 installed by `uv` — the host's system Python is not used; codebase floor is 3.11).
 - `fping` ≥ 3.10 on the monitor node (for Layer 4 ICMP items).
 
-## Macros (28)
+## Macros (27)
 
 Required:
 
@@ -120,7 +140,6 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | `1` | Domain expiry HIGH threshold (days). DISASTER fires on `days_to_expire < 0` (already expired). |
 | `{$WEB_SERVICE.TCP.SLOW_SEC}` | `3` | `net.tcp.service.perf` WARNING threshold. |
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | `5m` | HTTP/3 master item delay. |
-| `{$WEB_SERVICE.HTTP3.TIMEOUT}` | `8` | Combined HEAD + QUIC handshake timeout (s). |
 | `{$WEB_SERVICE.HTTP3.SLOW_MS}` | `1000` | QUIC handshake time WARNING threshold (ms). |
 
 ## Triggers (32 + 1 LLD prototype)
