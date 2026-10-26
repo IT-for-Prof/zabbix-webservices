@@ -40,10 +40,10 @@ def _trigger_inventory(registry_mod, hostid, *, status):
     return [
         {
             "triggerid": f"{hostid}{idx:02d}",
-            "description": name,
+            "uuid": uuid,
             "status": status,
         }
-        for idx, name in enumerate(sorted(registry_mod.WHOIS_TRIGGER_NAMES), start=1)
+        for idx, uuid in enumerate(sorted(registry_mod.WHOIS_TRIGGERS), start=1)
     ]
 
 
@@ -177,7 +177,7 @@ def test_plan_rejects_missing_item_or_trigger_inventory(registry_mod):
                 "1": [
                     {
                         "triggerid": "101",
-                        "description": "WHOIS check failing",
+                        "uuid": "b57234018c8e4d2f841c20eeda67e4f8",  # WHOIS check failing
                         "status": registry_mod.ZABBIX_STATUS_ENABLED,
                     }
                 ]
@@ -217,60 +217,72 @@ class _RecordingZabbix:
         return self.responses.get(method, [])
 
 
-def test_fetch_trigger_state_requests_expanded_expressions_and_filters_whois(registry_mod):
-    # The readable ("expanded") form is what expandExpression=True returns; the
-    # web_check.whois substring guard only works against this form.
-    triggers = [
-        {
-            "triggerid": "1",
-            "description": "Domain expired",
-            "status": "0",
-            "expression": "last(/T/web_check.whois.ok)=1 and last(/T/web_check.whois.days_to_expire)<0",
-            "hosts": [{"hostid": "10"}],
-        },
-        {
-            "triggerid": "2",
-            "description": "Cert expired",
-            "status": "0",
-            "expression": "last(/T/web_check.cert.days_to_expire)<0",  # non-whois -> dropped
-            "hosts": [{"hostid": "10"}],
-        },
-        {
-            "triggerid": "3",
-            "description": "WHOIS check failing",
-            "status": "0",
-            "expression": "last(/T/web_check.whois.ok)=0",
-            "hosts": [{"hostid": "10"}],
-        },
-    ]
-    zbx = _RecordingZabbix({"trigger.get": triggers})
+def test_fetch_trigger_state_finds_whois_triggers_by_template_uuid(registry_mod):
+    """Names differ per template language; the parent template trigger's UUID does not."""
+    whois_failing, domain_expired = "b57234018c8e4d2f841c20eeda67e4f8", "057de41c671349f696b5c252b44d6ad0"
 
+    class Fake:
+        def __init__(self):
+            self.calls = []
+
+        def call(self, method, params=None):
+            self.calls.append((method, params or {}))
+            if params.get("templated"):
+                return [{"triggerid": "900", "uuid": whois_failing}, {"triggerid": "901", "uuid": domain_expired}]
+            return [
+                {
+                    "triggerid": "1",
+                    "description": "Проверка WHOIS не работает",
+                    "status": "0",
+                    "templateid": "900",
+                    "hosts": [{"hostid": "10"}],
+                },
+                {
+                    "triggerid": "2",
+                    "description": "Домен истёк",
+                    "status": "0",
+                    "templateid": "901",
+                    "hosts": [{"hostid": "10"}],
+                },
+                {
+                    "triggerid": "3",
+                    "description": "Сертификат истёк",
+                    "status": "0",
+                    "templateid": "777",
+                    "hosts": [{"hostid": "10"}],
+                },
+            ]
+
+    zbx = Fake()
     state = registry_mod.fetch_trigger_state(zbx, ["10"])
 
-    method, params = zbx.calls[0]
-    assert method == "trigger.get"
-    # Regression guard for the shipped bug: without this the server returns
-    # {functionid}-form expressions and the substring filter matches nothing.
-    assert params.get("expandExpression") is True
-    assert {t["description"] for t in state["10"]} == {"Domain expired", "WHOIS check failing"}
+    assert set(zbx.calls[0][1]["filter"]["uuid"]) == set(registry_mod.WHOIS_TRIGGERS)
+    assert {t["uuid"] for t in state["10"]} == {whois_failing, domain_expired}
 
 
-def test_fetch_trigger_state_drops_unexpanded_functionid_expressions(registry_mod):
-    # If a server ever returns {functionid}-form, the filter must yield nothing
-    # so the downstream inventory guard fails closed (rather than silently
-    # planning a partial change).
-    triggers = [
-        {
-            "triggerid": "1",
-            "description": "Domain expired",
-            "status": "0",
-            "expression": "{12345}=1 and {12346}<0",
-            "hosts": [{"hostid": "10"}],
-        },
-    ]
-    zbx = _RecordingZabbix({"trigger.get": triggers})
+def test_fetch_trigger_state_is_empty_when_template_triggers_are_missing(registry_mod):
+    """No template parents found -> empty state, so the inventory guard fails closed."""
+    zbx = _RecordingZabbix({"trigger.get": []})
 
     assert registry_mod.fetch_trigger_state(zbx, ["10"]) == {}
+
+
+def test_whois_trigger_uuids_match_the_template(registry_mod):
+    """Every template trigger on a WHOIS item is managed by the dedup, and nothing else is."""
+    import yaml
+
+    path = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "templates/web-service-by-itforprof/template_web_service_by_itforprof_com.yaml"
+    )
+    template = yaml.safe_load(path.read_text(encoding="utf-8"))["zabbix_export"]["templates"][0]
+    triggers = [t for item in template["items"] for t in item.get("triggers", []) or []]
+    whois = {
+        t["uuid"]: t["name"]
+        for t in triggers
+        if "web_check.whois" in t["expression"] or registry_mod.WHOIS_MASTER_KEY_PREFIX in t["expression"]
+    }
+    assert whois == registry_mod.WHOIS_TRIGGERS
 
 
 def test_fetch_item_state_filters_to_whois_master_and_dependents(registry_mod):

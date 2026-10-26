@@ -61,6 +61,14 @@ The macro was never passed to the `http3` item key, so the script always
 used its 8s default. Wiring it in would change the key and drop the item
 history. The macro is removed instead, and the probe behaves as before.
 
+### Fixed — WHOIS owner sync found triggers by their English names
+
+`scripts/sync-domain-registry-owners.py` matched the nine WHOIS triggers by
+name, so after the Russian template import it found none and refused to run
+("missing domain registry trigger inventory"). It now matches host triggers by
+the UUID of their parent template trigger, which is the same in both
+languages. A test checks the UUID set against the template.
+
 ### Fixed — documentation
 
 - `TCP 443 connect slow` description said 10m; the expression averages 30m.

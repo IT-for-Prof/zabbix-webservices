@@ -51,16 +51,18 @@ WHOIS_DEPENDENT_KEYS = {
     "web_check.whois.error_message",
     "web_check.whois.ok",
 }
-WHOIS_TRIGGER_NAMES = {
-    "WHOIS externalscript no data received",
-    "Domain expired",
-    "Domain expires within {$WEB_SERVICE.WHOIS.CRIT_DAYS} day(s)",
-    "Domain expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS} days",
-    "Domain expires within {$WEB_SERVICE.WHOIS.WARN_DAYS} days",
-    "Domain registrar changed",
-    "Domain name servers changed",
-    "Domain DNSSEC removed",
-    "WHOIS check failing",
+# Keyed by template trigger UUID: names differ between the English and Russian
+# templates, UUIDs do not. Values are the English names, for error messages.
+WHOIS_TRIGGERS = {
+    "c42cd47849e84a7da6dcfd11500b2569": "WHOIS externalscript no data received",
+    "057de41c671349f696b5c252b44d6ad0": "Domain expired",
+    "d729f61ad62f4a83b920be54d2dfcae3": "Domain expires within {$WEB_SERVICE.WHOIS.CRIT_DAYS} day(s)",
+    "e55e244dd58745d488534c31628a7a58": "Domain expires within {$WEB_SERVICE.WHOIS.NOTICE_DAYS} days",
+    "5c7a37086368497e9a7033397e04e117": "Domain expires within {$WEB_SERVICE.WHOIS.WARN_DAYS} days",
+    "2a36c6738f704d8ab1a87736d294e0b9": "Domain registrar changed",
+    "17ab53ac72ba4068993da7b57037a22b": "Domain name servers changed",
+    "04a755e85b394a3f983efd7f81268a22": "Domain DNSSEC removed",
+    "b57234018c8e4d2f841c20eeda67e4f8": "WHOIS check failing",
 }
 
 
@@ -201,26 +203,30 @@ def fetch_item_state(zbx: Zabbix, hostids: list[str]) -> dict[str, list[dict]]:
 
 
 def fetch_trigger_state(zbx: Zabbix, hostids: list[str]) -> dict[str, list[dict]]:
+    """Host triggers inherited from the template's WHOIS triggers, each tagged with its template UUID."""
+    parents = zbx.call(
+        "trigger.get",
+        {"templated": True, "filter": {"uuid": sorted(WHOIS_TRIGGERS)}, "output": ["triggerid", "uuid"]},
+    )
+    uuid_by_parent = {str(t["triggerid"]): t["uuid"] for t in parents}
+    if not uuid_by_parent:
+        return {}
     triggers = zbx.call(
         "trigger.get",
         {
             "hostids": hostids,
-            "output": ["triggerid", "description", "status", "expression"],
+            "filter": {"templateid": sorted(uuid_by_parent)},
+            "output": ["triggerid", "description", "status", "templateid"],
             "selectHosts": ["hostid"],
-            # trigger.get returns expressions in {functionid} form unless expanded;
-            # the web_check.whois key-substring guard below needs the readable form.
-            "expandExpression": True,
         },
     )
     out: dict[str, list[dict]] = defaultdict(list)
     for trigger in triggers:
-        expression = trigger.get("expression", "")
-        if trigger.get("description") not in WHOIS_TRIGGER_NAMES:
-            continue
-        if "web_check.whois" not in expression and WHOIS_MASTER_KEY_PREFIX not in expression:
+        uuid = uuid_by_parent.get(str(trigger.get("templateid")))
+        if uuid is None:
             continue
         for h in trigger.get("hosts", []) or []:
-            out[str(h["hostid"])].append(trigger)
+            out[str(h["hostid"])].append({**trigger, "uuid": uuid})
     return out
 
 
@@ -263,8 +269,8 @@ def _item_action(host: RegistryHost, status: str, item_state: dict[str, list[dic
 def _trigger_action(host: RegistryHost, status: str, trigger_state: dict[str, list[dict]]) -> Action | None:
     if host.hostid not in trigger_state or not trigger_state[host.hostid]:
         raise RuntimeError(f"{host.host}: missing domain registry trigger inventory; refusing to plan partial changes")
-    names = {trigger.get("description", "") for trigger in trigger_state[host.hostid]}
-    missing = sorted(WHOIS_TRIGGER_NAMES - names)
+    uuids = {trigger.get("uuid", "") for trigger in trigger_state[host.hostid]}
+    missing = sorted(WHOIS_TRIGGERS[u] for u in WHOIS_TRIGGERS.keys() - uuids)
     if missing:
         missing_names = ", ".join(missing)
         raise RuntimeError(
