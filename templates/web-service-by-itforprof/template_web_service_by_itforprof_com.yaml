@@ -1465,7 +1465,7 @@ zabbix_export:
         event_name: 'HTTP/3 advertised but unreachable: {$WEB_SERVICE.URL} on {HOST.HOST}'
         priority: AVERAGE
         manual_close: 'YES'
-        description: 'The server advertises HTTP/3 in its Alt-Svc header but our QUIC
+        description: 'The server advertises HTTP/3 in its Alt-Svc header but the QUIC
 
           handshake from this proxy failed on 3 consecutive checks (~10-15 min).
 

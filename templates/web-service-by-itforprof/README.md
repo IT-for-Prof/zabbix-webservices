@@ -81,15 +81,16 @@ Each template ships in English and Russian:
 | Certificate-TLS profile | `template_web_service_by_itforprof_com_tls.yaml` | `template_web_service_by_itforprof_com_tls_ru.yaml` |
 
 Both languages share UUIDs, the technical template name, item keys, trigger
-expressions, macros and tags; only display text differs (item and trigger
-names, event names, descriptions, value map labels, the visible template
-name). To switch a server's language, import the other file over the existing
-template with "Update existing" checked: Zabbix matches every object by UUID
+expressions, macros and tags. Only display text differs: item and trigger
+names, event names, descriptions, value map labels and the visible template
+name. To switch a server's language, import the other file over the existing
+template with "Update existing" checked. Zabbix matches every object by UUID
 and renames it in place, so history, host links and macro overrides stay. One
 server holds one language at a time.
 
-The English file is the source. `*_ru.yaml` is generated from it and
-`i18n/ru.yaml` by `scripts/translate-templates.py`; CI fails when the two drift.
+The English file is the source. `scripts/translate-templates.py` generates
+`*_ru.yaml` from it and `i18n/ru.yaml`, and CI fails when a `*_ru.yaml` no
+longer matches them.
 
 ## Requirements
 
@@ -193,7 +194,7 @@ NODATA coverage:
 HTTP/3 layer is silent by design on hosts whose servers don't advertise
 `h3` in their `Alt-Svc` response header — no triggers fire on `advertised=false`.
 `HTTP/3 advertised but unreachable` (AVERAGE) catches the case where the
-server claims h3 support but our proxy can't complete the QUIC handshake on
+server claims h3 support but the proxy can't complete the QUIC handshake on
 3 consecutive checks (UDP/443 dropped on the path, CDN regression, etc). The
 site still answers over HTTP/2, so it is not HIGH. Checks that failed on DNS
 (`error_code: dns_error`) are not counted.

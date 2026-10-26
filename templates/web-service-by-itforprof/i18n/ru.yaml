@@ -377,7 +377,7 @@ no value for 3 days — item NOTSUPPORTED, disabled, or script not running: не
 HTTP/3 advertised but unreachable: HTTP/3 объявлен, но недоступен
 'HTTP/3 advertised but unreachable: {$WEB_SERVICE.URL} on {HOST.HOST}': 'HTTP/3 объявлен, но недоступен: {$WEB_SERVICE.URL} на {HOST.HOST}'
 ? |-
-  The server advertises HTTP/3 in its Alt-Svc header but our QUIC
+  The server advertises HTTP/3 in its Alt-Svc header but the QUIC
   handshake from this proxy failed on 3 consecutive checks (~10-15 min).
   The site still answers over HTTP/2. Causes: UDP/443 dropped on the
   path, server-side QUIC stack misconfigured, or CDN regression. Checks

@@ -14,12 +14,12 @@ From 23 to 25 October about 30% of DNS queries on the myzabbix server were lost
 ### Fixed — DNS time was counted as QUIC handshake time (`web_check.py` 2.2.2)
 
 aioquic's `connect()` resolves the host itself, inside the handshake timer and
-inside the 8s `wait_for`. One lost DNS reply pushed `handshake_ms` to ~5100ms,
-two produced `h3_timeout`, which looks the same as a blocked UDP path.
+inside the 8s `wait_for`. One lost DNS reply pushed `handshake_ms` to ~5100ms.
+Two produced `h3_timeout`, the same result a blocked UDP path gives.
 
 - `http3` resolves first, then runs the QUIC handshake against the IP with
   SNI = host. The timeout and `handshake_ms` now cover the handshake only.
-- A resolver failure is reported as `error_code: dns_error`, not
+- `http3` reports a resolver failure as `error_code: dns_error` instead of
   `h3_unreachable`.
 - `cert`: `tls.handshake_ms` now times the TLS handshake only, without DNS
   and TCP connect.
@@ -30,35 +30,36 @@ two produced `h3_timeout`, which looks the same as a blocked UDP path.
   fires after 3 consecutive checks where h3 is advertised and QUIC fails
   (~10-15 min) instead of after one.
 - `DISCARD_UNCHANGED_HEARTBEAT` removed from `web_check.http3.alt_svc_advertised`
-  and `web_check.http3.reachable`. `#3` counts stored values; with the discard a
-  run of zeros was one value, and the trigger would have waited for hourly
-  heartbeats.
+  and `web_check.http3.reachable`. `#3` counts stored values. With the discard,
+  a run of zeros was stored as one value, and the trigger would have waited for
+  hourly heartbeats.
 - Priority HIGH -> AVERAGE: the site still answers over HTTP/2.
-- A check that failed on the QUIC-path resolve (`error_code: dns_error`) is not
-  a QUIC attempt: `NOT_MATCHES_REGEX` + `DISCARD_VALUE` drops it from both
-  inputs, so their `#3` windows stay on the same checks. Dropping it from
-  `reachable` alone would pair fresh `advertised=1` values with zeros from
-  older checks where Alt-Svc itself failed.
+- Both inputs now start with `NOT_MATCHES_REGEX` + `DISCARD_VALUE` on
+  `"error_code":"dns_error"`. A check that failed on the QUIC-path resolve never
+  tried QUIC, so neither item stores it, and their `#3` windows stay on the same
+  checks. Dropping it from `reachable` alone would pair fresh `advertised=1`
+  values with zeros from older checks where Alt-Svc itself failed.
 
 CI now installs aioquic, so `tests/test_http3.py` runs instead of being
 skipped.
 
 ### Added — Russian templates
 
+`scripts/translate-templates.py` generates
 `template_web_service_by_itforprof_com_ru.yaml` and
-`template_web_service_by_itforprof_com_tls_ru.yaml` are generated from the
-English templates and `templates/web-service-by-itforprof/i18n/ru.yaml` by
-`scripts/translate-templates.py`. Same UUIDs, technical name, keys,
-expressions, macros and tags; only display text is translated, so importing
-the other language over an existing template renames objects in place and
-keeps history. `tests/test_template_i18n.py` fails when a translation is
-missing, unused, drops a macro, or the generated file is stale.
+`template_web_service_by_itforprof_com_tls_ru.yaml` from the English templates
+and `templates/web-service-by-itforprof/i18n/ru.yaml`. The Russian files keep
+the English UUIDs, technical name, keys, expressions, macros and tags and
+translate only display text. Importing the other language over an existing
+template therefore renames objects in place and keeps history.
+`tests/test_template_i18n.py` fails when a translation is missing, unused or
+drops a macro, or when the generated file is stale.
 
 ### Removed — `{$WEB_SERVICE.HTTP3.TIMEOUT}`
 
 The macro was never passed to the `http3` item key, so the script always
 used its 8s default. Wiring it in would change the key and drop the item
-history, so the macro is removed; behaviour is unchanged.
+history. The macro is removed instead, and the probe behaves as before.
 
 ### Fixed — documentation
 
