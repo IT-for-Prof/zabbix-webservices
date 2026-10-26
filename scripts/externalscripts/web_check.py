@@ -35,6 +35,7 @@ import re
 import socket
 import ssl
 import sys
+import threading
 import time
 import warnings
 from collections.abc import Iterator
@@ -44,7 +45,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-__version__ = "2.2.2"
+__version__ = "2.2.3"
 SCHEMA_VERSION = 3
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
@@ -814,6 +815,42 @@ def run_tls_scan(url: str, *, timeout: float = 10.0) -> dict[str, Any]:
     }
 
 
+# Zabbix kills external checks at timeout_external_check (30s on every collector)
+# before the script can print JSON. A blackholed target makes each of up to 13
+# probes wait its full socket timeout, and getaddrinfo in every probe is not
+# bounded by it, so the scan runs in a daemon thread under one hard limit.
+TLS_SCAN_BUDGET = 25.0
+
+
+def bounded_tls_scan(url: str, *, timeout: float = 10.0) -> dict[str, Any]:
+    """`run_tls_scan`, or a `tls_scan_timeout` envelope once TLS_SCAN_BUDGET is spent."""
+    box: dict[str, Any] = {}
+
+    def work() -> None:
+        # Hand errors to the caller: the default thread excepthook would print to stderr.
+        try:
+            box["scan"] = run_tls_scan(url, timeout=timeout)
+        except Exception as e:  # noqa: BLE001 — re-raised below for main()'s guard
+            box["error"] = e
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    worker.join(TLS_SCAN_BUDGET)
+    if "error" in box:
+        raise box["error"]
+    if "scan" in box:
+        scan: dict[str, Any] = box["scan"]
+        return scan
+    host, port = url_host(url, force_tls=True)
+    return tls_scan_error_envelope(
+        "tls_scan_timeout",
+        f"TLS scan of {host}:{port} did not finish within {TLS_SCAN_BUDGET:g}s; target slow or unreachable",
+        url=url,
+        host=host,
+        port=port,
+    )
+
+
 def tls_scan_to_lld(scan: dict[str, Any]) -> list[dict[str, str]]:
     """Translate a tls-scan result into a Zabbix LLD array.
 
@@ -1424,13 +1461,16 @@ def cmd_whois(args: argparse.Namespace) -> None:
 
 
 def cmd_tls_scan(args: argparse.Namespace) -> None:
-    emit(run_tls_scan(args.url, timeout=float(args.timeout)))
+    emit(bounded_tls_scan(args.url, timeout=float(args.timeout)))
 
 
 def cmd_discover_tls(args: argparse.Namespace) -> None:
     # LLD output format: bare array, not wrapped in {"data": …} (Zabbix ≥4.2+).
-    scan = run_tls_scan(args.url, timeout=float(args.timeout))
-    emit(tls_scan_to_lld(scan))
+    scan = bounded_tls_scan(args.url, timeout=float(args.timeout))
+    # A failed scan must not emit []: that marks every finding lost, and the rule
+    # disables lost resources immediately. An object without "data" makes Zabbix
+    # fail the rule before lost-resource processing (lld.c lld_rows_get).
+    emit(tls_scan_to_lld(scan) if scan.get("ok") else scan)
 
 
 def cmd_http3(args: argparse.Namespace) -> None:

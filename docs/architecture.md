@@ -1,7 +1,7 @@
 # Architecture
 
-> Full template `7.0-2.3.2` and Certificate-TLS profile are imported.
-> `web_check.py` 2.2.1 is installed on the server and four serving proxies.
+> Russian templates are imported on both servers: full template `7.0-2.3.4`, Certificate-TLS profile `7.0-1.0.1`.
+> `web_check.py` 2.2.3 is installed on both servers and the four serving proxies.
 
 ## Goal
 
@@ -541,6 +541,7 @@ in the legacy template, N = new.
 | http3 | HTTP/3 advertised but unreachable | AVERAGE |
 | http3 | HTTP/3 handshake slow | WARNING |
 | http3 | HTTP/3 check failing | INFO |
+| tls-scan | TLS scan does not finish within its time limit | INFO |
 | tls-scan | (per-finding LLD trigger prototype) | per finding |
 
 ## Full profile macros catalog

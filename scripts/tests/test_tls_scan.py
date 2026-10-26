@@ -111,6 +111,59 @@ def test_tls_scan_unreachable_returns_envelope(monkeypatch, web_check_module):
     assert scan["supported_protocols"] == []
 
 
+def test_tls_scan_returns_timeout_envelope_before_zabbix_kills_it(monkeypatch, web_check_module):
+    """A blackholed target makes every probe wait its full timeout (4 protocols x 10s = 40s),
+    past Zabbix's 30s external-check limit. The scan must stop at its own budget and answer."""
+    import time
+
+    def blackholed(host, port, version, timeout):
+        time.sleep(timeout)
+        return False, ""
+
+    monkeypatch.setattr(web_check_module, "_try_protocol", blackholed)
+    monkeypatch.setattr(web_check_module, "url_host", lambda u, **kw: ("192.0.2.1", 443))
+    monkeypatch.setattr(web_check_module, "TLS_SCAN_BUDGET", 0.3, raising=False)
+
+    started = time.monotonic()
+    scan = web_check_module.bounded_tls_scan("https://192.0.2.1", timeout=0.2)
+    elapsed = time.monotonic() - started
+
+    assert scan["ok"] is False
+    assert scan["error_code"] == "tls_scan_timeout"
+    assert scan["supported_protocols"] == []
+    assert elapsed < 0.5, elapsed
+
+
+def test_bounded_tls_scan_reraises_worker_errors(monkeypatch, capsys, web_check_module):
+    """A bug inside the scan must reach main()'s internal_error guard, not die in the thread:
+    the default thread excepthook prints to stderr, which Zabbix merges into the item value."""
+
+    def broken(url, timeout=10.0):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(web_check_module, "run_tls_scan", broken)
+    with pytest.raises(ValueError, match="boom"):
+        web_check_module.bounded_tls_scan("https://example.com")
+    assert capsys.readouterr().err == ""
+
+
+def test_cli_discover_tls_failed_scan_is_not_an_empty_lld(monkeypatch, capsys, web_check_module):
+    """An empty array tells Zabbix every finding is gone, and the LLD rule disables lost
+    resources immediately. A failed scan must make the rule fail instead, keeping them."""
+    import argparse
+    import json
+
+    envelope = {"ok": False, "error_code": "tls_scan_timeout", "error_message": "budget exceeded", "weak_findings": []}
+    monkeypatch.setattr(web_check_module, "run_tls_scan", lambda url, timeout=10.0: envelope)
+    monkeypatch.setattr(web_check_module, "emit", lambda payload: print(json.dumps(payload)))
+    web_check_module.cmd_discover_tls(argparse.Namespace(url="https://example.com", timeout="10"))
+    data = json.loads(capsys.readouterr().out.strip())
+
+    assert not isinstance(data, list)
+    assert "data" not in data
+    assert data["error_code"] == "tls_scan_timeout"
+
+
 def test_try_protocol_emits_no_deprecation_warning(web_check_module):
     """Probing deprecated TLSv1/TLSv1.1 must not surface a DeprecationWarning.
 

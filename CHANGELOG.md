@@ -4,6 +4,43 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.3.4] - 2026-10-26
+
+From 25 October `tls-scan` and `discover-tls` on chat.sid.msk.ru and
+matrix.sid.msk.ru were unsupported with "Timeout while executing a shell
+script". Their server, 93.183.71.82, did not answer from 24 October 06:29 to
+26 October 09:04, and both nightly scans fell inside that window. Template
+7.0-2.3.4 + `web_check.py` 2.2.3.
+
+### Fixed — `tls-scan` answers before Zabbix stops it (`web_check.py` 2.2.3)
+
+With no answer from the target, each of up to 13 probes (4 protocols, 9 weak
+cipher families) waited its full 10s socket timeout, and `getaddrinfo` in
+every probe is outside that timeout. Zabbix stops external checks at 30s, so
+the script was killed before it could print JSON (40s against an address that
+drops packets).
+
+- `tls-scan` and `discover-tls` now run the scan in a daemon thread under a
+  25s limit and return `error_code: tls_scan_timeout` when it runs out.
+- `discover-tls` no longer prints `[]` for a failed scan. An empty array marks
+  every finding lost, and the rule disables lost resources immediately. It now
+  prints the error object, and Zabbix rejects it before it processes lost
+  resources ("Cannot find the "data" array"), so existing findings stay.
+- `web_check.tls_scan.supported_protocols` and `web_check.tls_scan.weak_count`
+  start with `NOT_MATCHES_REGEX '"ok":false'` -> CUSTOM_ERROR. The error
+  envelope carries `supported_protocols: []` and `weak_count: 0`, so JSONPath
+  alone stored them over the last real values on every failed scan.
+- An unexpected exception inside the scan is re-raised to `main()`, which
+  reports it as `internal_error`; the thread's default handler would have
+  printed it to stderr, which Zabbix merges into the item value.
+
+### Added — `TLS scan does not finish within its time limit` (INFO)
+
+Fires when the last two nightly scans returned `tls_scan_timeout`; suppressed
+while `TCP 443 connect failed` reports the host down. Before 2.2.3 a scan
+that never finished left the item unsupported, and the 3-day no-data trigger
+caught it. A timed-out scan now stores a value, so that trigger stays quiet.
+
 ## [7.0-2.3.3] - 2026-10-26
 
 From 23 to 25 October about 30% of DNS queries on the myzabbix server were lost
