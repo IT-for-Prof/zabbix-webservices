@@ -35,8 +35,8 @@ zabbix_export:
       Credits: replaces the conceptually-similar Zabbix template
                `Template Website metrics (itmicus.ru)` by itmicus —
                https://github.com/itmicus/zabbix/tree/master/Template%20Web%20Site.
-               No code was copied; macro names are kept compatible for
-               in-place migration via scripts/migrate-from-itmicus.py.
+               No code was copied; macro names are kept compatible
+               with existing host macros.
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com

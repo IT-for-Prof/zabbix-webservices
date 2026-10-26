@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 Konstantin Tyutyunnik <https://itforprof.com>
-"""Shared Zabbix JSON-RPC client and .env loader for migration scripts.
+"""Shared Zabbix JSON-RPC client and .env loader for administration scripts.
 
 Internal module (leading underscore) — used by sibling CLI scripts only.
 """

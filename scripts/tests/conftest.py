@@ -14,10 +14,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts" / "externalscripts"
-# `scripts/` itself is needed for tests that load `migrate-from-itmicus.py`
-# (which imports `_zabbix_client` at module level). `python -m pytest` adds
-# CWD to sys.path implicitly, but the bare `pytest` invocation used in CI
-# does not — be explicit here so both modes work the same.
+# `python -m pytest` adds CWD to sys.path implicitly, but the bare `pytest`
+# invocation used in CI does not — be explicit here so both modes work the same.
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 sys.path.insert(0, str(SCRIPTS_DIR))
 

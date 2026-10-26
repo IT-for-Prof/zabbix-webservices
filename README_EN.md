@@ -42,11 +42,10 @@ important for GEO / RKN / internal-DNS scenarios.
 
 | Path | Purpose |
 |------|---------|
-| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | `Web service by itforprof.com` Zabbix template (6-layer, single template per host). |
-| [`scripts/externalscripts/web_check.py`](scripts/externalscripts/web_check.py) | Single-file externalscript (`cert`/`whois`/`tls-scan`/`discover-tls`/`self-test`). |
+| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | Full `Web service by itforprof.com` template and `Web service by itforprof.com - Certificate-TLS` profile for TLS endpoints using `https://host[:port]`. |
+| [`scripts/externalscripts/web_check.py`](scripts/externalscripts/web_check.py) | Single-file externalscript (`cert`/`whois`/`tls-scan`/`discover-tls`/`http3`/`self-test`). |
 | [`scripts/deploy/`](scripts/deploy/) | `install.sh` one-liner + pinned `requirements.lock` for the `/opt/web_check/venv` deploy. |
-| [`scripts/migrate-from-itmicus.py`](scripts/migrate-from-itmicus.py) | Idempotent migration from the legacy `Template Website metrics (itmicus.ru)`. |
-| [`docs/`](docs/) | Architecture, validation matrix, migration checklist. |
+| [`docs/`](docs/) | Architecture and validation matrix. |
 
 ## Quick deploy (per monitor node)
 
@@ -131,8 +130,10 @@ immediately.
 
 ## Versioning
 
-Each template carries `vendor: { name: itforprof.com, version: <zabbix-major>-<semver> }`,
-currently `7.0-2.2.9`. Bump rules:
+`Web service by itforprof.com` is version `7.0-2.3.2`; the
+`Web service by itforprof.com - Certificate-TLS` profile is version `7.0-1.0.1`.
+Both carry `vendor: { name: itforprof.com, version: <zabbix-major>-<semver> }`.
+Bump rules:
 
 - patch (`2.2.0` → `2.2.1`) — bugfix, no item/trigger schema changes
 - minor (`2.2.0` → `2.3.0`) — new items/triggers, backwards-compatible
@@ -148,28 +149,8 @@ Original work by the author. Supersedes the conceptually-similar Zabbix
 template [`Template Website metrics (itmicus.ru)`](https://github.com/itmicus/zabbix/tree/master/Template%20Web%20Site)
 by **itmicus** — that template defined the problem domain (HTTP availability +
 TLS cert + WHOIS expiry monitoring) which is here re-implemented from scratch
-using native Zabbix 7.0 primitives plus a single modern Python externalscript.
-**No code was copied**; the itmicus macro naming
-(`{$WEBSITE_METRICS_URL/PHRASE/TIMEOUT}`) is preserved by
-[`scripts/migrate-from-itmicus.py`](scripts/migrate-from-itmicus.py) purely
-to make in-place migration of existing host configurations frictionless.
-
-## Migration from itmicus
-
-Existing Zabbix installs running `Template Website metrics (itmicus.ru)` can
-migrate to this template with **one idempotent script**:
-
-```
-scripts/migrate-from-itmicus.py --list        # dry-run: enumerate hosts
-scripts/migrate-from-itmicus.py --apply --keep-old   # link new, keep legacy
-# wait for soak / parallel-run validation
-scripts/migrate-from-itmicus.py --apply       # unlink legacy
-```
-
-See [`docs/migration-checklist.md`](docs/migration-checklist.md) for the
-phased rollout playbook (pilot → tenant batches → cleanup) and
-[`docs/architecture.md`](docs/architecture.md) §"Migration plan" for design
-context.
+using native Zabbix 7.0 checks and one Python externalscript. The completed
+migration utility has been removed.
 
 ## License
 

@@ -3,8 +3,23 @@ __pycache__/
 .venv/
 venv/
 .env
+*.env
 .env.*
 !.env.example
+
+# Private key and local credential material
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.secret
+*.token
+*.credentials
+*.sqlite
+*.sqlite3
+*.db
+
 *.log
 .DS_Store
 .idea/
