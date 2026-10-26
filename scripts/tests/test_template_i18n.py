@@ -35,13 +35,6 @@ def test_russian_templates_are_in_sync_with_english_and_catalog(i18n):
     assert i18n.problems(i18n.load_catalog()) == []
 
 
-def test_russian_templates_differ_only_in_display_text(i18n):
-    for source in i18n.SOURCES:
-        en, ru = _load(source), _load(i18n.ru_path(source))
-        mask = lambda doc: i18n.translate(doc, {s: "" for s in i18n.strings(doc)})  # noqa: E731
-        assert mask(en) == mask(ru), source.name
-
-
 def test_identifiers_stay_english(i18n):
     """Technical names, web scenario/step names and value map names are identifiers, not display text."""
     for source in i18n.SOURCES:

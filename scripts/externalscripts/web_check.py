@@ -876,7 +876,7 @@ def _alt_svc_advertises_h3(host: str, port: int, timeout: float) -> bool:
     return bool(ALT_SVC_H3_RE.search(alt_svc))
 
 
-async def _quic_handshake(host: str, ip: str, port: int, timeout: float) -> dict[str, Any]:
+async def _quic_handshake(host: str, ip: str, port: int) -> dict[str, Any]:
     """Open a QUIC connection with ALPN=h3 to an already-resolved `ip`. Return handshake metrics."""
     from aioquic.asyncio.client import connect
     from aioquic.h3.connection import H3_ALPN
@@ -943,7 +943,7 @@ def run_http3_check(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
     loop = asyncio.new_event_loop()
     loop.set_exception_handler(lambda _loop, _ctx: None)
     try:
-        h3 = loop.run_until_complete(asyncio.wait_for(_quic_handshake(host, ip, port, timeout), timeout=timeout))
+        h3 = loop.run_until_complete(asyncio.wait_for(_quic_handshake(host, ip, port), timeout=timeout))
         result.update(h3)
     except TimeoutError:
         result["error_code"] = "h3_timeout"

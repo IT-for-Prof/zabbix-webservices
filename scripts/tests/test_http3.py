@@ -109,7 +109,7 @@ def test_http3_happy_path(monkeypatch, web_check_module):
     """Advertised + QUIC handshake succeeds → reachable=True with handshake metrics."""
     monkeypatch.setattr(web_check_module, "_alt_svc_advertises_h3", lambda *a, **kw: True)
 
-    async def fake_handshake(host, ip, port, timeout):
+    async def fake_handshake(host, ip, port):
         return {
             "h3_reachable": True,
             "handshake_ms": 42.0,
