@@ -34,8 +34,11 @@ two produced `h3_timeout`, which looks the same as a blocked UDP path.
   run of zeros was one value, and the trigger would have waited for hourly
   heartbeats.
 - Priority HIGH -> AVERAGE: the site still answers over HTTP/2.
-- The description names `dns_error` in the master item as a resolver problem
-  on the proxy, not an HTTP/3 one.
+- A check that failed on the QUIC-path resolve (`error_code: dns_error`) is not
+  a QUIC attempt: `NOT_MATCHES_REGEX` + `DISCARD_VALUE` drops it from both
+  inputs, so their `#3` windows stay on the same checks. Dropping it from
+  `reachable` alone would pair fresh `advertised=1` values with zeros from
+  older checks where Alt-Svc itself failed.
 
 CI now installs aioquic, so `tests/test_http3.py` runs instead of being
 skipped.

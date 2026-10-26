@@ -176,7 +176,8 @@ HTTP/3 layer is silent by design on hosts whose servers don't advertise
 `HTTP/3 advertised but unreachable` (AVERAGE) catches the case where the
 server claims h3 support but our proxy can't complete the QUIC handshake on
 3 consecutive checks (UDP/443 dropped on the path, CDN regression, etc). The
-site still answers over HTTP/2, so it is not HIGH.
+site still answers over HTTP/2, so it is not HIGH. Checks that failed on DNS
+(`error_code: dns_error`) are not counted.
 
 ## Caveats
 

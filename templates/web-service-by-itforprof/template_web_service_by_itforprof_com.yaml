@@ -1474,11 +1474,11 @@ zabbix_export:
 
           The site still answers over HTTP/2. Causes: UDP/443 dropped on the
 
-          path, server-side QUIC stack misconfigured, or CDN regression. If the
+          path, server-side QUIC stack misconfigured, or CDN regression. Checks
 
-          master item shows error_code=dns_error, the resolver on this proxy is
+          that failed on DNS (error_code=dns_error) are not counted. Cross-check
 
-          failing, not HTTP/3. Cross-check with the network-diagnostic items.'
+          with the network-diagnostic items.'
         tags:
         - tag: scope
           value: http3
@@ -1545,6 +1545,10 @@ zabbix_export:
       master_item:
         key: web_check.py["http3","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"error_code":"dns_error"'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.alt_svc_advertised
@@ -1566,6 +1570,10 @@ zabbix_export:
       master_item:
         key: web_check.py["http3","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"error_code":"dns_error"'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.h3_reachable
