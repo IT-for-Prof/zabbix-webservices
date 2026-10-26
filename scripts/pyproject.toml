@@ -32,11 +32,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "PLR2004", "S603", "E501"]   # test conventions + long fixtures
-"migrate-from-itmicus.py" = [
-    "S310", "BLE001", "RET504", "B007",      # legacy patterns we deliberately keep
-    "ANN", "D",                              # not strictly typed; this is a one-shot CLI
-    "C901", "PLR0912", "PLR0915", "PLR2004", # main() is a linear migration script — branching it kills readability
-]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

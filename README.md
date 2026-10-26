@@ -43,11 +43,10 @@ flowchart LR
 
 | Путь | Назначение |
 |------|------------|
-| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | Полный шаблон `Web service by itforprof.com` и отдельный профиль `Web service by itforprof.com - Certificate/TLS` для произвольных TLS-сервисов. |
-| [`scripts/externalscripts/web_check.py`](scripts/externalscripts/web_check.py) | Внешний скрипт (`cert`/`whois`/`tls-scan`/`discover-tls`/`self-test`). |
+| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | Полный шаблон `Web service by itforprof.com` и профиль `Web service by itforprof.com - Certificate-TLS` для TLS-узлов с URL `https://host[:port]`. |
+| [`scripts/externalscripts/web_check.py`](scripts/externalscripts/web_check.py) | Внешний скрипт (`cert`/`whois`/`tls-scan`/`discover-tls`/`http3`/`self-test`). |
 | [`scripts/deploy/`](scripts/deploy/) | `install.sh` (однострочник) + закреплённый `requirements.lock` для развёртывания в `/opt/web_check/venv`. |
-| [`scripts/migrate-from-itmicus.py`](scripts/migrate-from-itmicus.py) | Идемпотентная миграция с устаревшего `Template Website metrics (itmicus.ru)`. |
-| [`docs/`](docs/) | Архитектура, матрица валидации, чек-лист миграции. |
+| [`docs/`](docs/) | Архитектура и матрица валидации. |
 
 ## Быстрое развёртывание (на каждом мониторинговом узле)
 
@@ -133,8 +132,10 @@ external checks из-под него вынесли в UI-матрицу 1–600
 
 ## Версионирование
 
-Каждый шаблон содержит `vendor: { name: itforprof.com, version: <zabbix-major>-<semver> }`,
-сейчас `7.0-2.3.0`. Правила увеличения версии:
+Шаблон `Web service by itforprof.com` имеет версию `7.0-2.3.2`; профиль
+`Web service by itforprof.com - Certificate-TLS` имеет версию `7.0-1.0.1`.
+Оба содержат `vendor: { name: itforprof.com, version: <zabbix-major>-<semver> }`.
+Правила увеличения версии:
 
 - patch (`2.2.0` → `2.2.1`) — исправление ошибок, без изменений схемы items/triggers
 - minor (`2.2.0` → `2.3.0`) — новые items/triggers, обратно совместимо
@@ -150,28 +151,8 @@ external checks из-под него вынесли в UI-матрицу 1–600
 [`Template Website metrics (itmicus.ru)`](https://github.com/itmicus/zabbix/tree/master/Template%20Web%20Site)
 от **itmicus** — тот шаблон задал предметную область (мониторинг
 доступности HTTP + TLS-сертификат + срок регистрации домена), а здесь
-она переписана с нуля на нативных средствах Zabbix 7.0 + один современный
-Python-внешний скрипт. **Код не копировался**; именование макросов
-itmicus (`{$WEBSITE_METRICS_URL/PHRASE/TIMEOUT}`) сохранено в
-[`scripts/migrate-from-itmicus.py`](scripts/migrate-from-itmicus.py)
-исключительно для бесшовной миграции существующих хостов.
-
-## Миграция с itmicus
-
-Существующие инсталляции Zabbix с `Template Website metrics (itmicus.ru)`
-переезжают на новый шаблон одним **идемпотентным скриптом**:
-
-```
-scripts/migrate-from-itmicus.py --list        # сухой запуск: список хостов
-scripts/migrate-from-itmicus.py --apply --keep-old   # привязать новый, оставить старый
-# подождать параллельный прогон / валидацию
-scripts/migrate-from-itmicus.py --apply       # отвязать старый
-```
-
-Подробный план поэтапного развёртывания (пилот → тенанты → очистка) —
-в [`docs/migration-checklist.md`](docs/migration-checklist.md);
-архитектурный контекст — в [`docs/architecture.md`](docs/architecture.md)
-§"Migration plan".
+она переписана на нативных средствах Zabbix 7.0 и одном Python-внешнем
+скрипте. Миграция с itmicus завершена; её утилита удалена.
 
 ## Лицензия
 

@@ -4,15 +4,13 @@ Copyright (c) 2025-2026 Konstantin Tyutyunnik / Константин Тютюн�
                         (https://itforprof.com)
 
 This project (Zabbix template, externalscript `web_check.py`, installer,
-migration helper, and documentation) is original work. It supersedes the
+administration helper, and documentation) is original work. It supersedes the
 conceptually-similar Zabbix template `Template Website metrics (itmicus.ru)`
 published by itmicus at https://github.com/itmicus/zabbix — that template
 defined the problem domain (HTTP availability + TLS cert + WHOIS expiry
 monitoring) which is here re-implemented from scratch using native Zabbix
-7.0 primitives (web scenarios, simple checks, LLD) plus a single modern
-Python 3.11+ externalscript. No code was copied from the itmicus template;
-its macro naming is preserved by `scripts/migrate-from-itmicus.py` purely
-to make in-place migration of existing host configurations frictionless.
+7.0 primitives (web scenarios, simple checks, LLD) plus one
+Python externalscript. No code was copied from the itmicus template.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

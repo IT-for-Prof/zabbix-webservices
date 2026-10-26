@@ -1,9 +1,7 @@
 # Architecture
 
-> Status: in production. Template `7.0-2.2.9`, externalscript
-> `web_check.py` 2.2.1, installer, and migration script all shipped and
-> running on 6 Zabbix server/proxy nodes; 59 hosts migrated from
-> `Template Website metrics (itmicus.ru)` on 2026-05-14.
+> Full template `7.0-2.3.2` and Certificate-TLS profile are imported.
+> `web_check.py` 2.2.1 is installed on the server and four serving proxies.
 
 ## Goal
 
@@ -12,7 +10,8 @@ production, linked to 59 hosts (migration completed 2026-05-14, see CHANGELOG)) 
 design that:
 
 - Keeps the existing full web-service template for ordinary websites.
-- Provides a certificate/TLS-only template for arbitrary TLS services such as SQL Server, SMTP, LDAP, and RDP Gateway.
+- Provides a certificate/TLS-only template for TLS endpoints checked with an
+  `https://host[:port]` URL, including the verified SQL Server endpoint.
 - Runs every check from the same proxy or server that already monitors that
   host (correct egress for GEO/RKN/internal-DNS scenarios — same property the
   legacy template had).
@@ -26,14 +25,23 @@ design that:
   latency) so a "site is down" alert can be triaged without leaving Zabbix.
 - Replaces `website_metrics.py` (`requests` monkey-patch, abandoned
   `python-whois` / `tldextract` / `python-dateutil` deps, Python-2 compat
-  hacks) with a Python 3.11+ codebase using stdlib + the actively-maintained
-  `cryptography` library, with type hints, lint, and unit tests.
+  hacks) with a Python 3.11+ codebase using stdlib and the `cryptography`
+  library, with type hints, lint, and unit tests.
+
+## Profiles
+
+- **Full:** `Web service by itforprof.com` for websites. Includes HTTP,
+  certificate/TLS, WHOIS, TCP checks, TLS scan, and HTTP/3.
+- **Certificate-TLS:** `Web service by itforprof.com - Certificate-TLS` for
+  TLS endpoints checked with `https://host[:port]`. Includes certificate
+  metadata and live TLS values only. Defaults are `WARN_DAYS=90`,
+  `NOTICE_DAYS=30`, and `CRIT_DAYS=7`.
 
 ## Principles
 
 1. **One profile per concern, attached to any host.** No probe-host siblings.
    No host duplication. A website uses the full profile; a non-HTTP TLS service
-   uses `Web service by itforprof.com - Certificate/TLS`.
+   uses `Web service by itforprof.com - Certificate-TLS`.
 
 2. **Native Zabbix wherever it suffices.** Web scenarios for HTTP. Simple
    checks for DNS / TCP-perf / ICMP-perf. LLD for things that come in
@@ -51,12 +59,12 @@ design that:
    Caching RDAP/WHOIS at apex granularity collapses N host-checks into one
    network round-trip per apex per day.
 
-5. **Modern, maintainable code.** Python 3.11+, type hints, `ruff` + `mypy
+5. **Code and tooling.** Python 3.11+, type hints, `ruff` + `mypy
    --strict` + `pytest`, single file deploy via packaged `.pyz`, CI on
    GitHub Actions, semantic versioning aligned with the template's
    `vendor.version`.
 
-6. **Honest scope.** This is monitoring, not auditing. No Heartbleed
+6. **Scope.** This is monitoring, not auditing. No Heartbleed
    detectors, no full browser TLS handshake matrix per poll. Daily deep
    scan covers the slow-changing parts.
 
@@ -141,7 +149,7 @@ failure diagnostics in operational data.
 | `{$WEB_SERVICE.CHECK.INTERVAL}` | `1m` | Scenario delay. |
 | `{$WEB_SERVICE.SLOW.WARN}` | `10` | Avg response time threshold for WARNING (seconds, over 10m). |
 | `{$WEB_SERVICE.NODATA.PERIOD}` | `10m` | No-data trigger period. |
-| `{$WEB_SERVICE.USER_AGENT}` | `Zabbix-WebService-by-itforprof/2.0` | HTTP `User-Agent`. Honest default. |
+| `{$WEB_SERVICE.USER_AGENT}` | `Zabbix-WebService-by-itforprof/2.0` | HTTP `User-Agent`. |
 
 (The web scenario follows 3xx via the `follow_redirects: YES` scenario
 field, not a macro.)
@@ -169,7 +177,7 @@ This layer is live in production. The web scenario follows 3xx redirects
 (`follow_redirects: YES`, a scenario field — not a macro); `USER_AGENT` is a
 template macro.
 
-## Layer 2 — TLS + certificate (externalscript, per host)
+## Layer 2 — TLS + certificate, full profile (externalscript, per host)
 
 **Why externalscript:** Zabbix 7.0 has no native server- or proxy-side way
 to extract `not_after` from a TLS handshake. Agent 2 has it, but our
@@ -535,9 +543,9 @@ in the legacy template, N = new.
 | http3 | HTTP/3 check failing | INFO |
 | tls-scan | (per-finding LLD trigger prototype) | per finding |
 
-## Macros catalog
+## Full profile macros catalog
 
-Full list of user macros the template declares.
+Full list of user macros declared by the full template.
 
 All 28 user macros the template declares:
 
@@ -849,18 +857,10 @@ access to all of these was validated (`docs/validation.md` G1 PASS).
 
 ### Distribution mechanism
 
-`scripts/Makefile`:
-
-- `make package` → builds `dist/web_check.pyz` (single-file executable
-  with bundled cryptography if requested).
-- `make install LOC=mon.itforprof.com` → rsync to one node.
-- `make install-all` → fan out across all known nodes (list in
-  `scripts/deploy/inventory.txt`).
-- `make smoke LOC=mon.itforprof.com` → ssh and run `web_check.py
-  --self-test` on the target.
-
-A minimal Ansible role `deploy/ansible/web_check/` is included as the
-preferred path for ops; the Makefile is for quick installs.
+Run `scripts/deploy/install.sh` on each serving server/proxy. It installs
+Python 3.12, the pinned venv, `web_check.py`, and the WHOIS cache directory.
+Templates are imported into Zabbix once; proxies receive configuration
+from the server.
 
 ### Operating system requirements
 
@@ -925,45 +925,12 @@ values, since those change). Run nightly on CI, not on every PR.
 
 ### Smoke deploys
 
-`scripts/deploy/smoke.sh` runs after install on each node and exercises
-each subcommand against a controlled URL (e.g. `https://mon.itforprof.com`
-itself). Exit 0 = all OK; non-zero = something is wrong on this node.
-
-## Migration plan
-
-Phased and reversible. Per-host work is automated; the high-level steps
-are scripted in `scripts/migrate-from-itmicus.py`, which already handles
-template link/unlink and macro translation.
-
-1. **Pre-deploy.** Build & install `web_check.py` on `mon.itforprof.com`
-   and `ET-VPS01`. Run `--self-test`. Confirm cache directory created and
-   permissions correct.
-
-2. **Pilot — 2 hosts.** `mon.itforprof.com` (server-monitored) and
-   `eurotrade-group.ru` (proxy-monitored via ET-VPS01). Link new template
-   with `--keep-old`. Run for 24 hours in parallel with the legacy
-   template. Compare each value: cert.days_to_expire vs legacy
-   `ssl.daystoexpire`, whois.days_to_expire vs legacy
-   `domain.daystoexpire`. Look for systematic divergence.
-
-3. **Stabilise.** Fix anything the pilot reveals. Re-deploy. Re-test.
-
-4. **Tenant by tenant.** EUROTRADE (mostly via ET-VPS01) → SeaRegion (via
-   SeaRegion proxy) → IFP (server) → ARC/NORD/AVAKS/EXTRO (mostly
-   server). 12-hour soak between tenant batches. After each batch:
-   `scripts/migrate-from-itmicus.py --apply` on that tenant's hosts to
-   unlink the legacy template; macros are already translated by then.
-
-5. **Final cleanup.** Disable `Template Website metrics (itmicus.ru)` in
-   the Zabbix UI. Remove `website_metrics.py` from
-   `/usr/lib/zabbix/externalscripts/` on mon, vps12, vps15, ET-VPS01,
-   SeaRegion proxy. Confirm no items reference it via `item.get`.
-
-6. **Post-mortem.** Record any surprises in `docs/migration-notes.md`.
+Run `web_check.py self-test` as `zabbix`, then execute the required
+subcommands against representative endpoints from each serving node.
 
 ## Known limitations
 
-These are honest accuracy/coverage gaps in the design; alerts are
+These are known accuracy and coverage gaps; alerts are
 suppressed where appropriate so we don't manufacture false positives.
 
 - **`.hu` domain expiration:** Hungarian registry (`whois.nic.hu`)
@@ -1046,37 +1013,6 @@ We deliberately do NOT try to:
 
 - **DMARC/SPF/DKIM monitoring.** Already covered by
   `Template Mail DNS Audit Zabbix` (templateid 13957). Stays separate.
-
-## Open questions
-
-These need answers before the implementation phase, listed for explicit
-review:
-
-1. **WHOIS source-of-truth conflicts.** When RDAP says "expires 2027-09-15"
-   and port-43 says "expires 2027-09-16" (because TLD registry rolls at a
-   different moment), do we prefer RDAP and ignore the discrepancy, or
-   alert on disagreement? Default proposal: prefer RDAP silently.
-
-2. **Cache distribution.** Each proxy keeps its own cache. If
-   `mon.itforprof.com` already pulled `itforprof.com` 6 hours ago, ET-VPS01
-   still pulls it independently when it gets a host with apex
-   `itforprof.com`. Acceptable cost given the data is small; otherwise
-   we'd need a shared cache (Redis, NFS) — not worth it.
-
-3. **What to do on legacy LLD residue.** Hosts already monitored by the
-   legacy template may have host-level overrides on prototype-created
-   items. After migration these dangle. Migration script will detect
-   them and report, but auto-delete only with `--cleanup-residue` flag.
-
-4. **TLS-scan host count.** Layer 5 scans 4 protocols, several ciphers.
-   That's ~20 handshakes/host/day = ~1180/day total for 59 hosts. Some
-   registries / CDNs detect this and rate-limit. If anyone complains,
-   stagger or move to weekly.
-
-5. **Vendor-version semver.** Bumped to `7.0-2.2.0` to reflect the
-   cert+WHOIS+diag+TLS-scan layers added on top of the original HTTP-only
-   v1. Future bumps follow the per-template semver convention documented in
-   the top-level [README](../README.md#versioning).
 
 ## Document history
 
