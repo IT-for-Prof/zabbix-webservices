@@ -4,6 +4,23 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.4.0] / Certificate-TLS [7.0-1.1.0] - 2026-10-26
+
+### Fixed — sustained certificate probe errors now raise AVERAGE
+
+A certificate probe could keep returning valid JSON with `ok=false` while
+only an INFO problem stayed active. Fresh error output kept the existing
+no-data trigger quiet, so the template never raised a ticket-level signal.
+
+- Both profiles add `Cert check failing on 3 consecutive checks` (AVERAGE).
+  It requires three stored failures and fresh master data. The first success
+  clears it; missing output is covered by the existing no-data trigger.
+- `web_check.cert.ok` stores every poll so three failures mean three checks,
+  rather than three 10-minute discard heartbeats.
+- The immediate INFO trigger and its metadata-suppression dependencies stay.
+- README corrects late rotation to WARNING / 3 days and documents the TLS
+  LLD WARNING trigger prototype. English and Russian templates stay aligned.
+
 ## [7.0-2.3.4] - 2026-10-26
 
 From 25 October `tls-scan` and `discover-tls` on chat.sid.msk.ru and

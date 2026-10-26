@@ -27,7 +27,7 @@ zabbix_export:
       chain validation is required.'
     vendor:
       name: itforprof.com
-      version: 7.0-1.0.1
+      version: 7.0-1.1.0
     groups:
     - name: Templates/Applications
     macros:
@@ -583,15 +583,24 @@ zabbix_export:
       - type: BOOL_TO_DECIMAL
         parameters:
         - ''
-      - type: DISCARD_UNCHANGED_HEARTBEAT
-        parameters:
-        - 10m
       valuemap:
         name: 'web_check: boolean'
       tags:
       - tag: scope
         value: tls
       triggers:
+      - uuid: 9402ef22862e46f2a392a8b667072ef8
+        expression: count(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com - Certificate-TLS/web_check.py["cert","{$WEB_SERVICE.URL}"],{$WEB_SERVICE.CERT.NODATA.PERIOD})=0
+        name: Cert check failing on 3 consecutive checks
+        event_name: 'web_check.py cert failed on 3 consecutive checks — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: AVERAGE
+        description: Three consecutive certificate checks returned ok=false. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        manual_close: 'YES'
       - uuid: 108d30c0eb944f138ba1bdffb9204444
         expression: last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok)=0
         name: Cert check failing

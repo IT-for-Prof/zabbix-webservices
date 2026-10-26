@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -201,7 +202,34 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.3.4"
+    assert _template()["vendor"]["version"] == "7.0-2.4.0"
+
+
+@pytest.mark.parametrize(
+    "filename,nodata_period",
+    [
+        ("template_web_service_by_itforprof_com.yaml", "15m"),
+        ("template_web_service_by_itforprof_com_tls.yaml", "{$WEB_SERVICE.CERT.NODATA.PERIOD}"),
+    ],
+)
+def test_persistent_cert_failure_escalates_after_three_polls_and_requires_fresh_data(filename, nodata_period):
+    template = yaml.safe_load((TEMPLATE_PATH.parent / filename).read_text())["zabbix_export"]["templates"][0]
+    items = {item["key"]: item for item in template["items"]}
+    check = items["web_check.cert.ok"]
+    triggers = {trigger["name"]: trigger for trigger in check["triggers"]}
+    persistent = triggers["Cert check failing on 3 consecutive checks"]
+    assert persistent["priority"] == "AVERAGE"
+    profile = template["template"]
+    assert persistent["expression"] == (
+        f'count(/{profile}/web_check.cert.ok,#3,"eq",0)=3 and '
+        f'nodata(/{profile}/web_check.py["cert","{{$WEB_SERVICE.URL}}"],{nodata_period})=0'
+    )
+    # A dependency would freeze an existing problem when no-data becomes active.
+    assert not persistent.get("dependencies")
+    assert all(step["type"] != "DISCARD_UNCHANGED_HEARTBEAT" for step in check["preprocessing"])
+    immediate = triggers["Cert check failing"]
+    assert immediate["priority"] == "INFO"
+    assert immediate["expression"] == f"last(/{profile}/web_check.cert.ok)=0"
 
 
 def test_http3_unreachable_needs_three_consecutive_failed_checks():

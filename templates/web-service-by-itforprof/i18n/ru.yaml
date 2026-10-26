@@ -524,3 +524,7 @@ TLS scan does not finish within its time limit: Скан TLS не укладыв
   Поддерживаемые протоколы и находки по слабым шифрам пока не обновляются,
   правило LLD сохраняет уже найденное. Триггер молчит, пока не проходит
   соединение TCP 443: о недоступной цели уже сообщает другой триггер.
+
+Cert check failing on 3 consecutive checks: Проверка сертификата не работает 3 раза подряд
+'web_check.py cert failed on 3 consecutive checks — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py cert: ошибка 3 раза подряд — {$WEB_SERVICE.URL} на {HOST.HOST}'
+Three consecutive certificate checks returned ok=false. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.: Три проверки сертификата подряд вернули ok=false. Событие закрывается после первой успешной проверки или при прекращении поступления данных в основной элемент; отсутствие данных отслеживает отдельный триггер.

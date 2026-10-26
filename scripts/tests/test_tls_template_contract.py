@@ -42,6 +42,7 @@ EXPECTED_TRIGGER_NAMES = {
     "Cert hostname not covered",
     "Cert chain untrusted",
     "Cert check failing",
+    "Cert check failing on 3 consecutive checks",
     "TLS protocol weak (currently negotiating)",
 }
 

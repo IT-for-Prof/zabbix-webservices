@@ -5,8 +5,8 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.3.4`                              |
-| TLS profile      | `7.0-1.0.1`                              |
+| Version          | `7.0-2.4.0`                              |
+| TLS profile      | `7.0-1.1.0`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
 | Execution        | Whatever monitors the host (server / proxy) |
@@ -133,7 +133,7 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.CERT.WARN_DAYS}` | `30` | Cert expiry INFO threshold. |
 | `{$WEB_SERVICE.CERT.NOTICE_DAYS}` | `14` | Cert expiry WARNING threshold. |
 | `{$WEB_SERVICE.CERT.CRIT_DAYS}` | `7` | Cert expiry HIGH threshold. |
-| `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` | `14` | "Rotated late" HIGH threshold: a rotation while the outgoing cert had fewer days left than this fires the alert. Reads the pre-rotation window, not the new cert. |
+| `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` | `3` | "Rotated late" WARNING threshold: a rotation while the outgoing cert had fewer days left than this fires the alert. Reads the pre-rotation window, not the new cert. |
 | `{$WEB_SERVICE.CERT.MIN_KEY_RSA}` | `2048` | Min RSA key size (bits). |
 | `{$WEB_SERVICE.CERT.MIN_KEY_ECDSA}` | `256` | Min ECDSA key size (bits). |
 | `{$WEB_SERVICE.WHOIS.WARN_DAYS}` | `30` | Domain expiry WARNING threshold (days). |
@@ -143,7 +143,7 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | `5m` | HTTP/3 master item delay. |
 | `{$WEB_SERVICE.HTTP3.SLOW_MS}` | `1000` | QUIC handshake time WARNING threshold (ms). |
 
-## Triggers (33 + 1 LLD prototype)
+## Triggers (34 + 1 LLD prototype)
 
 By scope:
 
@@ -151,19 +151,19 @@ By scope:
 | ------------- | :---: | ---------------- |
 | availability  | 1     | HIGH             |
 | performance   | 1     | WARNING          |
-| data-collection | 5   | AVERAGE          |
+| data-collection | 6   | AVERAGE          |
 | tls (cert + handshake) | 12 | DISASTER       |
 | whois         | 8     | DISASTER         |
 | diag          | 2     | HIGH             |
 | http3         | 3     | AVERAGE          |
 | tls-scan      | 1     | INFO             |
-| tls-scan (LLD item prototype) | 1 per finding | INFO (no trigger prototype) |
+| tls-scan (LLD trigger prototype) | 1 per finding | WARNING |
 
 Cert-expiry triggers cascade DISASTER (expired) → HIGH (<7d) → WARNING (<14d)
 → INFO (<30d) with `dependencies` so only the most severe fires. Separately,
 **Cert rotated** (INFO) fires on any fingerprint change, and **Cert rotated
-unexpectedly** (HIGH) fires when a rotation is detected while the *outgoing*
-cert was within `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` (default 14) days of
+unexpectedly** (WARNING) fires when a rotation is detected while the *outgoing*
+cert was within `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` (default 3) days of
 expiry — i.e. a dangerously late renewal. It reads `max(days_to_expire)` over
 the 2h window ending 15m ago (the old cert), since on a dependent item
 `last()` already reflects the freshly installed cert at the instant the
@@ -184,6 +184,16 @@ store and keep TLS verification enabled.
 WHOIS-expiry triggers are gated on `web_check.whois.provider_no_expiry` —
 Hungarian (`.hu`) registries omit expiry by policy; those hosts stay silent
 on the "Domain expires" series but still alert on cert expiry.
+
+Certificate probe failures have two levels in both profiles. **Cert check
+failing** remains INFO on the first error and suppresses invalid certificate
+metadata alerts. **Cert check failing on 3 consecutive checks** is AVERAGE
+on the third consecutive `ok=false` result (~10–15 minutes at the default
+5-minute interval). The status item stores every poll. A successful check
+clears the sustained-failure trigger immediately; missing master data clears
+it after the existing no-data period, when the separate no-data trigger takes
+over. The new trigger uses a freshness condition rather than a dependency so
+an existing problem can recover while no-data is active.
 
 NODATA coverage:
 - Web scenario: `{$WEB_SERVICE.NODATA.PERIOD}` (default 10m).

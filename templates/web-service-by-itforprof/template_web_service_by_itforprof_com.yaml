@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.3.4
+      version: 7.0-2.4.0
     groups:
     - name: Templates/Applications
     macros:
@@ -747,15 +747,24 @@ zabbix_export:
       - type: BOOL_TO_DECIMAL
         parameters:
         - ''
-      - type: DISCARD_UNCHANGED_HEARTBEAT
-        parameters:
-        - 10m
       valuemap:
         name: 'web_check: boolean'
       tags:
       - tag: scope
         value: tls
       triggers:
+      - uuid: 5d78ff44eacc4d638fa10a87dacd44fe
+        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0
+        name: Cert check failing on 3 consecutive checks
+        event_name: 'web_check.py cert failed on 3 consecutive checks — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        priority: AVERAGE
+        description: Three consecutive certificate checks returned ok=false. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+        manual_close: 'YES'
       - uuid: eb8c56ba600a467983c16043eb8489b4
         expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
         name: Cert check failing

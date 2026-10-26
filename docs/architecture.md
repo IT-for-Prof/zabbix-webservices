@@ -1,6 +1,6 @@
 # Architecture
 
-> Russian templates are imported on both servers: full template `7.0-2.3.4`, Certificate-TLS profile `7.0-1.0.1`.
+> Repository versions: full template `7.0-2.4.0`, Certificate-TLS profile `7.0-1.1.0`. Deployment evidence is recorded in the severity plan.
 > `web_check.py` 2.2.3 is installed on both servers and the four serving proxies.
 
 ## Goal
@@ -505,7 +505,7 @@ in the legacy template, N = new.
 
 ## Trigger taxonomy (consolidated)
 
-32 triggers (+ 1 LLD trigger prototype for the deep TLS scan), by `scope` tag:
+34 triggers (+ 1 LLD trigger prototype for the deep TLS scan), by `scope` tag:
 
 | Scope | Trigger | Severity |
 |---|---|---|
@@ -513,6 +513,7 @@ in the legacy template, N = new.
 | performance | Web service slow response time | WARNING |
 | data-collection | Web service no data received | AVERAGE |
 | data-collection | Cert externalscript no data received | AVERAGE |
+| data-collection | Cert check failing on 3 consecutive checks | AVERAGE |
 | data-collection | WHOIS externalscript no data received | AVERAGE |
 | data-collection | TLS scan externalscript no data received | INFO |
 | data-collection | HTTP/3 externalscript no data received | AVERAGE |
