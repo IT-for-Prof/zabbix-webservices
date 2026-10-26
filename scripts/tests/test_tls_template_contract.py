@@ -1,4 +1,4 @@
-"""Contract checks for the standalone arbitrary-TLS Zabbix profile."""
+"""Contract checks for the standalone certificate/TLS Zabbix profile."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_PATH = REPO_ROOT / "templates" / "web-service-by-itforprof" / "template_web_service_by_itforprof_com_tls.yaml"
-PROFILE_NAME = "Web service by itforprof.com - Certificate/TLS"
+PROFILE_NAME = "Web service by itforprof.com - Certificate-TLS"
 EXPECTED_ITEM_KEYS = {
     'web_check.py["cert","{$WEB_SERVICE.URL}"]',
     "web_check.cert.days_to_expire",
@@ -67,6 +67,7 @@ def test_tls_profile_uses_host_overridable_expiry_defaults():
     assert macros == {
         "{$WEB_SERVICE.URL}": None,
         "{$WEB_SERVICE.CERT.CHECK.INTERVAL}": "5m",
+        "{$WEB_SERVICE.CERT.NODATA.PERIOD}": "15m",
         "{$WEB_SERVICE.CERT.WARN_DAYS}": "90",
         "{$WEB_SERVICE.CERT.NOTICE_DAYS}": "30",
         "{$WEB_SERVICE.CERT.CRIT_DAYS}": "7",
@@ -81,7 +82,24 @@ def test_tls_profile_has_certificate_triggers_only():
     assert {trigger["name"] for trigger in triggers} == EXPECTED_TRIGGER_NAMES
     assert all("Web service is failing" not in trigger["name"] for trigger in triggers)
     assert all("Web service by itforprof.com/" not in trigger.get("expression", "") for trigger in triggers)
-    assert all("Certificate/TLS" in trigger.get("expression", "") for trigger in triggers)
+    assert all("Certificate-TLS" in trigger.get("expression", "") for trigger in triggers)
+
+
+def test_tls_profile_has_standalone_boolean_value_map_and_expected_severity():
+    template = _template()
+    assert template["valuemaps"] == [
+        {
+            "uuid": "f5e32c8a0d6b4cf4a3f534ee7e4a89b1",
+            "name": "web_check: boolean",
+            "mappings": [
+                {"value": "0", "newvalue": "no"},
+                {"value": "1", "newvalue": "yes"},
+            ],
+        }
+    ]
+    triggers = [trigger for item in template["items"] for trigger in item.get("triggers", []) or []]
+    expired = next(trigger for trigger in triggers if trigger["name"] == "Cert expired")
+    assert expired["priority"] == "HIGH"
 
 
 def test_tls_profile_uuids_are_unique():

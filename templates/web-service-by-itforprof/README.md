@@ -5,7 +5,8 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.2.9`                              |
+| Version          | `7.0-2.3.2`                              |
+| TLS profile      | `7.0-1.0.1`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
 | Execution        | Whatever monitors the host (server / proxy) |
@@ -27,19 +28,33 @@ The original template remains the full web-service profile:
 | 5 | Deep TLS scan (daily) | EXTERNAL `web_check.py tls-scan` + LLD per weak finding.         |
 | 6 | HTTP/3 advertise + QUIC reachability | EXTERNAL `web_check.py http3` (Alt-Svc + aioquic handshake; silent on hosts that don't advertise h3). |
 
-For arbitrary TLS endpoints, import [`template_web_service_by_itforprof_com_tls.yaml`](template_web_service_by_itforprof_com_tls.yaml)
-and link only **Web service by itforprof.com - Certificate/TLS**. It contains the
+## Certificate-TLS profile
+
+For TLS endpoints checked with an `https://host[:port]` URL, import [`template_web_service_by_itforprof_com_tls.yaml`](template_web_service_by_itforprof_com_tls.yaml)
+and link only **Web service by itforprof.com - Certificate-TLS**. It contains the
 certificate master item, certificate metadata, expiry/rotation checks, and live
 TLS protocol/cipher/handshake items. The URL keeps its port, so SQL Server can
 use `https://ifp-vps03.itforprof.com:1433`; HTTP, WHOIS, HTTP/3, TLS scan, and
 TCP 80/443 checks are absent from this profile.
 
+The external script currently preserves a non-standard port only for `https://`
+URLs. Use that scheme for SQL Server and other TLS endpoints.
+
 The endpoint must accept a direct TLS handshake. Legacy SQL Server TDS 7.x
 normally sends a PRELOGIN exchange before TLS; this endpoint was verified from
 the monitoring server and negotiated TLS directly.
 
-Its expiry defaults are host-overridable: `WARN_DAYS=90`, `NOTICE_DAYS=30`,
-`CRIT_DAYS=7`, with the same RSA/ECDSA key floors as the full profile.
+Profile defaults are host-overridable:
+
+| Macro | Default |
+|---|---:|
+| `{$WEB_SERVICE.CERT.CHECK.INTERVAL}` | `5m` |
+| `{$WEB_SERVICE.CERT.NODATA.PERIOD}` | `15m` |
+| `{$WEB_SERVICE.CERT.WARN_DAYS}` | `90` |
+| `{$WEB_SERVICE.CERT.NOTICE_DAYS}` | `30` |
+| `{$WEB_SERVICE.CERT.CRIT_DAYS}` | `7` |
+| `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` | `3` |
+| `{$WEB_SERVICE.CERT.MIN_KEY_RSA}` / `MIN_KEY_ECDSA` | `2048` / `256` |
 
 For `IFP-VPS03`, set `{$WEB_SERVICE.URL}` to
 `https://ifp-vps03.itforprof.com:1433` and override the certificate interval
@@ -75,7 +90,7 @@ Required:
 | Macro | Purpose |
 | ----- | ------- |
 | `{$WEB_SERVICE.URL}`  | Full URL to monitor, e.g. `https://example.com/healthz`. |
-| `{$WEB_SERVICE.HOST}` | Host or IP for diag simple checks. Migration script derives this from the URL hostname. |
+| `{$WEB_SERVICE.HOST}` | Host or IP for diag simple checks. Set this to the URL hostname. |
 
 With defaults (override per host as needed):
 
@@ -163,23 +178,6 @@ which catches the case where the server claims h3 support but our proxy
 can't actually complete the QUIC handshake (UDP/443 dropped on the path,
 CDN regression, etc).
 
-## Migrating from `Template Website metrics (itmicus.ru)`
-
-See [`../../docs/migration-checklist.md`](../../docs/migration-checklist.md)
-and [`../../scripts/migrate-from-itmicus.py`](../../scripts/migrate-from-itmicus.py)
-(idempotent, `--dry-run` is the default, pass `--apply` to write).
-
-Macro translation:
-
-| Old                              | New                       |
-| -------------------------------- | ------------------------- |
-| `{$WEBSITE_METRICS_URL}`         | `{$WEB_SERVICE.URL}`      |
-| `{$WEBSITE_METRICS_PHRASE}`      | `{$WEB_SERVICE.PHRASE}`   |
-| `{$WEBSITE_METRICS_TIMEOUT}`     | `{$WEB_SERVICE.TIMEOUT}`  |
-| `{$WEBSITE_METRICS_TIMEOUT_RECOVERY}` | (dropped — Zabbix web scenarios have step-level timeout) |
-| `{$WEBSITE_METRICS_DEBUG}`       | (dropped — Zabbix has scenario-level debug controls)     |
-| (derived)                        | `{$WEB_SERVICE.HOST}` ← URL hostname for Layer 4 diag.    |
-
 ## Caveats
 
 - **Phrase is a case-insensitive regex by default.** Zabbix Web Scenarios
@@ -189,10 +187,9 @@ Macro translation:
   Set the flags macro to empty string to opt back into case-sensitive matching,
   or to other PCRE flags (`(?s)` dotall, `(?m)` multi-line, etc.). Escape
   regex metacharacters (`. ( [ |`) in the phrase if you want literal matching.
-  The migration script copies legacy phrase values verbatim.
+
 - **Layer 4 is host-specific.** `{$WEB_SERVICE.HOST}` MUST be set on every
-  host or the diag items go UNSUPPORTED. The migration script derives it
-  from the URL hostname automatically.
+  host or the diag items go UNSUPPORTED. Set it to the URL hostname.
 - **`web_check.py` venv must exist on the monitor node.** The cert/WHOIS/
   TLS-scan EXTERNAL items return `error_code=missing_dependency` if the venv
   at `/opt/web_check/venv` is missing — they don't crash Zabbix, but you'll
@@ -208,9 +205,7 @@ Original work. Supersedes the conceptually-similar Zabbix template
 [`Template Website metrics (itmicus.ru)`](https://github.com/itmicus/zabbix/tree/master/Template%20Web%20Site)
 by **itmicus** — its scope of work (HTTP availability + TLS + WHOIS expiry)
 is here re-implemented from scratch on Zabbix 7.0 native primitives plus
-one modern Python externalscript. **No code copied.** Macro names are
-kept compatible so [`../../scripts/migrate-from-itmicus.py`](../../scripts/migrate-from-itmicus.py)
-can translate host-level macros 1:1.
+one Python externalscript.
 
 ## License
 
