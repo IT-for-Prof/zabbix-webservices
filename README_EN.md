@@ -42,7 +42,7 @@ important for GEO / RKN / internal-DNS scenarios.
 
 | Path | Purpose |
 |------|---------|
-| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | Full `Web service by itforprof.com` template and `Web service by itforprof.com - Certificate-TLS` profile for TLS endpoints using `https://host[:port]`. |
+| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | Full `Web service by itforprof.com` template and `Web service by itforprof.com - Certificate-TLS` profile for TLS endpoints using `https://host[:port]`; the profile checks only the certificate and TLS, so monitor the service's availability separately. |
 | [`scripts/externalscripts/web_check.py`](scripts/externalscripts/web_check.py) | Single-file externalscript (`cert`/`whois`/`tls-scan`/`discover-tls`/`http3`/`self-test`). |
 | [`scripts/deploy/`](scripts/deploy/) | `install.sh` one-liner + pinned `requirements.lock` for the `/opt/web_check/venv` deploy. |
 | [`docs/`](docs/) | Architecture and validation matrix. |

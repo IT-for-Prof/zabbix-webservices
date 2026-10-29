@@ -37,6 +37,12 @@ TLS protocol/cipher/handshake items. The URL keeps its port, so SQL Server can
 use `https://ifp-vps03.itforprof.com:1433`; HTTP, WHOIS, HTTP/3, TLS scan, and
 TCP 80/443 checks are absent from this profile.
 
+The profile watches the certificate, not the service. It has no availability
+alert: a probe that cannot reach the endpoint only raises AVERAGE "Cert check
+failing on 3 consecutive checks" after three failed checks. Monitor the
+service's availability elsewhere (Zabbix agent, a TCP port check, or the full
+template for a website) and never link this profile to a site as its only check.
+
 The external script currently preserves a non-standard port only for `https://`
 URLs. Use that scheme for SQL Server and other TLS endpoints.
 

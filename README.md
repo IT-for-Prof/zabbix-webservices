@@ -43,7 +43,7 @@ flowchart LR
 
 | Путь | Назначение |
 |------|------------|
-| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | Полный шаблон `Web service by itforprof.com` и профиль `Web service by itforprof.com - Certificate-TLS` для TLS-узлов с URL `https://host[:port]`. |
+| [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/) | Полный шаблон `Web service by itforprof.com` и профиль `Web service by itforprof.com - Certificate-TLS` для TLS-узлов с URL `https://host[:port]`; профиль проверяет только сертификат и TLS, доступность сервиса нужно мониторить отдельно. |
 | [`scripts/externalscripts/web_check.py`](scripts/externalscripts/web_check.py) | Внешний скрипт (`cert`/`whois`/`tls-scan`/`discover-tls`/`http3`/`self-test`). |
 | [`scripts/deploy/`](scripts/deploy/) | `install.sh` (однострочник) + закреплённый `requirements.lock` для развёртывания в `/opt/web_check/venv`. |
 | [`docs/`](docs/) | Архитектура и матрица валидации. |
