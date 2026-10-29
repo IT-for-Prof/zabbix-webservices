@@ -22,7 +22,7 @@ zabbix_export:
       он должен доверять её цепочке УЦ.
     vendor:
       name: itforprof.com
-      version: 7.0-1.1.0
+      version: 7.0-1.2.0
     groups:
     - name: Templates/Applications
     macros:
@@ -42,7 +42,7 @@ zabbix_export:
       description: Порог уровня «Средняя» по сроку сертификата, дни. Переопределяется на хосте.
     - macro: '{$WEB_SERVICE.CERT.CRIT_DAYS}'
       value: '7'
-      description: Порог уровня «Высокая» по сроку сертификата, дни. Переопределяется на хосте.
+      description: Критический порог по сроку сертификата (уровень «Средняя»), дни. Переопределяется на хосте.
     - macro: '{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}'
       value: '3'
       description: Порог поздней замены сертификата, дни. Переопределяется на хосте.
@@ -107,6 +107,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.days_to_expire
@@ -131,15 +135,12 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Проверка сертификата не работает
-          expression: last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok)=0
       - uuid: 14097279408546c1be83706efc00fa46
         expression: |
           last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.days_to_expire)>=0 and
           last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.days_to_expire)<{$WEB_SERVICE.CERT.CRIT_DAYS}
         name: Сертификат истекает в ближайшие {$WEB_SERVICE.CERT.CRIT_DAYS} дн.
-        priority: HIGH
+        priority: AVERAGE
         manual_close: 'YES'
         description: Сертификат TLS скоро истечёт. Замените его сейчас.
         dependencies:
@@ -197,6 +198,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.not_after
@@ -216,6 +221,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.subject_cn
@@ -235,6 +244,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.issuer_cn
@@ -254,6 +267,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.issuer_org
@@ -273,6 +290,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.serial
@@ -292,6 +313,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.sans
@@ -311,6 +336,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.fingerprint_sha256
@@ -340,9 +369,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Проверка сертификата не работает
-          expression: last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok)=0
         event_name: Сертификат TLS заменён (новый отпечаток {ITEM.VALUE1}) — {$WEB_SERVICE.URL} на {HOST.HOST}
         manual_close: 'YES'
       - uuid: 045e01aa0eef460b81a580371229c492
@@ -360,9 +386,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Проверка сертификата не работает
-          expression: last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok)=0
         event_name: 'Сертификат TLS заменён поздно: у прежнего оставалось < {$WEB_SERVICE.CERT.ROTATE_MIN_DAYS} дн. — {$WEB_SERVICE.URL} на {HOST.HOST}'
         manual_close: 'YES'
     - uuid: 5119c4b22aee4c94ae615b0f6b4652d9
@@ -373,6 +396,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.signature_algorithm
@@ -397,9 +424,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Проверка сертификата не работает
-          expression: last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok)=0
     - uuid: 38604af17e7d4e1ca0571d08a3a5bd0c
       name: 'Сертификат: алгоритм открытого ключа'
       type: DEPENDENT
@@ -408,6 +432,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.public_key_algorithm
@@ -436,9 +464,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Проверка сертификата не работает
-          expression: last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok)=0
     - uuid: 5e407290d7c94bff88372c3c71b8bcf8
       name: 'Сертификат: длина открытого ключа, бит'
       type: DEPENDENT
@@ -447,6 +472,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.public_key_bits
@@ -466,6 +495,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.hostname_covered
@@ -494,9 +527,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Проверка сертификата не работает
-          expression: last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok)=0
         event_name: SAN/CN сертификата TLS не покрывает {$WEB_SERVICE.URL} на {HOST.HOST}
     - uuid: dbcb3ff0d1f941ea8e174bb838115f60
       name: 'Сертификат: статус цепочки'
@@ -506,6 +536,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.chain_status
@@ -532,9 +566,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Проверка сертификата не работает
-          expression: last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok)=0
     - uuid: c7b6ab211c5c44ee949a191e5d71f244
       name: 'Сертификат: проверка успешна'
       type: DEPENDENT
@@ -592,6 +623,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.tls.protocol
@@ -621,9 +656,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Проверка сертификата не работает
-          expression: last(/Web service by itforprof.com - Certificate-TLS/web_check.cert.ok)=0
     - uuid: fdde1cdb253044deab1c50af7c3b61ca
       name: 'TLS: согласованный шифр (текущий)'
       type: DEPENDENT
@@ -632,6 +664,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.tls.cipher
@@ -652,6 +688,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.tls.handshake_ms

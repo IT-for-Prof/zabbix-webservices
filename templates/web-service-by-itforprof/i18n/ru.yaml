@@ -85,14 +85,14 @@ How often diagnostic simple-check items run.: Интервал диагност�
 Period of no-data before the No-data trigger fires (web scenario item).: Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных».
 Cert expiry INFO trigger threshold (days).: Порог триггера уровня «Информация» по сроку сертификата, дни.
 Cert expiry WARNING trigger threshold (days).: Порог триггера уровня «Предупреждение» по сроку сертификата, дни.
-Cert expiry HIGH trigger threshold (days).: Порог триггера уровня «Высокая» по сроку сертификата, дни.
+Cert expiry critical (AVERAGE) trigger threshold (days).: Критический порог по сроку сертификата (уровень «Средняя»), дни.
 ? Late-rotation threshold (days). If a cert rotation is detected (fingerprint changed) while the OUTGOING cert had fewer than this many days left, raise the WARNING "rotated late" trigger — a near-miss/hygiene signal, not an outage (a fresh cert is already installed by the time it fires). The trigger reads the pre-rotation window (max over the 2h ending 15m ago), never the freshly installed cert. Default 3 keeps it quiet on provider-managed hosts whose renewal cadence you do not control; raise it to flag earlier on hosts where you own the renewal automation.
 : 'Порог поздней замены сертификата, дни. Если сертификат заменён (сменился отпечаток), а у прежнего оставалось меньше этого числа дней, срабатывает предупреждение «сертификат заменён поздно». Это сигнал о малом запасе. Аварии нет: к моменту срабатывания новый сертификат уже установлен. Триггер смотрит на окно до замены (максимум за 2 ч, закончившиеся 15 мин назад) и не видит новый сертификат. Значение 3 по умолчанию не шумит на хостах, где продлением управляет провайдер. Увеличьте его там, где автоматизация продления ваша, чтобы узнавать раньше.'
 Minimum acceptable RSA key size (bits).: Минимальная длина ключа RSA, бит.
 Minimum acceptable ECDSA key size (bits).: Минимальная длина ключа ECDSA, бит.
 Domain expires within N days WARNING trigger threshold.: 'Порог триггера уровня «Предупреждение»: домен истекает через N дней.'
 Domain expires within N days AVERAGE trigger threshold.: 'Порог триггера уровня «Средняя»: домен истекает через N дней.'
-Domain expires within N days HIGH trigger threshold.: 'Порог триггера уровня «Высокая»: домен истекает через N дней.'
+Domain expires within N days critical (AVERAGE) trigger threshold.: 'Критический порог по сроку домена (уровень «Средняя»): домен истекает через N дней.'
 ? Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
 : Хост или IP для диагностических простых проверок (net.dns.record, net.tcp.service.perf). По умолчанию — хост из {$WEB_SERVICE.URL}, при необходимости переопределяется на хосте.
 ? net.tcp.service.perf WARNING threshold in seconds. Default 3s tolerates intercontinental TCP+TLS handshake (~300-800ms typical) plus headroom. Drop to 1 for LAN/regional monitoring.
@@ -113,11 +113,11 @@ Web service is failing: Сбой веб-сервиса
 : 'Сбой веб-сервиса: {$WEB_SERVICE.URL} — {HOST.NAME} ({HOST.HOST}) — HTTP {?last(//web.test.rspcode[Web service,GET])} / {?last(//web.test.error[Web service])}'
 'failed step: {ITEM.LASTVALUE1}': 'шаг с ошибкой: {ITEM.LASTVALUE1}'
 ? |
-  The web scenario reports a failed step. Covers all hard failures:
+  The web scenario reports a failed step on two consecutive checks. Covers all hard failures:
   non-matching HTTP status code, missing required phrase, timeout,
   DNS resolution error, TLS handshake failure, or connection refused.
 : |
-  Шаг веб-сценария завершился с ошибкой. Сюда входят все жёсткие сбои:
+  Шаг веб-сценария завершился с ошибкой две проверки подряд. Сюда входят все жёсткие сбои:
   неожиданный код HTTP, нет нужной фразы, таймаут,
   ошибка DNS, сбой TLS-рукопожатия или отказ в соединении.
 Web service no data received: Нет данных веб-сервиса
@@ -321,7 +321,7 @@ web_check.py whois reports ok=false. Likely a transient registry hiccup or a TLD
 True for ccTLDs like .hu where the registry intentionally omits expiry. Used to gate the WHOIS-expiry triggers.: Истина для национальных доменов вроде .hu, где реестр намеренно не отдаёт срок регистрации. Отключает триггеры срока WHOIS.
 'Diag: TCP 443 performance': 'Диагностика: время соединения TCP 443'
 TCP 443 connect failed: Нет соединения TCP 443
-TCP/443 to the monitored host is refused or unreachable.: Соединение TCP/443 с хостом отклонено, или хост недоступен.
+TCP/443 to the monitored host is refused or unreachable on two consecutive checks.: Две проверки подряд соединение TCP/443 с хостом отклонено, или хост недоступен.
 TCP/443 connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST}): Нет соединения TCP/443 с {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
 TCP 443 connect slow: Медленное соединение TCP 443
 ? TCP/443 average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold via the macro on hosts behind a CDN with intentionally-distant POPs.
@@ -468,7 +468,7 @@ How often the TLS certificate probe runs. Override per host.: Интервал �
 No-data period for the certificate master item. Keep at least three times the check interval.: Период без данных для основного элемента сертификата. Не меньше трёх интервалов проверки.
 Cert expiry WARNING threshold in days. Override per host.: Порог уровня «Предупреждение» по сроку сертификата, дни. Переопределяется на хосте.
 Cert expiry AVERAGE threshold in days. Override per host.: Порог уровня «Средняя» по сроку сертификата, дни. Переопределяется на хосте.
-Cert expiry High threshold in days. Override per host.: Порог уровня «Высокая» по сроку сертификата, дни. Переопределяется на хосте.
+Cert expiry critical (AVERAGE) threshold in days. Override per host.: Критический порог по сроку сертификата (уровень «Средняя»), дни. Переопределяется на хосте.
 Late-rotation threshold in days. Override per host.: Порог поздней замены сертификата, дни. Переопределяется на хосте.
 Minimum acceptable RSA key size in bits. Override per host.: Минимальная длина ключа RSA, бит. Переопределяется на хосте.
 Minimum acceptable ECDSA key size in bits. Override per host.: Минимальная длина ключа ECDSA, бит. Переопределяется на хосте.

@@ -5,8 +5,8 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.4.0`                              |
-| TLS profile      | `7.0-1.1.0`                              |
+| Version          | `7.0-2.5.0`                              |
+| TLS profile      | `7.0-1.2.0`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
 | Execution        | Whatever monitors the host (server / proxy) |
@@ -132,13 +132,13 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.NODATA.PERIOD}` | `10m` | Web scenario no-data trigger window. |
 | `{$WEB_SERVICE.CERT.WARN_DAYS}` | `30` | Cert expiry INFO threshold. |
 | `{$WEB_SERVICE.CERT.NOTICE_DAYS}` | `14` | Cert expiry WARNING threshold. |
-| `{$WEB_SERVICE.CERT.CRIT_DAYS}` | `7` | Cert expiry HIGH threshold. |
+| `{$WEB_SERVICE.CERT.CRIT_DAYS}` | `7` | Cert expiry AVERAGE threshold (last rung before HIGH "expired"). |
 | `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` | `3` | "Rotated late" WARNING threshold: a rotation while the outgoing cert had fewer days left than this fires the alert. Reads the pre-rotation window, not the new cert. |
 | `{$WEB_SERVICE.CERT.MIN_KEY_RSA}` | `2048` | Min RSA key size (bits). |
 | `{$WEB_SERVICE.CERT.MIN_KEY_ECDSA}` | `256` | Min ECDSA key size (bits). |
 | `{$WEB_SERVICE.WHOIS.WARN_DAYS}` | `30` | Domain expiry WARNING threshold (days). |
 | `{$WEB_SERVICE.WHOIS.NOTICE_DAYS}` | `7` | Domain expiry AVERAGE threshold (days). |
-| `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | `1` | Domain expiry HIGH threshold (days). DISASTER fires on `days_to_expire < 0` (already expired). |
+| `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | `1` | Domain expiry AVERAGE threshold (days). HIGH fires on `days_to_expire < 0` (already expired). |
 | `{$WEB_SERVICE.TCP.SLOW_SEC}` | `3` | `net.tcp.service.perf` WARNING threshold. |
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | `5m` | HTTP/3 master item delay. |
 | `{$WEB_SERVICE.HTTP3.SLOW_MS}` | `1000` | QUIC handshake time WARNING threshold (ms). |
@@ -152,14 +152,20 @@ By scope:
 | availability  | 1     | HIGH             |
 | performance   | 1     | WARNING          |
 | data-collection | 6   | AVERAGE          |
-| tls (cert + handshake) | 12 | DISASTER       |
-| whois         | 8     | DISASTER         |
-| diag          | 2     | HIGH             |
+| tls (cert + handshake) | 12 | HIGH           |
+| whois         | 8     | HIGH             |
+| diag          | 2     | AVERAGE          |
 | http3         | 3     | AVERAGE          |
 | tls-scan      | 1     | INFO             |
 | tls-scan (LLD trigger prototype) | 1 per finding | WARNING |
 
-Cert-expiry triggers cascade DISASTER (expired) → HIGH (<7d) → WARNING (<14d)
+Severity rule: HIGH means the service is already broken for users (site down,
+cert or domain expired, hostname not covered, chain untrusted); AVERAGE means it
+still works but needs action. No trigger is DISASTER. **Web service is failing**
+and **TCP 443 connect failed** (AVERAGE) need two consecutive failed checks, so a
+single failed poll does not open a problem.
+
+Cert-expiry triggers cascade HIGH (expired) → AVERAGE (<7d) → WARNING (<14d)
 → INFO (<30d) with `dependencies` so only the most severe fires. Separately,
 **Cert rotated** (INFO) fires on any fingerprint change, and **Cert rotated
 unexpectedly** (WARNING) fires when a rotation is detected while the *outgoing*
@@ -186,8 +192,13 @@ Hungarian (`.hu`) registries omit expiry by policy; those hosts stay silent
 on the "Domain expires" series but still alert on cert expiry.
 
 Certificate probe failures have two levels in both profiles. **Cert check
-failing** remains INFO on the first error and suppresses invalid certificate
-metadata alerts. **Cert check failing on 3 consecutive checks** is AVERAGE
+failing** remains INFO on the first error. Every dependent cert/TLS item drops
+an `ok=false` envelope (`NOT_MATCHES_REGEX "ok":false` / `DISCARD_VALUE`) and
+keeps its last real value, so the envelope's stubs (`hostname_covered=false`,
+`days_to_expire=0`, `public_key_bits=0`) never reach the metadata triggers. Those
+triggers have no dependency on the INFO trigger: it lost the race when both
+flipped in one history-sync batch, and froze recovery for the 1h discard
+heartbeat. **Cert check failing on 3 consecutive checks** is AVERAGE
 on the third consecutive `ok=false` result (~10–15 minutes at the default
 5-minute interval). The status item stores every poll. A successful check
 clears the sustained-failure trigger immediately; missing master data clears
