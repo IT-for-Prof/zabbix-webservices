@@ -103,6 +103,14 @@ Templates → Import) or via the API (`configuration.import`). The
 template lives in
 [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/).
 
+After the import, check preprocessing: a Zabbix 7.0 import keeps stale
+fields in the steps, and the export does not show them.
+```
+scripts/check-template-preprocessing.py           # report, exit 1 on a mismatch
+scripts/check-template-preprocessing.py --apply   # rewrite the template steps
+scripts/check-template-preprocessing.py           # again: must be clean
+```
+
 ## External-check timeout
 
 `web_check.py` can take up to ~25 s on slow WHOIS / RDAP. Zabbix's

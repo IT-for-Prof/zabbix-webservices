@@ -114,6 +114,14 @@ sudo -u zabbix /path/from/ExternalScripts/web_check.py --version
 (`configuration.import`). Шаблон лежит в
 [`templates/web-service-by-itforprof/`](templates/web-service-by-itforprof/).
 
+После импорта сверьте preprocessing: импорт Zabbix 7.0 оставляет в шагах
+старые поля, а экспорт их не показывает.
+```
+scripts/check-template-preprocessing.py           # отчёт, код 1 при расхождении
+scripts/check-template-preprocessing.py --apply   # переписать шаги шаблона
+scripts/check-template-preprocessing.py           # ещё раз: должно быть чисто
+```
+
 ## Таймаут external checks
 
 `web_check.py` на медленных WHOIS / RDAP может работать до ~25 с.

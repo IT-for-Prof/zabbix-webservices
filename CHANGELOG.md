@@ -37,6 +37,16 @@ works but needs action. No trigger is DISASTER.
   Domain expires within `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` day(s): HIGH → AVERAGE.
 - TCP 443 connect failed: HIGH → AVERAGE.
 
+### Added — `scripts/check-template-preprocessing.py`
+
+A Zabbix 7.0 import updates preprocessing steps by position and keeps fields
+the new step omits: after this release's import the new `DISCARD_VALUE` steps
+carried the old step's `error_handler_params`, and `BOOL_TO_DECIMAL` carried
+`params: 1h`. The export hides them; the API rejects saving such an item. The
+script compares template items, LLD rules and item prototypes with the YAML
+files (`--apply` rewrites them with every field explicit). Run it after every
+template import.
+
 ### Changed — availability triggers need two consecutive failed checks
 
 - Web service is failing: `min(web.test.fail,#2)>0`. Over 30 days this cuts
