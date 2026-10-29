@@ -3,9 +3,10 @@
 | Script | Purpose | Idempotent | Has `--dry-run` |
 |--------|---------|:---:|:---:|
 | [`externalscripts/web_check.py`](externalscripts/web_check.py) | Externalscript for cert / WHOIS / TLS-scan / discover-tls / HTTP3 / self-test. Single-file, deployed to the configured Zabbix `ExternalScripts` directory via [`deploy/install.sh`](deploy/install.sh). Always emits valid JSON, exits 0; errors encoded as `{"ok": false, "error_code": …}`. | ✓ | n/a |
-| [`_zabbix_client.py`](_zabbix_client.py) | API token auth and env loading. Imported by `sync-domain-registry-owners.py`. | — | — |
+| [`_zabbix_client.py`](_zabbix_client.py) | API token auth and env loading. Imported by `sync-domain-registry-owners.py` and `check-template-preprocessing.py`. | — | — |
 | [`translate-templates.py`](translate-templates.py) | Build the Russian `*_ru.yaml` templates from the English ones and `templates/web-service-by-itforprof/i18n/ru.yaml`. `--missing` lists untranslated strings, `--check` verifies without writing (CI runs the same check). | ✓ | `--check` |
 | [`sync-domain-registry-owners.py`](sync-domain-registry-owners.py) | Enable WHOIS on one owner per registered domain; rerun after Full template imports. Runs on the administration node. | ✓ | ✓ (default; `--apply` to write) |
+| [`check-template-preprocessing.py`](check-template-preprocessing.py) | Compare template preprocessing on the server with the YAML files; run after every template import. Exit 1 on a mismatch, a version mismatch or no template found. | ✓ | ✓ (default; `--apply` to write) |
 
 ## Deploy `web_check.py` to a monitor node
 
@@ -25,7 +26,7 @@ directory.
 
 Smoke test: `sudo -u zabbix /path/from/ExternalScripts/web_check.py self-test`.
 
-## Configuration (for the WHOIS owner sync)
+## Configuration (for the API scripts)
 
 Reads Zabbix API credentials from environment (or a `.env` file here, see
 [`.env.example`](.env.example)):

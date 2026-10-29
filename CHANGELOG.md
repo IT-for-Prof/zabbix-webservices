@@ -4,6 +4,55 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.5.0] / Certificate-TLS [7.0-1.2.0] - 2026-10-29
+
+Template-only release (no `web_check` change).
+
+### Fixed — a failed certificate probe raised false HIGH alerts
+
+A `tcp_timeout` on the certificate probe returned the `ok=false` envelope,
+whose typed stubs (`hostname_covered=false`, `days_to_expire=0`,
+`public_key_bits=0`) the dependent items stored as real data. HIGH "Cert
+hostname not covered", HIGH "Cert expires within 7 days" ("0 d") and WARNING
+"Cert weak public key" ("rsa 0 bits") fired together. The dependency on INFO
+"Cert check failing" did not suppress them: that trigger changed state in the
+same history-sync batch, after the dependents. The same race froze the
+recovery, and the problem stayed open for the 1h discard heartbeat. In 30 days
+on production all 9 "expires in 0 d" events and 7 of 9 "SAN/CN" events came
+from the envelope.
+
+- Every cert/TLS dependent item except `web_check.cert.ok` starts with
+  `NOT_MATCHES_REGEX "ok":false` / `DISCARD_VALUE`: a failed probe stores
+  nothing and the item keeps its last real value.
+- Triggers on those items no longer depend on "Cert check failing"; the INFO
+  trigger itself stays.
+
+### Changed — severity means user impact
+
+HIGH means the service is already broken for users; AVERAGE means it still
+works but needs action. No trigger is DISASTER.
+
+- Cert expired, Domain expired: DISASTER → HIGH (Certificate-TLS was already HIGH).
+- Cert expires within `{$WEB_SERVICE.CERT.CRIT_DAYS}` days (both profiles),
+  Domain expires within `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` day(s): HIGH → AVERAGE.
+- TCP 443 connect failed: HIGH → AVERAGE.
+
+### Added — `scripts/check-template-preprocessing.py`
+
+A Zabbix 7.0 import updates preprocessing steps by position and keeps fields
+the new step omits: after this release's import the new `DISCARD_VALUE` steps
+carried the old step's `error_handler_params`, and `BOOL_TO_DECIMAL` carried
+`params: 1h`. The export hides them; the API rejects saving such an item. The
+script compares template items, LLD rules and item prototypes with the YAML
+files (`--apply` rewrites them with every field explicit). Run it after every
+template import.
+
+### Changed — availability triggers need two consecutive failed checks
+
+- Web service is failing: `min(web.test.fail,#2)>0`. Over 30 days this cuts
+  events from 1204 to 261; the problem appears about one minute later.
+- TCP 443 connect failed: `max(net.tcp.service.perf,#2)=0` (194 → 38 events).
+
 ## [7.0-2.4.0] / Certificate-TLS [7.0-1.1.0] - 2026-10-26
 
 ### Fixed — sustained certificate probe errors now raise AVERAGE

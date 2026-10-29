@@ -202,7 +202,7 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.4.0"
+    assert _template()["vendor"]["version"] == "7.0-2.5.0"
 
 
 @pytest.mark.parametrize(
@@ -384,3 +384,83 @@ def test_tls_scan_dependents_fail_on_error_envelope_instead_of_storing_defaults(
         assert steps[1]["type"] == "JSONPATH", (key, steps[1])
         assert re.search(steps[0]["parameters"][0], failed), key
         assert not re.search(steps[0]["parameters"][0], ok), key
+
+
+PROFILES = ("template_web_service_by_itforprof_com.yaml", "template_web_service_by_itforprof_com_tls.yaml")
+
+
+def _profile(filename: str) -> dict:
+    return yaml.safe_load((TEMPLATE_PATH.parent / filename).read_text())["zabbix_export"]["templates"][0]
+
+
+@pytest.mark.parametrize("filename", PROFILES)
+def test_cert_dependents_discard_the_error_envelope(filename, web_check_module):
+    """A failed cert probe fills cert/tls with stubs (hostname_covered=false, days_to_expire=0).
+
+    Stored, they fired HIGH "hostname not covered" and "expires in 0 d". Dependency suppression
+    on "Cert check failing" loses the race when both flip in one history-sync batch, so every
+    dependent drops the whole envelope before JSONPath and keeps its last real value instead.
+    """
+    import json
+    import re
+    from dataclasses import asdict
+
+    failed = json.dumps(asdict(web_check_module.check_cert("not a url at all", timeout=1)), separators=(",", ":"))
+    ok = json.dumps(asdict(web_check_module.CertResult(ok=True)), separators=(",", ":"))
+
+    template = _profile(filename)
+    dependents = [
+        i for i in template["items"] if i.get("master_item", {}).get("key", "").startswith('web_check.py["cert"')
+    ]
+    assert len(dependents) == 17
+    for item in dependents:
+        first = item["preprocessing"][0]
+        if item["key"] == "web_check.cert.ok":
+            assert first["type"] == "JSONPATH", first
+            continue
+        assert first == {"type": "NOT_MATCHES_REGEX", "parameters": ['"ok":false'], "error_handler": "DISCARD_VALUE"}, (
+            item["key"]
+        )
+        assert item["preprocessing"][1]["type"] == "JSONPATH", item["key"]
+        assert re.search(first["parameters"][0], failed), item["key"]
+        assert not re.search(first["parameters"][0], ok), item["key"]
+
+    # With the envelope discarded the dependency suppresses nothing; it only froze recovery for the
+    # 1h discard heartbeat when the probe came back in the same batch.
+    triggers = [t for item in template["items"] for t in item.get("triggers", []) or []]
+    assert all(d["name"] != "Cert check failing" for t in triggers for d in t.get("dependencies", []) or [])
+
+
+@pytest.mark.parametrize("filename", PROFILES)
+def test_severity_high_means_broken_for_users(filename):
+    """HIGH = already broken for users, AVERAGE = still works but needs action; no DISASTER."""
+    triggers = {t["name"]: t for item in _profile(filename)["items"] for t in item.get("triggers", []) or []}
+    assert all(t["priority"] != "DISASTER" for t in triggers.values())
+    expected = {
+        "Cert expired": "HIGH",
+        "Cert hostname not covered": "HIGH",
+        "Cert chain untrusted": "HIGH",
+        "Cert expires within {$WEB_SERVICE.CERT.CRIT_DAYS} days": "AVERAGE",
+    }
+    if filename == PROFILES[0]:
+        expected |= {
+            "Web service is failing": "HIGH",
+            "Domain expired": "HIGH",
+            "Domain expires within {$WEB_SERVICE.WHOIS.CRIT_DAYS} day(s)": "AVERAGE",
+            "TCP 443 connect failed": "AVERAGE",
+        }
+    assert {name: triggers[name]["priority"] for name in expected} == expected
+    assert {t["name"] for t in triggers.values() if t["priority"] == "HIGH"} == {
+        name for name, level in expected.items() if level == "HIGH"
+    }
+
+
+def test_availability_triggers_need_two_consecutive_failed_checks():
+    """A single failed poll (median 45 s for the web scenario) must not open a problem."""
+    triggers = {t["name"]: t for item in _template()["items"] for t in item.get("triggers", []) or []}
+    assert triggers["Web service is failing"]["expression"] == (
+        "min(/Web service by itforprof.com/web.test.fail[Web service],#2)>0"
+    )
+    assert triggers["TCP 443 connect failed"]["expression"] == (
+        "max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0"
+    )

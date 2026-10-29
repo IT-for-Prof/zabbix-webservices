@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.4.0
+      version: 7.0-2.5.0
     groups:
     - name: Templates/Applications
     macros:
@@ -98,7 +98,7 @@ zabbix_export:
       description: Cert expiry WARNING trigger threshold (days).
     - macro: '{$WEB_SERVICE.CERT.CRIT_DAYS}'
       value: '7'
-      description: Cert expiry HIGH trigger threshold (days).
+      description: Cert expiry critical (AVERAGE) trigger threshold (days).
     - macro: '{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}'
       value: '3'
       description: 'Late-rotation threshold (days). If a cert rotation is detected
@@ -123,7 +123,7 @@ zabbix_export:
       description: Domain expires within N days AVERAGE trigger threshold.
     - macro: '{$WEB_SERVICE.WHOIS.CRIT_DAYS}'
       value: '1'
-      description: Domain expires within N days HIGH trigger threshold.
+      description: Domain expires within N days critical (AVERAGE) trigger threshold.
     - macro: '{$WEB_SERVICE.HOST}'
       description: Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
     - macro: '{$WEB_SERVICE.TCP.SLOW_SEC}'
@@ -173,13 +173,13 @@ zabbix_export:
         value: '2'
       triggers:
       - uuid: be5d249ccc8a4058ab24198c61ec5eec
-        expression: last(/Web service by itforprof.com/web.test.fail[Web service])<>0
+        expression: min(/Web service by itforprof.com/web.test.fail[Web service],#2)>0
         name: Web service is failing
         event_name: 'Web service failed: {$WEB_SERVICE.URL} — {HOST.NAME} ({HOST.HOST}) — HTTP {?last(//web.test.rspcode[Web service,GET])} / {?last(//web.test.error[Web service])}'
         opdata: 'failed step: {ITEM.LASTVALUE1}'
         priority: HIGH
         manual_close: 'YES'
-        description: 'The web scenario reports a failed step. Covers all hard failures:
+        description: 'The web scenario reports a failed step on two consecutive checks. Covers all hard failures:
 
           non-matching HTTP status code, missing required phrase, timeout,
 
@@ -208,7 +208,7 @@ zabbix_export:
           '
         dependencies:
         - name: Web service is failing
-          expression: last(/Web service by itforprof.com/web.test.fail[Web service])<>0
+          expression: min(/Web service by itforprof.com/web.test.fail[Web service],#2)>0
         tags:
         - tag: scope
           value: performance
@@ -259,6 +259,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.days_to_expire
@@ -275,7 +279,7 @@ zabbix_export:
         expression: last(/Web service by itforprof.com/web_check.cert.days_to_expire)<0
         name: Cert expired
         event_name: TLS cert expired ({ITEM.LASTVALUE1} past not_after) — {$WEB_SERVICE.URL} on {HOST.HOST}
-        priority: DISASTER
+        priority: HIGH
         manual_close: 'YES'
         description: The current TLS certificate is past its not_after date.
         tags:
@@ -283,9 +287,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Cert check failing
-          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
       - uuid: 3089073dc0214f2aa481077338c2ea9c
         expression: 'last(/Web service by itforprof.com/web_check.cert.days_to_expire)>=0 and
 
@@ -293,7 +294,7 @@ zabbix_export:
 
           '
         name: Cert expires within {$WEB_SERVICE.CERT.CRIT_DAYS} days
-        priority: HIGH
+        priority: AVERAGE
         manual_close: 'YES'
         description: The TLS certificate will expire soon. Rotate now.
         dependencies:
@@ -359,6 +360,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.not_after
@@ -378,6 +383,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.subject_cn
@@ -397,6 +406,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.issuer_cn
@@ -416,6 +429,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.issuer_org
@@ -435,6 +452,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.serial
@@ -454,6 +475,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.sans
@@ -473,6 +498,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.fingerprint_sha256
@@ -515,9 +544,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Cert check failing
-          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
         event_name: TLS cert rotated (new fingerprint {ITEM.LASTVALUE1}) — {$WEB_SERVICE.URL} on {HOST.HOST}
         manual_close: 'YES'
       - uuid: d03134c8f17c4610ace39c55e9d74e52
@@ -554,9 +580,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Cert check failing
-          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
         event_name: 'TLS cert rotated late: outgoing cert had <{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}d
           left — {$WEB_SERVICE.URL} on {HOST.HOST}'
         manual_close: 'YES'
@@ -568,6 +591,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.signature_algorithm
@@ -592,9 +619,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Cert check failing
-          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
     - uuid: b1a520ca067d4c58b4c562a3916bf061
       name: 'Cert: public key algorithm'
       type: DEPENDENT
@@ -603,6 +627,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.public_key_algorithm
@@ -628,9 +656,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Cert check failing
-          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
     - uuid: 6e5952b6bda549bfa6a39fe2653b0a35
       name: 'Cert: public key bits'
       type: DEPENDENT
@@ -639,6 +664,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.public_key_bits
@@ -658,6 +687,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.hostname_covered
@@ -686,9 +719,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Cert check failing
-          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
         event_name: TLS cert SAN/CN does not cover {$WEB_SERVICE.URL} on {HOST.HOST}
     - uuid: 038f1513187148d1bb3a754dc68badba
       name: 'Cert: chain status'
@@ -698,6 +728,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.cert.chain_status
@@ -728,9 +762,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Cert check failing
-          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
     - uuid: 506d85fe17d8447e9362a208d9d40425
       name: 'Cert: check ok'
       type: DEPENDENT
@@ -788,6 +819,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.tls.protocol
@@ -822,9 +857,6 @@ zabbix_export:
           value: tls
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        dependencies:
-        - name: Cert check failing
-          expression: last(/Web service by itforprof.com/web_check.cert.ok)=0
     - uuid: 2f5c2064deab4cf79c8c580fa94009af
       name: 'TLS: negotiated cipher (live)'
       type: DEPENDENT
@@ -833,6 +865,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.tls.cipher
@@ -853,6 +889,10 @@ zabbix_export:
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
         - $.tls.handshake_ms
@@ -913,7 +953,7 @@ zabbix_export:
         expression: last(/Web service by itforprof.com/web_check.whois.ok)=1 and last(/Web service by itforprof.com/web_check.whois.provider_no_expiry)=0 and last(/Web service by itforprof.com/web_check.whois.days_to_expire)<0 and length(last(/Web service by itforprof.com/web_check.whois.apex))>0 and length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0
         name: Domain expired
         event_name: 'Domain {ITEM.LASTVALUE4} expired ({ITEM.LASTVALUE3} past) (host: {HOST.HOST})'
-        priority: DISASTER
+        priority: HIGH
         manual_close: 'YES'
         description: The registered apex {ITEM.LASTVALUE4} for this host is past its expiry date.
         tags:
@@ -931,7 +971,7 @@ zabbix_export:
           and length(last(/Web service by itforprof.com/web_check.whois.apex))>0 and length(last(/Web service by itforprof.com/web_check.whois.expires_at))>0
         name: Domain expires within {$WEB_SERVICE.WHOIS.CRIT_DAYS} day(s)
         event_name: 'Domain {ITEM.LASTVALUE5} expires in {ITEM.LASTVALUE3} (host: {HOST.HOST})'
-        priority: HIGH
+        priority: AVERAGE
         manual_close: 'YES'
         description: Apex {ITEM.LASTVALUE5} expires very soon (within {$WEB_SERVICE.WHOIS.CRIT_DAYS}d). Renew immediately.
         dependencies:
@@ -1330,10 +1370,10 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: fd0ada034a644ca3bf0086101c92395a
-        expression: last(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443])=0
+        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0
         name: TCP 443 connect failed
-        priority: HIGH
-        description: TCP/443 to the monitored host is refused or unreachable.
+        priority: AVERAGE
+        description: TCP/443 to the monitored host is refused or unreachable on two consecutive checks.
         tags:
         - tag: scope
           value: diag
@@ -1349,7 +1389,7 @@ zabbix_export:
           via the macro on hosts behind a CDN with intentionally-distant POPs.
         dependencies:
         - name: TCP 443 connect failed
-          expression: last(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443])=0
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0
         tags:
         - tag: scope
           value: diag
@@ -1430,7 +1470,7 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: TCP 443 connect failed
-          expression: last(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443])=0
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0
     - uuid: 4ff2ca946d4844e9a030b157dc5e16c7
       name: 'TLS scan: supported protocols'
       type: DEPENDENT

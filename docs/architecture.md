@@ -1,6 +1,6 @@
 # Architecture
 
-> Repository versions: full template `7.0-2.4.0`, Certificate-TLS profile `7.0-1.1.0`. Deployment evidence is recorded in the severity plan.
+> Repository versions: full template `7.0-2.5.0`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
 > `web_check.py` 2.2.3 is installed on both servers and the four serving proxies.
 
 ## Goal
@@ -165,7 +165,7 @@ field, not a macro.)
 
 | Name | Severity | Expression |
 |---|---|---|
-| `Web service is failing` | HIGH | `last(.../web.test.fail[Web service])<>0` |
+| `Web service is failing` | HIGH | `min(.../web.test.fail[Web service],#2)>0` (two consecutive failed checks) |
 | `Web service slow response time` | WARNING | `avg(.../web.test.time[…,resp],10m) > {$WEB_SERVICE.SLOW.WARN}` (depends on "is failing") |
 | `Web service no data received` | AVERAGE | `nodata(.../web.test.fail[Web service], {$WEB_SERVICE.NODATA.PERIOD})=1` |
 
@@ -271,8 +271,8 @@ clamped to 0 and lost diagnostic information.
 
 | Name | Severity | Expression |
 |---|---|---|
-| Cert expired | DISASTER | `last(.../web_check.cert.days_to_expire) < 0` |
-| Cert expires within `{$…CERT.CRIT_DAYS}` days | HIGH | `… >= 0 and … < {$…CRIT_DAYS}` (7; depends on Expired) |
+| Cert expired | HIGH | `last(.../web_check.cert.days_to_expire) < 0` |
+| Cert expires within `{$…CERT.CRIT_DAYS}` days | AVERAGE | `… >= 0 and … < {$…CRIT_DAYS}` (7; depends on Expired) |
 | Cert expires within `{$…CERT.NOTICE_DAYS}` days | WARNING | `… >= {$…CRIT_DAYS} and … < {$…NOTICE_DAYS}` (14; depends on <7d) |
 | Cert expires within `{$…CERT.WARN_DAYS}` days | INFO | `… >= {$…NOTICE_DAYS} and … < {$…WARN_DAYS}` (30; depends on <14d) |
 | Cert rotated | INFO | `change(.../web_check.cert.fingerprint_sha256) = 1` (manual close). The fingerprint item discards the error-envelope `""` (`MATCHES_REGEX` / `DISCARD_VALUE`), so `change()` only ever sees a genuine `real→real` rotation — a check-outage recovery (`""→real`) is not a change. |
@@ -281,7 +281,7 @@ clamped to 0 and lost diagnostic information.
 | Cert weak public key | WARNING | RSA `public_key_bits < {$…MIN_KEY_RSA}` (2048) or ECDSA `< {$…MIN_KEY_ECDSA}` (256) |
 | Cert hostname not covered | HIGH | `last(.../web_check.cert.hostname_covered) = 0` |
 | Cert chain untrusted | HIGH | `last(.../web_check.cert.chain_status) = "untrusted"` |
-| Cert check failing | INFO | `last(.../web_check.cert.ok) = 0` (script `ok=false` envelope; distinct from no-data) |
+| Cert check failing | INFO | `last(.../web_check.cert.ok) = 0` (script `ok=false` envelope; distinct from no-data). Cert/TLS dependents discard that envelope (`NOT_MATCHES_REGEX "ok":false` / `DISCARD_VALUE`), so metadata triggers do not depend on this one |
 | TLS protocol weak (currently negotiating) | WARNING | `find(.../web_check.tls.protocol,,"regexp","^(SSLv3\|TLSv1\|TLSv1\.0\|TLSv1\.1)$") = 1` |
 
 Severity hierarchy uses Zabbix trigger *dependencies* (lower severities depend
@@ -385,8 +385,8 @@ are suppressed for the host (gated on `provider_no_expiry=0` and
 
 | Name | Severity | Expression |
 |---|---|---|
-| Domain expired | DISASTER | `whois.days_to_expire < 0` — gated on `whois.ok=1`, `provider_no_expiry=0`, non-empty `apex` + `expires_at` |
-| Domain expires within `{$…WHOIS.CRIT_DAYS}` day(s) | HIGH | `… >= 0 and … < {$…CRIT_DAYS}` (1; depends on Expired) |
+| Domain expired | HIGH | `whois.days_to_expire < 0` — gated on `whois.ok=1`, `provider_no_expiry=0`, non-empty `apex` + `expires_at` |
+| Domain expires within `{$…WHOIS.CRIT_DAYS}` day(s) | AVERAGE | `… >= 0 and … < {$…CRIT_DAYS}` (1; depends on Expired) |
 | Domain expires within `{$…WHOIS.NOTICE_DAYS}` days | AVERAGE | `… >= {$…CRIT_DAYS} and … < {$…NOTICE_DAYS}` (7; depends on <1d) |
 | Domain expires within `{$…WHOIS.WARN_DAYS}` days | WARNING | `… >= {$…NOTICE_DAYS} and … < {$…WARN_DAYS}` (30; depends on <7d) |
 | Domain registrar changed | WARNING | `change(.../web_check.whois.registrar)=1` (potential transfer). The item discards the `""`/`null` sentinels (`NOT_MATCHES_REGEX`), so `change()` only sees a genuine registrar move — a WHOIS-outage recovery (`real→""→real`) is not a change. The registrar value is canonical (script sorts/normalises), so no guards needed in the trigger. |
@@ -418,7 +418,7 @@ ops cost).
 
 | Name | Severity | Expression |
 |---|---|---|
-| TCP 443 connect failed | HIGH | `last(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443]) = 0` |
+| TCP 443 connect failed | AVERAGE | `max(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2) = 0` (two consecutive failed checks) |
 | TCP 443 connect slow | WARNING | `avg(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],30m) > {$WEB_SERVICE.TCP.SLOW_SEC}` (3s) |
 
 ## Layer 5 — Daily deep TLS scan
@@ -517,8 +517,8 @@ in the legacy template, N = new.
 | data-collection | WHOIS externalscript no data received | AVERAGE |
 | data-collection | TLS scan externalscript no data received | INFO |
 | data-collection | HTTP/3 externalscript no data received | AVERAGE |
-| tls | Cert expired | DISASTER |
-| tls | Cert expires within `{$…CERT.CRIT_DAYS}` days | HIGH |
+| tls | Cert expired | HIGH |
+| tls | Cert expires within `{$…CERT.CRIT_DAYS}` days | AVERAGE |
 | tls | Cert expires within `{$…CERT.NOTICE_DAYS}` days | WARNING |
 | tls | Cert expires within `{$…CERT.WARN_DAYS}` days | INFO |
 | tls | Cert rotated | INFO |
@@ -529,15 +529,15 @@ in the legacy template, N = new.
 | tls | Cert chain untrusted | HIGH |
 | tls | Cert check failing | INFO |
 | tls | TLS protocol weak (currently negotiating) | WARNING |
-| whois | Domain expired | DISASTER |
-| whois | Domain expires within `{$…WHOIS.CRIT_DAYS}` day(s) | HIGH |
+| whois | Domain expired | HIGH |
+| whois | Domain expires within `{$…WHOIS.CRIT_DAYS}` day(s) | AVERAGE |
 | whois | Domain expires within `{$…WHOIS.NOTICE_DAYS}` days | AVERAGE |
 | whois | Domain expires within `{$…WHOIS.WARN_DAYS}` days | WARNING |
 | whois | Domain registrar changed | WARNING |
 | whois | Domain name servers changed | INFO |
 | whois | Domain DNSSEC removed | WARNING |
 | whois | WHOIS check failing | INFO |
-| diag | TCP 443 connect failed | HIGH |
+| diag | TCP 443 connect failed | AVERAGE |
 | diag | TCP 443 connect slow | WARNING |
 | http3 | HTTP/3 advertised but unreachable | AVERAGE |
 | http3 | HTTP/3 handshake slow | WARNING |
@@ -572,13 +572,13 @@ All 28 user macros the template declares:
 | `{$WEB_SERVICE.NODATA.PERIOD}` | 10m | Web-scenario no-data trigger period. |
 | `{$WEB_SERVICE.CERT.WARN_DAYS}` | 30 | Cert expiry INFO threshold (days). |
 | `{$WEB_SERVICE.CERT.NOTICE_DAYS}` | 14 | Cert expiry WARNING threshold (days). |
-| `{$WEB_SERVICE.CERT.CRIT_DAYS}` | 7 | Cert expiry HIGH threshold (days). |
+| `{$WEB_SERVICE.CERT.CRIT_DAYS}` | 7 | Cert expiry AVERAGE threshold (days). |
 | `{$WEB_SERVICE.CERT.ROTATE_MIN_DAYS}` | 3 | "Rotated late" WARNING threshold (days) — outgoing cert had fewer days left at rotation. Default 3 stays quiet on provider-managed hosts whose renewal cadence you don't control. |
 | `{$WEB_SERVICE.CERT.MIN_KEY_RSA}` | 2048 | Min acceptable RSA key size (bits). |
 | `{$WEB_SERVICE.CERT.MIN_KEY_ECDSA}` | 256 | Min acceptable ECDSA key size (bits). |
 | `{$WEB_SERVICE.WHOIS.WARN_DAYS}` | 30 | Domain expiry WARNING threshold (days). |
 | `{$WEB_SERVICE.WHOIS.NOTICE_DAYS}` | 7 | Domain expiry AVERAGE threshold (days). |
-| `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | 1 | Domain expiry HIGH threshold (days). DISASTER fires on `< 0`. |
+| `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | 1 | Domain expiry AVERAGE threshold (days). HIGH fires on `< 0`. |
 | `{$WEB_SERVICE.TCP.SLOW_SEC}` | 3 | `net.tcp.service.perf` WARNING threshold (seconds). |
 
 All macros are documented in the template descriptions; descriptions are
