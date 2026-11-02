@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.5.0
+      version: 7.0-2.5.1
     groups:
     - name: Templates/Applications
     macros:
@@ -785,11 +785,13 @@ zabbix_export:
         value: tls
       triggers:
       - uuid: 5d78ff44eacc4d638fa10a87dacd44fe
-        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0
+        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0 and min(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#3)>0
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: last(/Web service by itforprof.com/web_check.cert.ok)=1 or nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
         name: Cert check failing on 3 consecutive checks
         event_name: 'web_check.py cert failed on 3 consecutive checks — {$WEB_SERVICE.URL} on {HOST.HOST}'
         priority: AVERAGE
-        description: Three consecutive certificate checks returned ok=false. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.
+        description: Three consecutive certificate checks returned ok=false while the last three TCP 443 checks succeeded. When TCP 443 fails, "TCP 443 connect failed" reports it instead. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.
         tags:
         - tag: scope
           value: data-collection

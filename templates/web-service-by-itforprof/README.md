@@ -5,7 +5,7 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.5.0`                              |
+| Version          | `7.0-2.5.1`                              |
 | TLS profile      | `7.0-1.2.0`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
@@ -211,6 +211,22 @@ clears the sustained-failure trigger immediately; missing master data clears
 it after the existing no-data period, when the separate no-data trigger takes
 over. The new trigger uses a freshness condition rather than a dependency so
 an existing problem can recover while no-data is active.
+
+In the full profile the sustained-failure trigger also requires the last three
+TCP 443 checks to have succeeded, so a network outage raises only **TCP 443
+connect failed**. The `https` TCP check is a curl HEAD request without
+certificate verification: a broken TLS handshake fails it too and is reported
+the same way. The TCP condition sits in the problem expression, not in a
+dependency. Closing moves to a recovery expression: the first successful check
+or missing data. A dependency would not work: as soon as TCP recovers, Zabbix
+re-evaluates the trigger on the outage's stale `ok=false` history and opens a
+second problem. The expression avoids this because three successful TCP checks
+take longer than the next certificate probe. Silence during the outage and no
+second problem after it both hold while `{$WEB_SERVICE.DIAG.CHECK.INTERVAL}`
+stays between half of `{$WEB_SERVICE.CERT.CHECK.INTERVAL}` and all of it (both
+default to 5m).
+If the TCP item is unsupported, the expression is UNKNOWN and this trigger
+stays silent.
 
 NODATA coverage:
 - Web scenario: `{$WEB_SERVICE.NODATA.PERIOD}` (default 10m).

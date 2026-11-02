@@ -42,7 +42,7 @@ zabbix_export:
       Лицензия:     MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.5.0
+      version: 7.0-2.5.1
     groups:
     - name: Templates/Applications
     macros:
@@ -727,11 +727,13 @@ zabbix_export:
         value: tls
       triggers:
       - uuid: 5d78ff44eacc4d638fa10a87dacd44fe
-        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0
+        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0 and min(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#3)>0
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: last(/Web service by itforprof.com/web_check.cert.ok)=1 or nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
         name: Проверка сертификата не работает 3 раза подряд
         event_name: 'web_check.py cert: ошибка 3 раза подряд — {$WEB_SERVICE.URL} на {HOST.HOST}'
         priority: AVERAGE
-        description: Три проверки сертификата подряд вернули ok=false. Событие закрывается после первой успешной проверки или при прекращении поступления данных в основной элемент; отсутствие данных отслеживает отдельный триггер.
+        description: Три проверки сертификата подряд вернули ok=false, а три последние проверки TCP 443 прошли. Если TCP 443 не отвечает, об этом сообщает триггер «Нет соединения TCP 443». Событие закрывается после первой успешной проверки или при прекращении поступления данных в основной элемент; отсутствие данных отслеживает отдельный триггер.
         tags:
         - tag: scope
           value: data-collection
