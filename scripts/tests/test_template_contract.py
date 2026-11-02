@@ -202,7 +202,7 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.5.0"
+    assert _template()["vendor"]["version"] == "7.0-2.5.1"
 
 
 @pytest.mark.parametrize(
@@ -220,11 +220,17 @@ def test_persistent_cert_failure_escalates_after_three_polls_and_requires_fresh_
     persistent = triggers["Cert check failing on 3 consecutive checks"]
     assert persistent["priority"] == "AVERAGE"
     profile = template["template"]
-    assert persistent["expression"] == (
-        f'count(/{profile}/web_check.cert.ok,#3,"eq",0)=3 and '
-        f'nodata(/{profile}/web_check.py["cert","{{$WEB_SERVICE.URL}}"],{nodata_period})=0'
-    )
-    # A dependency would freeze an existing problem when no-data becomes active.
+    fresh = f'nodata(/{profile}/web_check.py["cert","{{$WEB_SERVICE.URL}}"],{nodata_period})'
+    failing = f'count(/{profile}/web_check.cert.ok,#3,"eq",0)=3 and {fresh}=0'
+    if "_tls" in filename:
+        assert persistent["expression"] == failing
+        assert "recovery_expression" not in persistent
+    else:
+        tcp_ok = f"min(/{profile}/net.tcp.service.perf[https,{{$WEB_SERVICE.HOST}},443],#3)>0"
+        assert persistent["expression"] == f"{failing} and {tcp_ok}"
+        assert persistent["recovery_mode"] == "RECOVERY_EXPRESSION"
+        assert persistent["recovery_expression"] == f"last(/{profile}/web_check.cert.ok)=1 or {fresh}=1"
+    # A dependency freezes an open problem and re-fires on stale history when the parent recovers.
     assert not persistent.get("dependencies")
     assert all(step["type"] != "DISCARD_UNCHANGED_HEARTBEAT" for step in check["preprocessing"])
     immediate = triggers["Cert check failing"]

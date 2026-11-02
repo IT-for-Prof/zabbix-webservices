@@ -1,6 +1,6 @@
 # Architecture
 
-> Repository versions: full template `7.0-2.5.0`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
+> Repository versions: full template `7.0-2.5.1`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
 > `web_check.py` 2.2.3 is installed on both servers and the four serving proxies.
 
 ## Goal

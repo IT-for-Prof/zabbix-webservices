@@ -4,6 +4,29 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.5.1] - 2026-11-02
+
+Full profile only; Certificate-TLS and `web_check` are unchanged.
+
+### Fixed — a network outage opened a second AVERAGE for the certificate probe
+
+When a host stopped accepting TCP, the certificate probe kept returning fresh
+`ok=false` JSON (`tcp_timeout`). Five minutes after AVERAGE "TCP 443 connect
+failed", AVERAGE "Cert check failing on 3 consecutive checks" fired as well and
+Planfix opened a duplicate task for the same outage.
+
+- The problem expression adds `min(net.tcp.service.perf[https,...,443],#3)>0`.
+  One failed TCP check among the last three keeps the trigger silent. The
+  `https` check also fails on a broken TLS handshake, so a broken handshake is
+  reported only as "TCP 443 connect failed".
+- Recovery moves to a recovery expression with the previous rule:
+  `last(cert.ok)=1 or nodata(master,15m)=1`. An open problem no longer closes
+  when TCP drops.
+- A trigger dependency would not fix it. The expression uses `nodata()`, so
+  Zabbix re-evaluates it every 30 seconds. When TCP recovers, the outage's
+  stale `ok=false` history would open the duplicate at the end of the outage.
+- If the TCP item is unsupported, the trigger is UNKNOWN and stays silent.
+
 ## [7.0-2.5.0] / Certificate-TLS [7.0-1.2.0] - 2026-10-29
 
 Template-only release (no `web_check` change).

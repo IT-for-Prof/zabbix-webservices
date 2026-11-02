@@ -144,7 +144,7 @@ immediately.
 
 ## Versioning
 
-`Web service by itforprof.com` is version `7.0-2.5.0`; the
+`Web service by itforprof.com` is version `7.0-2.5.1`; the
 `Web service by itforprof.com - Certificate-TLS` profile is version `7.0-1.2.0`.
 Both carry `vendor: { name: itforprof.com, version: <zabbix-major>-<semver> }`.
 Bump rules:
