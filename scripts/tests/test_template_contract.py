@@ -16,7 +16,6 @@ TCP_SLOW = "TCP {$WEB_SERVICE.HTTPS.PORT} connect slow"
 PORT_MISMATCH = "HTTPS port macro does not match the URL port"
 HOST_MISMATCH = "Host macro does not match the URL host"
 TCP_NODATA = "TCP check no data received"
-WEB_NODATA = "Web service no data received"
 # Dependents of the cert master that only the full profile has (the mismatch checks).
 FULL_ONLY_CERT_DEPENDENTS = {"web_check.cert.port", "web_check.cert.host"}
 URL_FIELDS_DISCARD = {
@@ -222,13 +221,26 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.7.0"
+    assert _template()["vendor"]["version"] == "7.0-2.7.1"
+
+
+def test_cert_and_tcp_nodata_windows_follow_their_macros():
+    """A raised check interval needs a longer no-data window, or "no data" fires between polls."""
+    import re
+
+    macros = {m["macro"]: m.get("value") for m in _template()["macros"]}
+    assert macros["{$WEB_SERVICE.CERT.NODATA.PERIOD}"] == "15m"
+    # Longer than the cert window plus one 5m cert interval: a silent collector opens only the cert problem.
+    assert macros["{$WEB_SERVICE.DIAG.NODATA.PERIOD}"] == "20m"
+    keys = ('web_check.py["cert"', "web_check.cert.port", "web_check.cert.host", "net.tcp.service.perf[https,")
+    literal = [e for e in _all_expressions(_template()) for k in keys if re.search(re.escape(k) + r"[^)]*,15m\)", e)]
+    assert literal == []
 
 
 @pytest.mark.parametrize(
     "filename,nodata_period",
     [
-        ("template_web_service_by_itforprof_com.yaml", "15m"),
+        ("template_web_service_by_itforprof_com.yaml", "{$WEB_SERVICE.CERT.NODATA.PERIOD}"),
         ("template_web_service_by_itforprof_com_tls.yaml", "{$WEB_SERVICE.CERT.NODATA.PERIOD}"),
     ],
 )
@@ -600,7 +612,7 @@ def test_port_mismatch_warns_on_fresh_cert_port_only():
     # and nodata() puts it on the 30s timer, so a corrected macro clears it without a new value.
     assert trigger["expression"] == (
         "last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}"
-        " and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0"
+        " and nodata(/Web service by itforprof.com/web_check.cert.port,{$WEB_SERVICE.CERT.NODATA.PERIOD})=0"
     )
     assert trigger["priority"] == "WARNING"
     assert trigger["manual_close"] == "YES"
@@ -620,8 +632,8 @@ def test_tcp_failure_is_suppressed_while_a_macro_mismatches():
     t = "/Web service by itforprof.com/"
     assert _triggers_by_name()[TCP_FAILED]["expression"] == (
         f"max({t}{TCP_HTTPS_KEY},#2)=0"
-        f" and (last({t}web_check.cert.port)={{$WEB_SERVICE.HTTPS.PORT}} or nodata({t}web_check.cert.port,15m)=1)"
-        f' and (last({t}web_check.cert.host)="{{$WEB_SERVICE.HOST}}" or nodata({t}web_check.cert.host,15m)=1)'
+        f" and (last({t}web_check.cert.port)={{$WEB_SERVICE.HTTPS.PORT}} or nodata({t}web_check.cert.port,{{$WEB_SERVICE.CERT.NODATA.PERIOD}})=1)"
+        f' and (last({t}web_check.cert.host)="{{$WEB_SERVICE.HOST}}" or nodata({t}web_check.cert.host,{{$WEB_SERVICE.CERT.NODATA.PERIOD}})=1)'
     )
     assert not _triggers_by_name()[TCP_FAILED].get("dependencies")
 
@@ -647,7 +659,7 @@ def test_host_mismatch_warns_when_host_macro_differs_from_url_host():
     assert trigger["name"] == HOST_MISMATCH
     assert trigger["expression"] == (
         'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"'
-        " and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0"
+        " and nodata(/Web service by itforprof.com/web_check.cert.host,{$WEB_SERVICE.CERT.NODATA.PERIOD})=0"
     )
     assert trigger["priority"] == "WARNING"
     assert trigger["manual_close"] == "YES"
@@ -662,12 +674,14 @@ def test_silent_tcp_check_raises_no_data():
     trigger's TCP gate UNKNOWN; without this the host just goes quiet."""
     triggers = {t["name"]: t for t in _item_by_key(TCP_HTTPS_KEY)["triggers"]}
     nodata = triggers[TCP_NODATA]
-    web_silent = _triggers_by_name()[WEB_NODATA]["expression"]
-    assert web_silent.endswith("=1")
-    # One ticket per collector failure: gated in the expression, like the cert trigger (2.5.1).
-    # A dependency would freeze it, and a NOTSUPPORTED item never brings the value that unfreezes it.
+    cert = 'web_check.py["cert","{$WEB_SERVICE.URL}"]'
+    # One ticket per collector failure: gated in the expression on fresh cert data, like the cert
+    # trigger (2.5.1). A dependency would freeze it, and a NOTSUPPORTED item never brings the value
+    # that unfreezes it. The gate must not read the web scenario item: Zabbix does not evaluate a
+    # trigger whose item is disabled, so a disabled scenario would silence this trigger.
     assert nodata["expression"] == (
-        f"nodata(/Web service by itforprof.com/{TCP_HTTPS_KEY},15m)=1 and {web_silent.removesuffix('=1')}=0"
+        f"nodata(/Web service by itforprof.com/{TCP_HTTPS_KEY},{{$WEB_SERVICE.DIAG.NODATA.PERIOD}})=1"
+        f" and nodata(/Web service by itforprof.com/{cert},{{$WEB_SERVICE.CERT.NODATA.PERIOD}})=0"
     )
     assert not nodata.get("dependencies")
     assert nodata["priority"] == "AVERAGE"

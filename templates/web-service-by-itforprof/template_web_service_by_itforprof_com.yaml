@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.7.0
+      version: 7.0-2.7.1
     groups:
     - name: Templates/Applications
     macros:
@@ -66,6 +66,9 @@ zabbix_export:
     - macro: '{$WEB_SERVICE.CERT.CHECK.INTERVAL}'
       value: 5m
       description: How often the TLS-cert master item runs.
+    - macro: '{$WEB_SERVICE.CERT.NODATA.PERIOD}'
+      value: 15m
+      description: No-data period for the certificate master item. Keep at least three times the check interval.
     - macro: '{$WEB_SERVICE.WHOIS.CHECK.INTERVAL}'
       value: 1h
       description: How often the WHOIS master item runs (mostly cache hits).
@@ -83,13 +86,16 @@ zabbix_export:
       description: QUIC handshake WARNING threshold in milliseconds. Default 1000ms tolerates intercontinental UDP+QUIC handshake. Drop to 250 for LAN.
     - macro: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
       value: 5m
-      description: 'How often diagnostic simple-check items run. "TCP check no data received" waits 15m: at 15m or more it fires all the time, between 5m and 15m after one missed poll.'
+      description: How often diagnostic simple-check items run.
+    - macro: '{$WEB_SERVICE.DIAG.NODATA.PERIOD}'
+      value: 20m
+      description: No-data period for the https TCP diagnostic item. Keep at least three diagnostic check intervals, and longer than {$WEB_SERVICE.CERT.NODATA.PERIOD} plus one certificate check interval, so a silent collector opens only the certificate no-data problem.
     - macro: '{$WEB_SERVICE.SLOW.WARN}'
       value: '10'
       description: Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
     - macro: '{$WEB_SERVICE.NODATA.PERIOD}'
       value: 10m
-      description: 'Period of no-data before the No-data trigger fires (web scenario item). Keep it under 15m: "TCP check no data received" stays silent while this trigger is open, and must not open first.'
+      description: Period of no-data before the No-data trigger fires (web scenario item).
     - macro: '{$WEB_SERVICE.CERT.WARN_DAYS}'
       value: '30'
       description: Cert expiry INFO trigger threshold (days).
@@ -234,14 +240,14 @@ zabbix_export:
         - tag: url
           value: '{$WEB_SERVICE.URL}'
       - uuid: 2c7f847016824c66bb27c2198d39c5a6
-        expression: nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
+        expression: nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],{$WEB_SERVICE.CERT.NODATA.PERIOD})=1
         name: Cert externalscript no data received
-        event_name: 'web_check.py cert: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}'
-        opdata: 'no value for 15m — item NOTSUPPORTED, disabled, or script not running'
+        event_name: 'web_check.py cert: no fresh value in {$WEB_SERVICE.CERT.NODATA.PERIOD} — {$WEB_SERVICE.URL} on {HOST.HOST}'
+        opdata: no value for {$WEB_SERVICE.CERT.NODATA.PERIOD} — item NOTSUPPORTED, disabled, or script not running
         priority: AVERAGE
         manual_close: 'YES'
         description: |
-          The cert master item has not received a fresh value for 15m
+          The cert master item has not received a fresh value for {$WEB_SERVICE.CERT.NODATA.PERIOD}
           (3× its default delay). Causes, in order of likelihood:
           - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
             interval "{$WEB_SERVICE.CERT.CHECK.INTERVAL}", which happens when the
@@ -791,9 +797,9 @@ zabbix_export:
         value: tls
       triggers:
       - uuid: 5d78ff44eacc4d638fa10a87dacd44fe
-        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0 and min(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#3)>0
+        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],{$WEB_SERVICE.CERT.NODATA.PERIOD})=0 and min(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#3)>0
         recovery_mode: RECOVERY_EXPRESSION
-        recovery_expression: last(/Web service by itforprof.com/web_check.cert.ok)=1 or nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
+        recovery_expression: last(/Web service by itforprof.com/web_check.cert.ok)=1 or nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],{$WEB_SERVICE.CERT.NODATA.PERIOD})=1
         name: Cert check failing on 3 consecutive checks
         event_name: 'web_check.py cert failed on 3 consecutive checks — {$WEB_SERVICE.URL} on {HOST.HOST}'
         priority: AVERAGE
@@ -817,7 +823,7 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: Cert externalscript no data received
-          expression: nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
+          expression: nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],{$WEB_SERVICE.CERT.NODATA.PERIOD})=1
         manual_close: 'YES'
     - uuid: be754f869d0b45a993d05c958eb27579
       name: 'TLS: negotiated protocol (live)'
@@ -1389,7 +1395,7 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: 58012d94be264a73bcce6a6d58003c2d
-        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT} and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0
+        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT} and nodata(/Web service by itforprof.com/web_check.cert.port,{$WEB_SERVICE.CERT.NODATA.PERIOD})=0
         name: HTTPS port macro does not match the URL port
         event_name: 'URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
@@ -1422,7 +1428,7 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: 2dcf146a3f0a426781602b8cf56faab0
-        expression: 'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}" and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0'
+        expression: 'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}" and nodata(/Web service by itforprof.com/web_check.cert.host,{$WEB_SERVICE.CERT.NODATA.PERIOD})=0'
         name: Host macro does not match the URL host
         event_name: 'URL host {ITEM.LASTVALUE1} differs from host macro "{$WEB_SERVICE.HOST}" — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
@@ -1445,7 +1451,7 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: fd0ada034a644ca3bf0086101c92395a
-        expression: 'max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)'
+        expression: 'max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,{$WEB_SERVICE.CERT.NODATA.PERIOD})=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,{$WEB_SERVICE.CERT.NODATA.PERIOD})=1)'
         name: TCP {$WEB_SERVICE.HTTPS.PORT} connect failed
         priority: AVERAGE
         description: TCP/{$WEB_SERVICE.HTTPS.PORT} to the monitored host is refused or unreachable on two consecutive checks. Silent while a fresh certificate check shows that the port or host macro differs from the URL; the mismatch WARNING reports that instead.
@@ -1464,7 +1470,7 @@ zabbix_export:
           via the macro on hosts behind a CDN with intentionally-distant POPs.
         dependencies:
         - name: TCP {$WEB_SERVICE.HTTPS.PORT} connect failed
-          expression: 'max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)'
+          expression: 'max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,{$WEB_SERVICE.CERT.NODATA.PERIOD})=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,{$WEB_SERVICE.CERT.NODATA.PERIOD})=1)'
         tags:
         - tag: scope
           value: diag
@@ -1473,22 +1479,24 @@ zabbix_export:
         event_name: 'TCP/{$WEB_SERVICE.HTTPS.PORT} to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
         manual_close: 'YES'
       - uuid: a1dc2a8f8e9f4dc28e55764fd86b20ef
-        expression: nodata(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],15m)=1 and nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=0
+        expression: nodata(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],{$WEB_SERVICE.DIAG.NODATA.PERIOD})=1 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],{$WEB_SERVICE.CERT.NODATA.PERIOD})=0
         name: TCP check no data received
-        event_name: 'TCP check to {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: no value for 15m — {HOST.NAME} ({HOST.HOST})'
-        opdata: 'no value for 15m — item NOTSUPPORTED or not polled'
+        event_name: 'TCP check to {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: no value for {$WEB_SERVICE.DIAG.NODATA.PERIOD} — {HOST.NAME} ({HOST.HOST})'
+        opdata: no value for {$WEB_SERVICE.DIAG.NODATA.PERIOD} — item NOTSUPPORTED or not polled
         priority: AVERAGE
         manual_close: 'YES'
         description: |
-          The https TCP diagnostic item has not received a value for 15m
-          (3x its default 5m interval). The TCP triggers and the TCP condition
-          of the certificate trigger cannot evaluate meanwhile. Causes:
+          The https TCP diagnostic item has not received a value for
+          {$WEB_SERVICE.DIAG.NODATA.PERIOD}. The TCP triggers and the TCP
+          condition of the certificate trigger cannot evaluate meanwhile. Causes:
           - the item is NOTSUPPORTED: read its error, usually an empty
             {$WEB_SERVICE.HOST} on a host without an interface, or a
             non-numeric {$WEB_SERVICE.HTTPS.PORT} (digits only, no spaces);
-          - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} was raised to 15m or more.
-          Silent while the web scenario has no data either: then the whole
-          collector is quiet and "Web service no data received" reports it.
+          - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} was raised above a third of
+            {$WEB_SERVICE.DIAG.NODATA.PERIOD}.
+          Silent while the certificate check has no data either: then the
+          whole collector is quiet and "Cert externalscript no data received"
+          reports it. Works with the web scenario disabled.
         tags:
         - tag: scope
           value: data-collection
@@ -1567,7 +1575,7 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: TCP {$WEB_SERVICE.HTTPS.PORT} connect failed
-          expression: 'max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)'
+          expression: 'max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,{$WEB_SERVICE.CERT.NODATA.PERIOD})=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,{$WEB_SERVICE.CERT.NODATA.PERIOD})=1)'
     - uuid: 4ff2ca946d4844e9a030b157dc5e16c7
       name: 'TLS scan: supported protocols'
       type: DEPENDENT
