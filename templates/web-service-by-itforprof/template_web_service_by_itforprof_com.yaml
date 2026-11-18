@@ -1400,6 +1400,39 @@ zabbix_export:
           value: diag
         - tag: url
           value: '{$WEB_SERVICE.URL}'
+    - uuid: 5d40a2eb06fd46beb12f05f3b20abd59
+      name: 'Diag: certificate check host'
+      type: DEPENDENT
+      key: web_check.cert.host
+      history: 7d
+      value_type: CHAR
+      description: 'Host the certificate check took from {$WEB_SERVICE.URL}, lowercase. Read only from successful checks, so an outage keeps the last real host.'
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
+      - type: JSONPATH
+        parameters:
+        - $.host
+      tags:
+      - tag: scope
+        value: diag
+      triggers:
+      - uuid: 2dcf146a3f0a426781602b8cf56faab0
+        expression: 'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"'
+        name: Host macro does not match the URL host
+        event_name: 'URL host {ITEM.LASTVALUE1} differs from host macro "{$WEB_SERVICE.HOST}" — {HOST.NAME} ({HOST.HOST})'
+        priority: WARNING
+        manual_close: 'YES'
+        description: 'The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address.'
+        tags:
+        - tag: scope
+          value: diag
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
     - uuid: 117107c9c4c0479aa9825347cea751b9
       name: 'Diag: TCP {$WEB_SERVICE.HTTPS.PORT} performance'
       type: SIMPLE
@@ -1419,6 +1452,8 @@ zabbix_export:
         dependencies:
         - name: HTTPS port macro does not match the URL port
           expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+        - name: Host macro does not match the URL host
+          expression: 'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"'
         tags:
         - tag: scope
           value: diag

@@ -14,6 +14,7 @@ TCP_HTTP_KEY = "net.tcp.service.perf[http,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTP
 TCP_FAILED = "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed"
 TCP_SLOW = "TCP {$WEB_SERVICE.HTTPS.PORT} connect slow"
 PORT_MISMATCH = "HTTPS port macro does not match the URL port"
+HOST_MISMATCH = "Host macro does not match the URL host"
 
 
 def _template() -> dict:
@@ -428,8 +429,8 @@ def test_cert_dependents_discard_the_error_envelope(filename, web_check_module):
     dependents = [
         i for i in template["items"] if i.get("master_item", {}).get("key", "").startswith('web_check.py["cert"')
     ]
-    # The full profile adds web_check.cert.port for the port-mismatch check.
-    assert len(dependents) == (18 if filename == PROFILES[0] else 17)
+    # The full profile adds web_check.cert.port and web_check.cert.host for the mismatch checks.
+    assert len(dependents) == (19 if filename == PROFILES[0] else 17)
     for item in dependents:
         first = item["preprocessing"][0]
         if item["key"] == "web_check.cert.ok":
@@ -551,7 +552,8 @@ def test_tcp_failure_is_suppressed_while_the_port_macro_mismatches():
     """A TCP check on the wrong port must not page; the mismatch WARNING names the real cause."""
     triggers = _triggers_by_name()
     assert triggers[TCP_FAILED]["dependencies"] == [
-        {"name": PORT_MISMATCH, "expression": triggers[PORT_MISMATCH]["expression"]}
+        {"name": PORT_MISMATCH, "expression": triggers[PORT_MISMATCH]["expression"]},
+        {"name": HOST_MISMATCH, "expression": triggers[HOST_MISMATCH]["expression"]},
     ]
 
 
@@ -559,3 +561,26 @@ def test_tls_profile_has_no_tcp_port_objects():
     tls = _profile(PROFILES[1])
     assert all(not item["key"].startswith("net.tcp.") and item["key"] != "web_check.cert.port" for item in tls["items"])
     assert not {"{$WEB_SERVICE.HTTPS.PORT}", "{$WEB_SERVICE.HTTP.PORT}"} & {m["macro"] for m in tls.get("macros", [])}
+
+
+def test_host_mismatch_warns_when_host_macro_differs_from_url_host():
+    """An empty, misspelt or copied {$WEB_SERVICE.HOST} sends the TCP checks to another machine
+    (or to the host interface, often 127.0.0.1) without any error; compare it with the URL host."""
+    item = _item_by_key("web_check.cert.host")
+    assert item["master_item"]["key"] == 'web_check.py["cert","{$WEB_SERVICE.URL}"]'
+    assert item["value_type"] == "CHAR"
+    assert item["history"] == "7d"
+    assert [step["type"] for step in item["preprocessing"]] == ["NOT_MATCHES_REGEX", "JSONPATH"]
+    assert item["preprocessing"][1]["parameters"] == ["$.host"]
+    assert {t["tag"]: t["value"] for t in item["tags"]} == {"scope": "diag"}
+
+    [trigger] = item["triggers"]
+    assert trigger["name"] == HOST_MISMATCH
+    assert trigger["expression"] == ('last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"')
+    assert trigger["priority"] == "WARNING"
+    assert trigger["manual_close"] == "YES"
+    assert {t["tag"]: t["value"] for t in trigger["tags"]} == {"scope": "diag", "url": "{$WEB_SERVICE.URL}"}
+    assert "{$WEB_SERVICE.HOST}" in trigger["event_name"]
+    assert "{ITEM.LASTVALUE1}" in trigger["event_name"]
+    assert not trigger.get("dependencies")
+    assert "nodata(" not in trigger["expression"]
