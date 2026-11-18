@@ -156,7 +156,7 @@ With defaults (override per host as needed):
 ## Adding a host
 
 1. Set `{$WEB_SERVICE.URL}`.
-2. Set `{$WEB_SERVICE.HOST}` to the host of that URL, lowercase (`xn--` form for IDN domains). If it is left empty, the TCP checks probe the host interface address and nothing reports it until the first successful certificate check raises "Host macro does not match the URL host".
+2. Set `{$WEB_SERVICE.HOST}` to the host of that URL, lowercase (`xn--` form for IDN domains). If it is left empty, the TCP checks probe the host interface address and nothing reports it until the first certificate check raises "Host macro does not match the URL host".
 3. If the URL carries an explicit https port (`https://host:8448/`), set `{$WEB_SERVICE.HTTPS.PORT}` to it.
 4. Run `scripts/sync-domain-registry-owners.py --apply` on that server after adding or re-enabling a host, so only one host per registered domain keeps the WHOIS triggers.
 
