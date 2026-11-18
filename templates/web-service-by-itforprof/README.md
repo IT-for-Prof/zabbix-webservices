@@ -5,7 +5,7 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.6.0`                              |
+| Version          | `7.0-2.7.0`                              |
 | TLS profile      | `7.0-1.2.0`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
@@ -110,14 +110,14 @@ longer matches them.
   venv layout (`/opt/web_check/venv`, Python 3.12 installed by `uv` — the host's system Python is not used; codebase floor is 3.11).
 - `fping` ≥ 3.10 on the monitor node (for Layer 4 ICMP items).
 
-## Macros (27)
+## Macros (29)
 
 Required:
 
 | Macro | Purpose |
 | ----- | ------- |
 | `{$WEB_SERVICE.URL}`  | Full URL to monitor, e.g. `https://example.com/healthz`. |
-| `{$WEB_SERVICE.HOST}` | Host or IP for diag simple checks. Set this to the URL hostname. |
+| `{$WEB_SERVICE.HOST}` | Host of `{$WEB_SERVICE.URL}`, lowercase; for IDN domains write it and the URL in `xn--` form. The TCP checks use it; without it they probe the host interface address, often `127.0.0.1`. A mismatch with the URL host raises a WARNING. |
 
 With defaults (override per host as needed):
 
@@ -146,12 +146,19 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.WHOIS.NOTICE_DAYS}` | `7` | Domain expiry AVERAGE threshold (days). |
 | `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | `1` | Domain expiry AVERAGE threshold (days). HIGH fires on `days_to_expire < 0` (already expired). |
 | `{$WEB_SERVICE.TCP.SLOW_SEC}` | `3` | `net.tcp.service.perf` WARNING threshold. |
-| `{$WEB_SERVICE.HTTPS.PORT}` | `443` | Port of the https TCP check. Set it to the port of an `https://host:port` URL. Keep `443` for `http://` URLs. A mismatch with the certificate check port raises a WARNING and suppresses the TCP failure trigger. |
-| `{$WEB_SERVICE.HTTP.PORT}` | `80` | Port of the http TCP check. Set it to the port of an `http://host:port` URL. |
+| `{$WEB_SERVICE.HTTPS.PORT}` | `443` | Port of the https TCP check. Set it to the port of an `https://host:port` URL. Keep `443` for `http://` URLs. Digits only, no spaces. A mismatch with the certificate check port raises a WARNING and suppresses the TCP failure trigger. |
+| `{$WEB_SERVICE.HTTP.PORT}` | `80` | Port of the http TCP check. Set it to the port of an `http://host:port` URL. Digits only, no spaces. |
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | `5m` | HTTP/3 master item delay. |
 | `{$WEB_SERVICE.HTTP3.SLOW_MS}` | `1000` | QUIC handshake time WARNING threshold (ms). |
 
-## Triggers (34 + 1 LLD prototype)
+## Adding a host
+
+1. Set `{$WEB_SERVICE.URL}`.
+2. Set `{$WEB_SERVICE.HOST}` to the host of that URL, lowercase (`xn--` form for IDN domains). If it is left empty, the TCP checks probe the host interface address and nothing reports it until the first successful certificate check raises "Host macro does not match the URL host".
+3. If the URL carries an explicit https port (`https://host:8448/`), set `{$WEB_SERVICE.HTTPS.PORT}` to it.
+4. Run `scripts/sync-domain-registry-owners.py --apply` on that server after adding or re-enabling a host, so only one host per registered domain keeps the WHOIS triggers.
+
+## Triggers (37 + 1 LLD prototype)
 
 By scope:
 
@@ -159,10 +166,10 @@ By scope:
 | ------------- | :---: | ---------------- |
 | availability  | 1     | HIGH             |
 | performance   | 1     | WARNING          |
-| data-collection | 6   | AVERAGE          |
+| data-collection | 7   | AVERAGE          |
 | tls (cert + handshake) | 12 | HIGH           |
 | whois         | 8     | HIGH             |
-| diag          | 3     | AVERAGE          |
+| diag          | 4     | AVERAGE          |
 | http3         | 3     | AVERAGE          |
 | tls-scan      | 1     | INFO             |
 | tls-scan (LLD trigger prototype) | 1 per finding | WARNING |

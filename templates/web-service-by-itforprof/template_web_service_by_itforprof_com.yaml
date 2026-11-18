@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.6.0
+      version: 7.0-2.7.0
     groups:
     - name: Templates/Applications
     macros:
@@ -83,7 +83,7 @@ zabbix_export:
       description: QUIC handshake WARNING threshold in milliseconds. Default 1000ms tolerates intercontinental UDP+QUIC handshake. Drop to 250 for LAN.
     - macro: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
       value: 5m
-      description: How often diagnostic simple-check items run.
+      description: 'How often diagnostic simple-check items run. "TCP check no data received" waits 15m: at 15m or more it fires all the time, between 5m and 15m after one missed poll.'
     - macro: '{$WEB_SERVICE.SLOW.WARN}'
       value: '10'
       description: Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
@@ -125,13 +125,13 @@ zabbix_export:
       value: '1'
       description: Domain expires within N days critical (AVERAGE) trigger threshold.
     - macro: '{$WEB_SERVICE.HOST}'
-      description: Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
+      description: Required. Host of {$WEB_SERVICE.URL}, lowercase; for IDN domains write it and the URL in xn-- form. The TCP diagnostic checks use it; without it they probe the host interface address. A mismatch with the URL host raises a WARNING.
     - macro: '{$WEB_SERVICE.HTTPS.PORT}'
       value: '443'
-      description: Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port. Keep 443 for http:// URLs, whose certificate check also uses 443. A mismatch with the certificate check port raises a WARNING.
+      description: Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port. Keep 443 for http:// URLs, whose certificate check also uses 443. Digits only, no spaces. A mismatch with the certificate check port raises a WARNING.
     - macro: '{$WEB_SERVICE.HTTP.PORT}'
       value: '80'
-      description: Port of the http TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is http:// with an explicit port; otherwise keep 80.
+      description: Port of the http TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is http:// with an explicit port; otherwise keep 80. Digits only, no spaces.
     - macro: '{$WEB_SERVICE.TCP.SLOW_SEC}'
       value: '3'
       description: net.tcp.service.perf WARNING threshold in seconds. Default 3s tolerates intercontinental TCP+TLS handshake (~300-800ms typical) plus headroom. Drop to 1 for LAN/regional monitoring.

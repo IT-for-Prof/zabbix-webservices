@@ -1,6 +1,6 @@
 # Architecture
 
-> Repository versions: full template `7.0-2.6.0`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
+> Repository versions: full template `7.0-2.7.0`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
 > `web_check.py` 2.2.3 is installed on both servers and the four serving proxies.
 
 ## Goal
@@ -410,6 +410,7 @@ checks.
 | `net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}]` | HTTPS HEAD latency (curl, no certificate verification) | 1m | Separates connect time from total request time. |
 | `net.tcp.service.perf[http,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTP.PORT}]` | HTTP TCP connect latency | 1m | For sites that should redirect HTTP→HTTPS. |
 | `web_check.cert.port` | Port the certificate check used | cert | Dependent on the cert master; successful checks only. |
+| `web_check.cert.host` | Host the certificate check took from the URL | cert | Dependent on the cert master; successful checks only. |
 
 Most of these are simple checks; `icmp*` requires `fping` on the proxy
 node (already required by the existing `ICMP Ping` template — no new
@@ -420,7 +421,9 @@ ops cost).
 | Name | Severity | Expression |
 |---|---|---|
 | HTTPS port macro does not match the URL port | WARNING | `last(.../web_check.cert.port) <> {$WEB_SERVICE.HTTPS.PORT}` |
-| TCP {$WEB_SERVICE.HTTPS.PORT} connect failed | AVERAGE | `max(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2) = 0` (two consecutive failed checks); depends on the port mismatch trigger |
+| Host macro does not match the URL host | WARNING | `last(.../web_check.cert.host) <> "{$WEB_SERVICE.HOST}"` |
+| TCP check no data received | AVERAGE | `nodata(.../net.tcp.service.perf[https,…],15m) = 1`; depends on "Web service no data received" |
+| TCP {$WEB_SERVICE.HTTPS.PORT} connect failed | AVERAGE | `max(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2) = 0` (two consecutive failed checks); depends on the port and host mismatch triggers |
 | TCP {$WEB_SERVICE.HTTPS.PORT} connect slow | WARNING | `avg(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],30m) > {$WEB_SERVICE.TCP.SLOW_SEC}` (3s) |
 
 ## Layer 5 — Daily deep TLS scan
@@ -503,6 +506,7 @@ in the legacy template, N = new.
 | Diag | net.tcp.service.perf[https,…,HTTPS.PORT] | Simple check | native | N |
 | Diag | net.tcp.service.perf[http,…,HTTP.PORT] | Simple check | native | N |
 | Diag | web_check.cert.port | Dependent | JSONPath | N |
+| Diag | web_check.cert.host | Dependent | JSONPath | N |
 | Scan | tls_scan (master JSON) | External | `web_check.py tls-scan` | N |
 | Scan | LLD `tls_finding` + per-finding prototype | LLD | JSONPath | N |
 
@@ -520,6 +524,7 @@ in the legacy template, N = new.
 | data-collection | WHOIS externalscript no data received | AVERAGE |
 | data-collection | TLS scan externalscript no data received | INFO |
 | data-collection | HTTP/3 externalscript no data received | AVERAGE |
+| data-collection | TCP check no data received | AVERAGE |
 | tls | Cert expired | HIGH |
 | tls | Cert expires within `{$…CERT.CRIT_DAYS}` days | AVERAGE |
 | tls | Cert expires within `{$…CERT.NOTICE_DAYS}` days | WARNING |
@@ -543,6 +548,7 @@ in the legacy template, N = new.
 | diag | TCP {$WEB_SERVICE.HTTPS.PORT} connect failed | AVERAGE |
 | diag | TCP {$WEB_SERVICE.HTTPS.PORT} connect slow | WARNING |
 | diag | HTTPS port macro does not match the URL port | WARNING |
+| diag | Host macro does not match the URL host | WARNING |
 | http3 | HTTP/3 advertised but unreachable | AVERAGE |
 | http3 | HTTP/3 handshake slow | WARNING |
 | http3 | HTTP/3 check failing | INFO |
@@ -558,7 +564,7 @@ All 28 user macros the template declares:
 | Macro | Default | Purpose |
 |---|---|---|
 | `{$WEB_SERVICE.URL}` | (required) | Full URL to monitor. |
-| `{$WEB_SERVICE.HOST}` | (required) | Host/IP for the Layer-4 diag simple checks. |
+| `{$WEB_SERVICE.HOST}` | (required) | Host of `{$WEB_SERVICE.URL}`, lowercase (`xn--` for IDN); the TCP checks use it. Empty means the host interface address. |
 | `{$WEB_SERVICE.PHRASE}` | "" | Response-body substring/regex; empty = skip check. |
 | `{$WEB_SERVICE.PHRASE.FLAGS}` | `(?i)` | PCRE flag prefix for the phrase (case-insensitive by default). |
 | `{$WEB_SERVICE.EXPECTED_CODE}` | 200 | Expected HTTP status codes (comma-separated, ranges OK). |

@@ -4,6 +4,34 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.7.0] - 2026-11-18
+
+Full profile only; Certificate-TLS and `web_check` are unchanged.
+
+### Added — the template reports a misconfigured host
+
+A host with an empty or wrong macro checked the wrong target or went quiet.
+An empty `{$WEB_SERVICE.HOST}` sent the TCP checks to the host interface
+address (on one server three hosts probed the monitoring server itself for
+months). Without an interface, or with a non-numeric or spaced
+`{$WEB_SERVICE.HTTPS.PORT}`, the TCP item went NOTSUPPORTED and the TCP
+triggers and the certificate trigger's TCP condition stayed UNKNOWN.
+
+- New `web_check.cert.host` (the host the certificate check took from the
+  URL) and WARNING "Host macro does not match the URL host". It covers an
+  empty, misspelt, spaced or copied `{$WEB_SERVICE.HOST}`. "TCP connect
+  failed" depends on it, as it does on the port check.
+- New AVERAGE "TCP check no data received": the https TCP item got no value
+  for 15m. It depends on "Web service no data received", so a silent
+  collector opens one ticket.
+
+### Fixed
+
+- The `{$WEB_SERVICE.HOST}` description said it defaults to the URL host. It
+  has no default. The descriptions now say it is required, lowercase and in
+  `xn--` form for IDN domains, and that port macros take digits only.
+- README: trigger and macro counts, and an "Adding a host" checklist.
+
 ## [7.0-2.6.0] - 2026-11-18
 
 Full profile only; Certificate-TLS and `web_check` are unchanged.

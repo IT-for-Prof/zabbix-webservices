@@ -79,7 +79,8 @@ How often the deep TLS scan runs.: Интервал глубокого скан�
 How often the HTTP/3 master item runs.: Интервал основного элемента HTTP/3.
 ? QUIC handshake WARNING threshold in milliseconds. Default 1000ms tolerates intercontinental UDP+QUIC handshake. Drop to 250 for LAN.
 : Порог предупреждения для рукопожатия QUIC в миллисекундах. 1000 мс по умолчанию учитывают межконтинентальные задержки. Для локальной сети — 250.
-How often diagnostic simple-check items run.: Интервал диагностических простых проверок.
+? 'How often diagnostic simple-check items run. "TCP check no data received" waits 15m: at 15m or more it fires all the time, between 5m and 15m after one missed poll.'
+: 'Интервал диагностических простых проверок. «Нет данных TCP-проверки» ждёт 15 мин: при интервале 15 мин и больше он срабатывает постоянно, от 5 до 15 мин — после одного пропущенного опроса.'
 ? Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
 : Среднее время ответа HTTP за 10 мин в секундах, выше которого срабатывает предупреждение. 10 с по умолчанию учитывают межконтинентальные задержки, для региональных сайтов — 5.
 Period of no-data before the No-data trigger fires (web scenario item).: Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных».
@@ -93,12 +94,12 @@ Minimum acceptable ECDSA key size (bits).: Минимальная длина к�
 Domain expires within N days WARNING trigger threshold.: 'Порог триггера уровня «Предупреждение»: домен истекает через N дней.'
 Domain expires within N days AVERAGE trigger threshold.: 'Порог триггера уровня «Средняя»: домен истекает через N дней.'
 Domain expires within N days critical (AVERAGE) trigger threshold.: 'Критический порог по сроку домена (уровень «Средняя»): домен истекает через N дней.'
-? Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
-: Хост или IP для диагностических простых проверок (net.dns.record, net.tcp.service.perf). По умолчанию — хост из {$WEB_SERVICE.URL}, при необходимости переопределяется на хосте.
-? Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port. Keep 443 for http:// URLs, whose certificate check also uses 443. A mismatch with the certificate check port raises a WARNING.
-: 'Порт https-проверки TCP. Если в {$WEB_SERVICE.URL} адрес https:// с явным портом, укажите этот порт. Для адресов http:// оставьте 443: проверка сертификата у них тоже идёт на 443. Если порт не совпадает с портом проверки сертификата, срабатывает предупреждение.'
-? Port of the http TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is http:// with an explicit port; otherwise keep 80.
-: Порт http-проверки TCP. Если в {$WEB_SERVICE.URL} адрес http:// с явным портом, укажите этот порт, иначе оставьте 80.
+? Required. Host of {$WEB_SERVICE.URL}, lowercase; for IDN domains write it and the URL in xn-- form. The TCP diagnostic checks use it; without it they probe the host interface address. A mismatch with the URL host raises a WARNING.
+: Обязателен. Хост из {$WEB_SERVICE.URL} в нижнем регистре; для кириллических доменов и он, и URL пишутся в форме xn--. По нему идут TCP-проверки; без него они проверяют адрес интерфейса хоста. Несовпадение с хостом URL даёт предупреждение.
+? Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port. Keep 443 for http:// URLs, whose certificate check also uses 443. Digits only, no spaces. A mismatch with the certificate check port raises a WARNING.
+: 'Порт https-проверки TCP. Если в {$WEB_SERVICE.URL} адрес https:// с явным портом, укажите этот порт. Для адресов http:// оставьте 443: проверка сертификата у них тоже идёт на 443. Только цифры, без пробелов. Если порт не совпадает с портом проверки сертификата, срабатывает предупреждение.'
+? Port of the http TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is http:// with an explicit port; otherwise keep 80. Digits only, no spaces.
+: Порт http-проверки TCP. Если в {$WEB_SERVICE.URL} адрес http:// с явным портом, укажите этот порт, иначе оставьте 80. Только цифры, без пробелов.
 ? net.tcp.service.perf WARNING threshold in seconds. Default 3s tolerates intercontinental TCP+TLS handshake (~300-800ms typical) plus headroom. Drop to 1 for LAN/regional monitoring.
 : Порог предупреждения для net.tcp.service.perf в секундах. 3 с по умолчанию покрывают межконтинентальное соединение TCP и TLS (обычно 300–800 мс) с запасом. Для локальной сети и проверок внутри региона — 1.
 'Cert: probe (master JSON)': 'Сертификат: проверка (основной JSON)'
