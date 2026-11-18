@@ -207,7 +207,7 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.5.1"
+    assert _template()["vendor"]["version"] == "7.0-2.6.0"
 
 
 @pytest.mark.parametrize(

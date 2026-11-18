@@ -1,6 +1,6 @@
 # Architecture
 
-> Repository versions: full template `7.0-2.5.1`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
+> Repository versions: full template `7.0-2.6.0`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
 > `web_check.py` 2.2.3 is installed on both servers and the four serving proxies.
 
 ## Goal
@@ -111,7 +111,7 @@ These shaped the design and must be remembered when extending it:
 │  │   Runs on ET-VPS01.                                              │  │
 │  ├──────────────────────────────────────────────────────────────────┤  │
 │  │ Layer 4 — Network diagnostics                                    │  │
-│  │   net.tcp.service.perf[https,…,443]           (native, 1m)       │  │
+│  │   net.tcp.service.perf[https,…,HTTPS.PORT]    (native, 1m)       │  │
 │  │   net.dns.record[…,A], net.dns.record[…,AAAA] (native, 5m)       │  │
 │  │   net.dns.record[…,CAA]                       (native, 1h)       │  │
 │  │   All run on ET-VPS01.                                           │  │
@@ -407,8 +407,9 @@ checks.
 | `net.dns.record[,{HOST.HOST},A]` | A-record value | 5m | Latest data → alert if IPs drift unexpectedly. |
 | `net.dns.record[,{HOST.HOST},AAAA]` | AAAA-record value | 5m | IPv6 coverage tracking. |
 | `net.dns.record[,{HOST.HOST},CAA]` | CAA records | 1h | Verify cert issuer is in CAA-allowed list. |
-| `net.tcp.service.perf[https,{HOST.HOST},443]` | TCP connect-only latency | 1m | Separates connect time from total request time. |
-| `net.tcp.service.perf[http,{HOST.HOST},80]` | HTTP TCP connect latency | 1m | For sites that should redirect HTTP→HTTPS. |
+| `net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}]` | HTTPS HEAD latency (curl, no certificate verification) | 1m | Separates connect time from total request time. |
+| `net.tcp.service.perf[http,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTP.PORT}]` | HTTP TCP connect latency | 1m | For sites that should redirect HTTP→HTTPS. |
+| `web_check.cert.port` | Port the certificate check used | cert | Dependent on the cert master; successful checks only. |
 
 Most of these are simple checks; `icmp*` requires `fping` on the proxy
 node (already required by the existing `ICMP Ping` template — no new
@@ -418,8 +419,9 @@ ops cost).
 
 | Name | Severity | Expression |
 |---|---|---|
-| TCP 443 connect failed | AVERAGE | `max(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2) = 0` (two consecutive failed checks) |
-| TCP 443 connect slow | WARNING | `avg(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],30m) > {$WEB_SERVICE.TCP.SLOW_SEC}` (3s) |
+| HTTPS port macro does not match the URL port | WARNING | `last(.../web_check.cert.port) <> {$WEB_SERVICE.HTTPS.PORT}` |
+| TCP {$WEB_SERVICE.HTTPS.PORT} connect failed | AVERAGE | `max(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2) = 0` (two consecutive failed checks); depends on the port mismatch trigger |
+| TCP {$WEB_SERVICE.HTTPS.PORT} connect slow | WARNING | `avg(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],30m) > {$WEB_SERVICE.TCP.SLOW_SEC}` (3s) |
 
 ## Layer 5 — Daily deep TLS scan
 
@@ -498,8 +500,9 @@ in the legacy template, N = new.
 | Diag | net.dns.record[,…,A] | Simple check | native | N |
 | Diag | net.dns.record[,…,AAAA] | Simple check | native | N |
 | Diag | net.dns.record[,…,CAA] | Simple check | native | N |
-| Diag | net.tcp.service.perf[https,…,443] | Simple check | native | N |
-| Diag | net.tcp.service.perf[http,…,80] | Simple check | native | N |
+| Diag | net.tcp.service.perf[https,…,HTTPS.PORT] | Simple check | native | N |
+| Diag | net.tcp.service.perf[http,…,HTTP.PORT] | Simple check | native | N |
+| Diag | web_check.cert.port | Dependent | JSONPath | N |
 | Scan | tls_scan (master JSON) | External | `web_check.py tls-scan` | N |
 | Scan | LLD `tls_finding` + per-finding prototype | LLD | JSONPath | N |
 
@@ -537,8 +540,9 @@ in the legacy template, N = new.
 | whois | Domain name servers changed | INFO |
 | whois | Domain DNSSEC removed | WARNING |
 | whois | WHOIS check failing | INFO |
-| diag | TCP 443 connect failed | AVERAGE |
-| diag | TCP 443 connect slow | WARNING |
+| diag | TCP {$WEB_SERVICE.HTTPS.PORT} connect failed | AVERAGE |
+| diag | TCP {$WEB_SERVICE.HTTPS.PORT} connect slow | WARNING |
+| diag | HTTPS port macro does not match the URL port | WARNING |
 | http3 | HTTP/3 advertised but unreachable | AVERAGE |
 | http3 | HTTP/3 handshake slow | WARNING |
 | http3 | HTTP/3 check failing | INFO |
@@ -580,6 +584,8 @@ All 28 user macros the template declares:
 | `{$WEB_SERVICE.WHOIS.NOTICE_DAYS}` | 7 | Domain expiry AVERAGE threshold (days). |
 | `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | 1 | Domain expiry AVERAGE threshold (days). HIGH fires on `< 0`. |
 | `{$WEB_SERVICE.TCP.SLOW_SEC}` | 3 | `net.tcp.service.perf` WARNING threshold (seconds). |
+| `{$WEB_SERVICE.HTTPS.PORT}` | 443 | Port of the https TCP check; must match an `https://host:port` URL. |
+| `{$WEB_SERVICE.HTTP.PORT}` | 80 | Port of the http TCP check. |
 
 All macros are documented in the template descriptions; descriptions are
 also visible in the Zabbix UI.
