@@ -4,6 +4,39 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.7.2] - 2026-11-18
+
+Full profile and `web_check.py` 2.2.5; Certificate-TLS is unchanged.
+
+### Fixed — FAITID domains are tracked at the registry (`web_check.py` 2.2.5)
+
+FAITID registers third-level names under 72 suffixes from the private
+section of the Public Suffix List (`msk.ru`, `spb.ru`, `com.ru`, `ru.net`,
+geo `.su` and others). The WHOIS check resolved `example.msk.ru` to `msk.ru`
+and reported the suffix's expiry, not the domain's. Such names now resolve
+to the third-level domain, skip RDAP and ask the FAITID registry,
+`whois.flexireg.net`. After the rollout the owner host of an affected domain
+shows one "Domain registrar changed" and one "Domain name servers changed",
+because the registrar and name servers now come from the domain's own
+record. Re-run `sync-domain-registry-owners.py`, because the apex key of
+those hosts changes.
+
+### Fixed — DNSSEC spellings (`web_check.py` 2.2.5)
+
+`unsignedDelegation` and "Unsigned delegation" read as `unsigned`, not
+`signed`; unrecognised values are `unknown`. Before the fix, a port-43
+fallback that read `signed` could open a false "Domain DNSSEC removed" once
+RDAP answered `unsigned` again.
+
+### Fixed — the DNSSEC item no longer sticks in NOTSUPPORTED
+
+An answer without the `dnssec` field (`internal_error` from `main()`) made
+`web_check.whois.dnssec` NOTSUPPORTED. The `unknown` values that followed
+are discarded, and a discarded value never clears NOTSUPPORTED. The item now
+drops such an answer.
+`web_check.py` also keeps WHOIS running when a lock file in its cache is
+not writable (`PermissionError`), instead of failing with `internal_error`.
+
 ## [7.0-2.7.1] - 2026-11-18
 
 Full profile and `web_check.py` 2.2.4; Certificate-TLS is unchanged. Removes

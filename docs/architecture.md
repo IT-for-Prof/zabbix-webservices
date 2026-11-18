@@ -1,6 +1,6 @@
 # Architecture
 
-> Repository versions: full template `7.0-2.7.1`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
+> Repository versions: full template `7.0-2.7.2`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
 > `web_check.py` 2.2.4 is installed on both servers and the four serving proxies.
 
 ## Goal
@@ -330,8 +330,11 @@ web_check.py["whois", "{$WEB_SERVICE.URL}"]
 
 **Algorithm:**
 
-1. Extract apex from URL via PSL (`tldextract` or our PSL-driven
-   resolver).
+1. Extract apex from URL via PSL (`tldextract`, ICANN section). Names
+   under the 72 FAITID suffixes from the PSL private section (`msk.ru`,
+   `spb.ru`, `com.ru`, `ru.net`, geo `.su` ...) resolve to the third-level
+   domain (`example.msk.ru`), skip RDAP and go to the registry WHOIS,
+   `whois.flexireg.net`.
 2. Read cache. If present and `now - mtime < TTL`, return cached JSON
    plus `cache_age_seconds`.
 3. `asyncwhois.whois(apex)` → `(raw_text, parsed_dict)`. Library
@@ -375,7 +378,9 @@ that case `expires_at` is `""` and `days_to_expire` is `0` (the envelope
 carries no nulls — see web_check 2.1.8), and the "domain expires" triggers
 are suppressed for the host (gated on `provider_no_expiry=0` and
 `length(expires_at)>0`). `dnssec` is a tri-state string —
-`"signed"`/`"unsigned"`/`"unknown"` — not a boolean.
+`"signed"`/`"unsigned"`/`"unknown"` — not a boolean. Registry spellings
+such as `unsignedDelegation` map by prefix (`unsigned...` → `"unsigned"`,
+`signed...` → `"signed"`); anything unrecognised is `"unknown"`.
 
 **Dependent items:** `whois.days_to_expire`, `whois.expires_at`,
 `whois.registrar`, `whois.name_servers` (joined), `whois.dnssec`,
