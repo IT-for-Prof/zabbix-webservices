@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-__version__ = "2.2.4"
+__version__ = "2.2.5"
 SCHEMA_VERSION = 3
 
 # Layout assumed when deployed via scripts/deploy/install.sh.

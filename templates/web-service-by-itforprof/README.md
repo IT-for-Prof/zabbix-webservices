@@ -5,7 +5,7 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.7.1`                              |
+| Version          | `7.0-2.7.2`                              |
 | TLS profile      | `7.0-1.2.0`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
