@@ -198,7 +198,6 @@ def url_host(url: str, *, force_tls: bool = False) -> tuple[str | None, int]:
     if "://" not in url:
         url = "https://" + url
     p = urlparse(url)
-    # "example.org." is the same host; certificates and macros use the form without the dot
     host = (p.hostname or "").lower().rstrip(".") or None
     if force_tls:
         port = p.port if (p.port and p.scheme == "https") else 443
