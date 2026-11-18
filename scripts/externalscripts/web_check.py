@@ -1068,7 +1068,7 @@ def run_http3_check(url: str, *, timeout: float = 8.0) -> dict[str, Any]:
     # nameserver); add a daemon-thread join(timeout) if a collector has several
     # nameservers and the probe nears timeout_external_check (30s).
     try:
-        ip = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)[0][4][0]
+        ip = str(socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)[0][4][0])
     except socket.gaierror as e:
         result["error_code"] = "dns_error"
         result["error_message"] = str(e)[:300]
@@ -1330,14 +1330,14 @@ def _dnssec_state(value: Any) -> str:
     return "unknown"
 
 
-def _faitid_whois(apex: str, extractor: Any) -> tuple[str, dict[str, Any]]:
+def _faitid_whois(apex: str, extractor: Any) -> tuple[str, Any]:
     """Ask the FAITID registry directly; its answer is in the ICANN format."""
     from asyncwhois.client import DomainClient
 
     client = DomainClient(find_authoritative_server=False, tldextract_obj=extractor)
     raw: str = client.query_obj.run(apex, server=FAITID_WHOIS_SERVER)[-1]
     # The .ru parser reads only TCI's format; the generic ICANN parser reads this one.
-    return raw, dict(client.parse_obj.parse(raw, "com"))
+    return raw, client.parse_obj.parse(raw, "com")
 
 
 def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, Any]:  # noqa: C901 — flat dict shaping, not a real branchy function
@@ -1345,9 +1345,8 @@ def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, An
 
     def iso(v: Any) -> str | None:
         if isinstance(v, datetime):
-            if v.tzinfo is None:
-                v = v.replace(tzinfo=UTC)
-            return v.astimezone(UTC).isoformat()
+            dt: datetime = v if v.tzinfo else v.replace(tzinfo=UTC)
+            return dt.astimezone(UTC).isoformat()
         if isinstance(v, str):
             return v
         return None

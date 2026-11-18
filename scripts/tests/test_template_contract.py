@@ -221,7 +221,7 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.7.1"
+    assert _template()["vendor"]["version"] == "7.0-2.7.2"
 
 
 def test_cert_and_tcp_nodata_windows_follow_their_macros():
@@ -238,13 +238,9 @@ def test_cert_and_tcp_nodata_windows_follow_their_macros():
 
 
 @pytest.mark.parametrize(
-    "filename,nodata_period",
-    [
-        ("template_web_service_by_itforprof_com.yaml", "{$WEB_SERVICE.CERT.NODATA.PERIOD}"),
-        ("template_web_service_by_itforprof_com_tls.yaml", "{$WEB_SERVICE.CERT.NODATA.PERIOD}"),
-    ],
+    "filename", ["template_web_service_by_itforprof_com.yaml", "template_web_service_by_itforprof_com_tls.yaml"]
 )
-def test_persistent_cert_failure_escalates_after_three_polls_and_requires_fresh_data(filename, nodata_period):
+def test_persistent_cert_failure_escalates_after_three_polls_and_requires_fresh_data(filename):
     template = yaml.safe_load((TEMPLATE_PATH.parent / filename).read_text())["zabbix_export"]["templates"][0]
     items = {item["key"]: item for item in template["items"]}
     check = items["web_check.cert.ok"]
@@ -252,7 +248,7 @@ def test_persistent_cert_failure_escalates_after_three_polls_and_requires_fresh_
     persistent = triggers["Cert check failing on 3 consecutive checks"]
     assert persistent["priority"] == "AVERAGE"
     profile = template["template"]
-    fresh = f'nodata(/{profile}/web_check.py["cert","{{$WEB_SERVICE.URL}}"],{nodata_period})'
+    fresh = f'nodata(/{profile}/web_check.py["cert","{{$WEB_SERVICE.URL}}"],{{$WEB_SERVICE.CERT.NODATA.PERIOD}})'
     failing = f'count(/{profile}/web_check.cert.ok,#3,"eq",0)=3 and {fresh}=0'
     if "_tls" in filename:
         assert persistent["expression"] == failing
@@ -687,3 +683,24 @@ def test_silent_tcp_check_raises_no_data():
     assert nodata["priority"] == "AVERAGE"
     assert nodata["manual_close"] == "YES"
     assert {t["tag"]: t["value"] for t in nodata["tags"]} == {"scope": "data-collection", "url": "{$WEB_SERVICE.URL}"}
+
+
+def test_dnssec_item_drops_an_answer_without_the_field(web_check_module):
+    """main()'s internal_error has no dnssec field. CUSTOM_ERROR made the item NOTSUPPORTED, and
+    the discarded "unknown" values that follow never bring it back, so it stuck for good."""
+    import json
+    import subprocess
+    import sys
+
+    first = _item_by_key("web_check.whois.dnssec")["preprocessing"][0]
+    assert first["type"] == "JSONPATH"
+    assert first["parameters"] == ["$.dnssec"]
+    assert first["error_handler"] == "DISCARD_VALUE"
+    internal = subprocess.run(
+        [sys.executable, web_check_module.__file__, "whois", "https://example.org:99999/"],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    ).stdout
+    assert "dnssec" not in json.loads(internal)

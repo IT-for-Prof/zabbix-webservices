@@ -42,7 +42,7 @@ zabbix_export:
       Лицензия:     MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.7.1
+      version: 7.0-2.7.2
     groups:
     - name: Templates/Applications
     macros:
@@ -1090,8 +1090,7 @@ zabbix_export:
       - type: JSONPATH
         parameters:
         - $.dnssec
-        error_handler: CUSTOM_ERROR
-        error_handler_params: 'No WHOIS data: web_check.py whois returned error envelope (see master item JSON).'
+        error_handler: DISCARD_VALUE
       - type: MATCHES_REGEX
         parameters:
         - ^(signed|unsigned)$
