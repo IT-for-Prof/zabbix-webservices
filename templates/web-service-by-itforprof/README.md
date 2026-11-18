@@ -146,7 +146,7 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.WHOIS.NOTICE_DAYS}` | `7` | Domain expiry AVERAGE threshold (days). |
 | `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | `1` | Domain expiry AVERAGE threshold (days). HIGH fires on `days_to_expire < 0` (already expired). |
 | `{$WEB_SERVICE.TCP.SLOW_SEC}` | `3` | `net.tcp.service.perf` WARNING threshold. |
-| `{$WEB_SERVICE.HTTPS.PORT}` | `443` | Port of the https TCP check. Set it to the port of an `https://host:port` URL; keep `443` for `http://` URLs. A mismatch with the certificate check port raises a WARNING and suppresses the TCP failure trigger. |
+| `{$WEB_SERVICE.HTTPS.PORT}` | `443` | Port of the https TCP check. Set it to the port of an `https://host:port` URL. Keep `443` for `http://` URLs. A mismatch with the certificate check port raises a WARNING and suppresses the TCP failure trigger. |
 | `{$WEB_SERVICE.HTTP.PORT}` | `80` | Port of the http TCP check. Set it to the port of an `http://host:port` URL. |
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | `5m` | HTTP/3 master item delay. |
 | `{$WEB_SERVICE.HTTP3.SLOW_MS}` | `1000` | QUIC handshake time WARNING threshold (ms). |

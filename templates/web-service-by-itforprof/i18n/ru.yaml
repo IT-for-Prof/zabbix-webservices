@@ -95,7 +95,7 @@ Domain expires within N days AVERAGE trigger threshold.: 'Порог тригг�
 Domain expires within N days critical (AVERAGE) trigger threshold.: 'Критический порог по сроку домена (уровень «Средняя»): домен истекает через N дней.'
 ? Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
 : Хост или IP для диагностических простых проверок (net.dns.record, net.tcp.service.perf). По умолчанию — хост из {$WEB_SERVICE.URL}, при необходимости переопределяется на хосте.
-? Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port; keep 443 for http:// URLs, whose certificate check also uses 443. A mismatch with the certificate check port raises a WARNING.
+? Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port. Keep 443 for http:// URLs, whose certificate check also uses 443. A mismatch with the certificate check port raises a WARNING.
 : 'Порт https-проверки TCP. Если в {$WEB_SERVICE.URL} адрес https:// с явным портом, укажите этот порт. Для адресов http:// оставьте 443: проверка сертификата у них тоже идёт на 443. Если порт не совпадает с портом проверки сертификата, срабатывает предупреждение.'
 ? Port of the http TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is http:// with an explicit port; otherwise keep 80.
 : Порт http-проверки TCP. Если в {$WEB_SERVICE.URL} адрес http:// с явным портом, укажите этот порт, иначе оставьте 80.
@@ -328,7 +328,7 @@ True for ccTLDs like .hu where the registry intentionally omits expiry. Used to 
 : 'Порт, по которому шла проверка сертификата: порт из {$WEB_SERVICE.URL} с https://, иначе 443. Берётся только из успешных проверок, поэтому во время аварии остаётся последний настоящий порт.'
 HTTPS port macro does not match the URL port: Макрос https-порта не совпадает с портом URL
 URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST}): Порт URL {ITEM.LASTVALUE1} не совпадает с макросом https-порта {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})
-? 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed: it reports the wrong port.'
+? 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port.'
 : 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт.'
 'Diag: TCP {$WEB_SERVICE.HTTPS.PORT} performance': 'Диагностика: время соединения TCP {$WEB_SERVICE.HTTPS.PORT}'
 TCP {$WEB_SERVICE.HTTPS.PORT} connect failed: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}

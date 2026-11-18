@@ -12,23 +12,23 @@ Full profile only; Certificate-TLS and `web_check` are unchanged.
 
 The TCP checks were hardwired to 443 and 80, while the certificate check takes
 the https port from `{$WEB_SERVICE.URL}`. On a site with a non-standard port
-the diagnostics probed another service: a false AVERAGE "TCP 443 connect
-failed", and the certificate trigger's TCP condition kept a real certificate
-failure silent.
+the diagnostics probed another service. That raised a false AVERAGE "TCP 443
+connect failed", and the certificate trigger's TCP condition kept a real
+certificate failure silent.
 
 - `{$WEB_SERVICE.HTTPS.PORT}` (`443`) and `{$WEB_SERVICE.HTTP.PORT}` (`80`)
   replace the literals in both `net.tcp.service.perf` keys, the TCP trigger
   expressions and dependencies, and the certificate trigger's TCP condition.
   Item, trigger and event names show the macro. Defaults keep the previous
-  behaviour; uuids are unchanged, so an import updates the existing items and
-  keeps their history.
+  behaviour. The uuids are unchanged, so an import updates the existing items
+  and keeps their history.
 - New dependent item `web_check.cert.port` and WARNING "HTTPS port macro does
   not match the URL port". The port is read from successful certificate checks
   only, so an outage keeps the last real port. The trigger has no `nodata()`
-  and no dependency: it re-evaluates on each fresh value, and a fixed macro
+  and no dependency. It re-evaluates on each fresh value, and a fixed macro
   clears it within one check interval.
 - "TCP connect failed" depends on the mismatch trigger. A TCP check on the
-  wrong port no longer opens an AVERAGE (and a Planfix task); the WARNING names
+  wrong port no longer opens an AVERAGE (and a Planfix task). The WARNING names
   the cause. "Web service is failing" (HIGH) still reports a real outage.
 - The HTTP/3 description no longer says UDP/443: QUIC goes to the https port
   of the URL.
