@@ -1278,13 +1278,13 @@ zabbix_export:
       history: 7d
       trends: '0'
       value_type: UNSIGNED
-      description: 'Порт, по которому шла проверка сертификата: порт из {$WEB_SERVICE.URL} с https://, иначе 443. Берётся только из успешных проверок, поэтому во время аварии остаётся последний настоящий порт.'
+      description: 'Порт, по которому шла проверка сертификата: порт из {$WEB_SERVICE.URL} с https://, иначе 443. Берётся и из неудачных проверок, кроме случая, когда URL не разбирается.'
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
       - type: NOT_MATCHES_REGEX
         parameters:
-        - '"ok":false'
+        - '"error_code":"(bad_url|internal_error)"'
         error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
@@ -1299,7 +1299,7 @@ zabbix_export:
         event_name: Порт URL {ITEM.LASTVALUE1} не совпадает с макросом https-порта {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})
         priority: WARNING
         manual_close: 'YES'
-        description: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт. Через 15 мин без успешной проверки сертификата проблема закрывается, чтобы авария сайта её не удерживала.'
+        description: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт. Работает и во время аварии сайта: порт URL берётся и из неудачных проверок сертификата, а исправленный макрос закрывает проблему.'
         tags:
         - tag: scope
           value: diag
@@ -1311,13 +1311,13 @@ zabbix_export:
       key: web_check.cert.host
       history: 7d
       value_type: CHAR
-      description: Хост, который проверка сертификата взяла из {$WEB_SERVICE.URL}, в нижнем регистре. Берётся только из успешных проверок, поэтому во время аварии остаётся последний настоящий хост.
+      description: Хост, который проверка сертификата взяла из {$WEB_SERVICE.URL}, в нижнем регистре. Берётся и из неудачных проверок, кроме случая, когда URL не разбирается.
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
       - type: NOT_MATCHES_REGEX
         parameters:
-        - '"ok":false'
+        - '"error_code":"(bad_url|internal_error)"'
         error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
@@ -1332,7 +1332,7 @@ zabbix_export:
         event_name: Хост URL {ITEM.LASTVALUE1} не совпадает с макросом имени хоста «{$WEB_SERVICE.HOST}» — {HOST.NAME} ({HOST.HOST})
         priority: WARNING
         manual_close: 'YES'
-        description: 'TCP-проверки идут на {$WEB_SERVICE.HOST}, а он пуст или не совпадает с хостом в {$WEB_SERVICE.URL}. С пустым макросом проверки идут на адрес интерфейса хоста, часто 127.0.0.1. Задайте на хосте {$WEB_SERVICE.HOST}, равный хосту URL, в нижнем регистре; для кириллических доменов — в форме xn--. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой адрес. Через 15 мин без успешной проверки сертификата проблема закрывается, чтобы авария сайта её не удерживала.'
+        description: 'TCP-проверки идут на {$WEB_SERVICE.HOST}, а он пуст или не совпадает с хостом в {$WEB_SERVICE.URL}. С пустым макросом проверки идут на адрес интерфейса хоста, часто 127.0.0.1. Задайте на хосте {$WEB_SERVICE.HOST}, равный хосту URL, в нижнем регистре; для кириллических доменов — в форме xn--. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой адрес. Работает и во время аварии сайта: хост URL берётся и из неудачных проверок сертификата, а исправленный макрос закрывает проблему.'
         tags:
         - tag: scope
           value: diag

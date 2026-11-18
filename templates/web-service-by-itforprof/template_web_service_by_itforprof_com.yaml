@@ -1373,13 +1373,13 @@ zabbix_export:
       history: 7d
       trends: '0'
       value_type: UNSIGNED
-      description: 'Port the certificate check used: the port of an https:// {$WEB_SERVICE.URL}, otherwise 443. Read only from successful checks, so an outage keeps the last real port.'
+      description: 'Port the certificate check used: the port of an https:// {$WEB_SERVICE.URL}, otherwise 443. Read from failed checks too, except when the URL cannot be parsed.'
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
       - type: NOT_MATCHES_REGEX
         parameters:
-        - '"ok":false'
+        - '"error_code":"(bad_url|internal_error)"'
         error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
@@ -1394,7 +1394,7 @@ zabbix_export:
         event_name: 'URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
         manual_close: 'YES'
-        description: 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port. Closes after 15m without a successful certificate check, so a site outage does not keep it open.'
+        description: 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port. Works while the site is down too: the URL port comes from failed certificate checks as well, and fixing the macro closes it.'
         tags:
         - tag: scope
           value: diag
@@ -1406,13 +1406,13 @@ zabbix_export:
       key: web_check.cert.host
       history: 7d
       value_type: CHAR
-      description: 'Host the certificate check took from {$WEB_SERVICE.URL}, lowercase. Read only from successful checks, so an outage keeps the last real host.'
+      description: 'Host the certificate check took from {$WEB_SERVICE.URL}, lowercase. Read from failed checks too, except when the URL cannot be parsed.'
       master_item:
         key: web_check.py["cert","{$WEB_SERVICE.URL}"]
       preprocessing:
       - type: NOT_MATCHES_REGEX
         parameters:
-        - '"ok":false'
+        - '"error_code":"(bad_url|internal_error)"'
         error_handler: DISCARD_VALUE
       - type: JSONPATH
         parameters:
@@ -1427,7 +1427,7 @@ zabbix_export:
         event_name: 'URL host {ITEM.LASTVALUE1} differs from host macro "{$WEB_SERVICE.HOST}" — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
         manual_close: 'YES'
-        description: 'The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address. Closes after 15m without a successful certificate check, so a site outage does not keep it open.'
+        description: 'The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address. Works while the site is down too: the URL host comes from failed certificate checks as well, and fixing the macro closes it.'
         tags:
         - tag: scope
           value: diag

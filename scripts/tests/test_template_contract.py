@@ -19,6 +19,11 @@ TCP_NODATA = "TCP check no data received"
 WEB_NODATA = "Web service no data received"
 # Dependents of the cert master that only the full profile has (the mismatch checks).
 FULL_ONLY_CERT_DEPENDENTS = {"web_check.cert.port", "web_check.cert.host"}
+URL_FIELDS_DISCARD = {
+    "type": "NOT_MATCHES_REGEX",
+    "parameters": ['"error_code":"(bad_url|internal_error)"'],
+    "error_handler": "DISCARD_VALUE",
+}
 
 
 def _template() -> dict:
@@ -441,6 +446,11 @@ def test_cert_dependents_discard_the_error_envelope(filename, web_check_module):
         if item["key"] == "web_check.cert.ok":
             assert first["type"] == "JSONPATH", first
             continue
+        if item["key"] in FULL_ONLY_CERT_DEPENDENTS:
+            # Port and host come from the URL, so they are real in failed probes too:
+            # see test_url_mismatch_items_read_failed_probes_too.
+            assert first == URL_FIELDS_DISCARD, item["key"]
+            continue
         assert first == {"type": "NOT_MATCHES_REGEX", "parameters": ['"ok":false'], "error_handler": "DISCARD_VALUE"}, (
             item["key"]
         )
@@ -526,6 +536,50 @@ def test_tcp_objects_keep_identity_and_tags():
 def test_http3_description_names_the_url_port_not_443():
     triggers = _triggers_by_name()
     assert "UDP/443" not in triggers["HTTP/3 advertised but unreachable"]["description"]
+
+
+def test_url_mismatch_items_read_failed_probes_too(web_check_module):
+    """A host whose site is down from the start still gets its port and host compared.
+
+    Every failed probe except bad_url carries the URL host and port; bad_url has stubs and
+    main()'s internal_error (e.g. an out-of-range URL port) has neither field, so only those
+    two are discarded before JSONPath.
+    """
+    import json
+    import re
+    import socket
+    import subprocess
+    import sys
+    from dataclasses import asdict
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        closed = s.getsockname()[1]
+
+    def compact(payload):
+        return json.dumps(payload, separators=(",", ":"), default=str)
+
+    down = compact(asdict(web_check_module.check_cert(f"https://127.0.0.1:{closed}/", timeout=1)))
+    bad_url = compact(asdict(web_check_module.check_cert("", timeout=1)))
+    internal = subprocess.run(
+        [sys.executable, web_check_module.__file__, "cert", "https://example.org:99999/"],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    ).stdout.strip()
+    assert json.loads(down)["ok"] is False
+    assert json.loads(bad_url)["error_code"] == "bad_url"
+    assert json.loads(internal)["error_code"] == "internal_error"
+
+    for key, field, want in (("web_check.cert.port", "port", closed), ("web_check.cert.host", "host", "127.0.0.1")):
+        first = _item_by_key(key)["preprocessing"][0]
+        assert first == URL_FIELDS_DISCARD, key
+        regex = first["parameters"][0]
+        assert not re.search(regex, down), key
+        assert json.loads(down)[field] == want
+        assert re.search(regex, bad_url), key
+        assert re.search(regex, internal), key
 
 
 def test_port_mismatch_warns_on_fresh_cert_port_only():
