@@ -89,7 +89,7 @@ zabbix_export:
       description: Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
     - macro: '{$WEB_SERVICE.NODATA.PERIOD}'
       value: 10m
-      description: 'Period of no-data before the No-data trigger fires (web scenario item). Keep it under 15m: "TCP check no data received" depends on this trigger, which must open first.'
+      description: 'Period of no-data before the No-data trigger fires (web scenario item). Keep it under 15m: "TCP check no data received" stays silent while this trigger is open, and must not open first.'
     - macro: '{$WEB_SERVICE.CERT.WARN_DAYS}'
       value: '30'
       description: Cert expiry INFO trigger threshold (days).
@@ -1478,7 +1478,7 @@ zabbix_export:
         event_name: 'TCP/{$WEB_SERVICE.HTTPS.PORT} to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
         manual_close: 'YES'
       - uuid: a1dc2a8f8e9f4dc28e55764fd86b20ef
-        expression: nodata(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],15m)=1
+        expression: nodata(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],15m)=1 and nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=0
         name: TCP check no data received
         event_name: 'TCP check to {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: no value for 15m — {HOST.NAME} ({HOST.HOST})'
         opdata: 'no value for 15m — item NOTSUPPORTED or not polled'
@@ -1492,11 +1492,8 @@ zabbix_export:
             {$WEB_SERVICE.HOST} on a host without an interface, or a
             non-numeric {$WEB_SERVICE.HTTPS.PORT} (digits only, no spaces);
           - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} was raised to 15m or more.
-          Suppressed while "Web service no data received" is open: then the
-          whole collector is silent and that trigger already reports it.
-        dependencies:
-        - name: Web service no data received
-          expression: nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=1
+          Silent while the web scenario has no data either: then the whole
+          collector is quiet and "Web service no data received" reports it.
         tags:
         - tag: scope
           value: data-collection

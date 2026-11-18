@@ -22,8 +22,10 @@ triggers and the certificate trigger's TCP condition stayed UNKNOWN.
   empty, misspelt, spaced or copied `{$WEB_SERVICE.HOST}`. "TCP connect
   failed" depends on it, as it does on the port check.
 - New AVERAGE "TCP check no data received": the https TCP item got no value
-  for 15m. It depends on "Web service no data received", so a silent
-  collector opens one ticket.
+  for 15m. The expression also requires fresh web-scenario data, so a silent
+  collector opens one ticket ("Web service no data received"). A dependency
+  would freeze it, and a NOTSUPPORTED item never brings the value that
+  unfreezes it.
 
 ### Fixed
 

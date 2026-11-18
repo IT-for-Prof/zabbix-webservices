@@ -594,9 +594,14 @@ def test_silent_tcp_check_raises_no_data():
     trigger's TCP gate UNKNOWN; without this the host just goes quiet."""
     triggers = {t["name"]: t for t in _item_by_key(TCP_HTTPS_KEY)["triggers"]}
     nodata = triggers[TCP_NODATA]
-    assert nodata["expression"] == f"nodata(/Web service by itforprof.com/{TCP_HTTPS_KEY},15m)=1"
+    web_silent = _triggers_by_name()[WEB_NODATA]["expression"]
+    assert web_silent.endswith("=1")
+    # One ticket per collector failure: gated in the expression, like the cert trigger (2.5.1).
+    # A dependency would freeze it, and a NOTSUPPORTED item never brings the value that unfreezes it.
+    assert nodata["expression"] == (
+        f"nodata(/Web service by itforprof.com/{TCP_HTTPS_KEY},15m)=1 and {web_silent.removesuffix('=1')}=0"
+    )
+    assert not nodata.get("dependencies")
     assert nodata["priority"] == "AVERAGE"
     assert nodata["manual_close"] == "YES"
     assert {t["tag"]: t["value"] for t in nodata["tags"]} == {"scope": "data-collection", "url": "{$WEB_SERVICE.URL}"}
-    # One ticket per collector failure: the web scenario goes quiet too and already reports it.
-    assert nodata["dependencies"] == [{"name": WEB_NODATA, "expression": _triggers_by_name()[WEB_NODATA]["expression"]}]

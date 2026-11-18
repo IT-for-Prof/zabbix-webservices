@@ -83,8 +83,8 @@ How often the HTTP/3 master item runs.: Интервал основного эл
 : 'Интервал диагностических простых проверок. «Нет данных TCP-проверки» ждёт 15 мин: при интервале 15 мин и больше он срабатывает постоянно, от 5 до 15 мин — после одного пропущенного опроса.'
 ? Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
 : Среднее время ответа HTTP за 10 мин в секундах, выше которого срабатывает предупреждение. 10 с по умолчанию учитывают межконтинентальные задержки, для региональных сайтов — 5.
-? 'Period of no-data before the No-data trigger fires (web scenario item). Keep it under 15m: "TCP check no data received" depends on this trigger, which must open first.'
-: 'Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных». Держите меньше 15 мин: от этого триггера зависит «Нет данных TCP-проверки», и он должен открыться первым.'
+? 'Period of no-data before the No-data trigger fires (web scenario item). Keep it under 15m: "TCP check no data received" stays silent while this trigger is open, and must not open first.'
+: 'Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных». Держите меньше 15 мин: пока открыт этот триггер, «Нет данных TCP-проверки» молчит и не должен открыться раньше него.'
 Cert expiry INFO trigger threshold (days).: Порог триггера уровня «Информация» по сроку сертификата, дни.
 Cert expiry WARNING trigger threshold (days).: Порог триггера уровня «Предупреждение» по сроку сертификата, дни.
 Cert expiry critical (AVERAGE) trigger threshold (days).: Критический порог по сроку сертификата (уровень «Средняя»), дни.
@@ -355,8 +355,8 @@ no value for 15m — item NOTSUPPORTED or not polled: нет значений 15
     {$WEB_SERVICE.HOST} on a host without an interface, or a
     non-numeric {$WEB_SERVICE.HTTPS.PORT} (digits only, no spaces);
   - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} was raised to 15m or more.
-  Suppressed while "Web service no data received" is open: then the
-  whole collector is silent and that trigger already reports it.
+  Silent while the web scenario has no data either: then the whole
+  collector is quiet and "Web service no data received" reports it.
 : |
   Диагностический https-элемент TCP 15 мин не получает значений
   (три интервала по 5 мин по умолчанию). TCP-триггеры и условие TCP
@@ -365,8 +365,8 @@ no value for 15m — item NOTSUPPORTED or not polled: нет значений 15
     {$WEB_SERVICE.HOST} на хосте без интерфейса или нечисловой
     {$WEB_SERVICE.HTTPS.PORT} (только цифры, без пробелов);
   - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} увеличен до 15 мин или больше.
-  Триггер молчит, пока открыт «Нет данных веб-сервиса»: тогда молчит
-  весь сборщик, и об этом уже сообщает тот триггер.
+  Триггер молчит, пока нет данных и у веб-сценария: тогда молчит
+  весь сборщик, и об этом сообщает «Нет данных веб-сервиса».
 ? TCP/{$WEB_SERVICE.HTTPS.PORT} average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold via the macro on hosts behind a CDN with intentionally-distant POPs.
 : 'Среднее время соединения TCP/{$WEB_SERVICE.HTTPS.PORT} за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
 ? 'TCP/{$WEB_SERVICE.HTTPS.PORT} to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
