@@ -79,12 +79,12 @@ How often the deep TLS scan runs.: Интервал глубокого скан�
 How often the HTTP/3 master item runs.: Интервал основного элемента HTTP/3.
 ? QUIC handshake WARNING threshold in milliseconds. Default 1000ms tolerates intercontinental UDP+QUIC handshake. Drop to 250 for LAN.
 : Порог предупреждения для рукопожатия QUIC в миллисекундах. 1000 мс по умолчанию учитывают межконтинентальные задержки. Для локальной сети — 250.
-? 'How often diagnostic simple-check items run. "TCP check no data received" waits 15m: at 15m or more it fires all the time, between 5m and 15m after one missed poll.'
-: 'Интервал диагностических простых проверок. «Нет данных TCP-проверки» ждёт 15 мин: при интервале 15 мин и больше он срабатывает постоянно, от 5 до 15 мин — после одного пропущенного опроса.'
+How often diagnostic simple-check items run.: Интервал диагностических простых проверок.
+? No-data period for the https TCP diagnostic item. Keep at least three diagnostic check intervals. It must also exceed {$WEB_SERVICE.CERT.NODATA.PERIOD} plus one certificate check interval, so a silent collector opens only the certificate no-data problem.
+: 'Сколько времени диагностический https-элемент TCP может не получать значений, прежде чем сработает «Нет данных TCP-проверки». Держите не меньше трёх интервалов диагностических проверок и больше, чем {$WEB_SERVICE.CERT.NODATA.PERIOD} плюс один интервал проверки сертификата: тогда при молчании всего сборщика откроется только проблема «нет данных» сертификата.'
 ? Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
 : Среднее время ответа HTTP за 10 мин в секундах, выше которого срабатывает предупреждение. 10 с по умолчанию учитывают межконтинентальные задержки, для региональных сайтов — 5.
-? 'Period of no-data before the No-data trigger fires (web scenario item). Keep it under 15m: "TCP check no data received" stays silent while this trigger is open, and must not open first.'
-: 'Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных». Держите меньше 15 мин: пока открыт этот триггер, «Нет данных TCP-проверки» молчит и не должен открыться раньше него.'
+Period of no-data before the No-data trigger fires (web scenario item).: Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных».
 Cert expiry INFO trigger threshold (days).: Порог триггера уровня «Информация» по сроку сертификата, дни.
 Cert expiry WARNING trigger threshold (days).: Порог триггера уровня «Предупреждение» по сроку сертификата, дни.
 Cert expiry critical (AVERAGE) trigger threshold (days).: Критический порог по сроку сертификата (уровень «Средняя»), дни.
@@ -141,30 +141,7 @@ Web service slow response time: Веб-сервис отвечает медле�
 no fresh data from web scenario: нет свежих данных веб-сценария
 The web scenario item has not received fresh data for the configured period.: Элемент веб-сценария не получал свежих данных дольше заданного периода.
 Cert externalscript no data received: Нет данных внешнего скрипта сертификата
-'web_check.py cert: no fresh value in 15m — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py cert: нет свежего значения 15 мин — {$WEB_SERVICE.URL} на {HOST.HOST}'
 no value for 15m — item NOTSUPPORTED, disabled, or script not running: нет значения 15 мин — элемент не поддерживается, отключён или скрипт не запускается
-? |
-  The cert master item has not received a fresh value for 15m
-  (3× its default delay). Causes, in order of likelihood:
-  - the item is NOTSUPPORTED — read its error first (e.g. Invalid update
-    interval "{$WEB_SERVICE.CERT.CHECK.INTERVAL}", which happens when the
-    template gets unlinked from the host and its macros disappear);
-  - the item is disabled;
-  - web_check.py is not executing: check that
-    /usr/lib/zabbix/externalscripts/web_check.py exists and is executable
-    on this host's monitored_by, and that the venv at /opt/web_check/venv
-    is intact.
-: |
-  Основной элемент сертификата не получал свежего значения 15 мин
-  (втрое дольше интервала по умолчанию). Причины по убыванию вероятности:
-  - элемент не поддерживается — сначала прочитайте его ошибку (например,
-    Invalid update interval "{$WEB_SERVICE.CERT.CHECK.INTERVAL}": так бывает,
-    когда шаблон отвязали от хоста и его макросы пропали);
-  - элемент отключён;
-  - web_check.py не запускается: проверьте, что
-    /usr/lib/zabbix/externalscripts/web_check.py есть и исполняемый
-    там, где мониторится хост, и что venv в /opt/web_check/venv
-    в порядке.
 'Cert: days to expire': 'Сертификат: дней до истечения'
 Cert expired: Сертификат истёк
 TLS cert expired ({ITEM.LASTVALUE1} past not_after) — {$WEB_SERVICE.URL} on {HOST.HOST}: Сертификат TLS истёк ({ITEM.LASTVALUE1} после not_after) — {$WEB_SERVICE.URL} на {HOST.HOST}
@@ -326,19 +303,19 @@ web_check.py whois reports ok=false. Likely a transient registry hiccup or a TLD
 'WHOIS: provider has no expiry data': 'WHOIS: реестр не отдаёт срок'
 True for ccTLDs like .hu where the registry intentionally omits expiry. Used to gate the WHOIS-expiry triggers.: Истина для национальных доменов вроде .hu, где реестр намеренно не отдаёт срок регистрации. Отключает триггеры срока WHOIS.
 'Diag: certificate check port': 'Диагностика: порт проверки сертификата'
-? 'Port the certificate check used: the port of an https:// {$WEB_SERVICE.URL}, otherwise 443. Read only from successful checks, so an outage keeps the last real port.'
-: 'Порт, по которому шла проверка сертификата: порт из {$WEB_SERVICE.URL} с https://, иначе 443. Берётся только из успешных проверок, поэтому во время аварии остаётся последний настоящий порт.'
+? 'Port the certificate check used: the port of an https:// {$WEB_SERVICE.URL}, otherwise 443. Read from failed checks too, except when the URL cannot be parsed.'
+: 'Порт, по которому шла проверка сертификата: порт из {$WEB_SERVICE.URL} с https://, иначе 443. Берётся и из неудачных проверок, кроме случая, когда URL не разбирается.'
 HTTPS port macro does not match the URL port: Макрос https-порта не совпадает с портом URL
 'Diag: certificate check host': 'Диагностика: хост проверки сертификата'
-? Host the certificate check took from {$WEB_SERVICE.URL}, lowercase. Read only from successful checks, so an outage keeps the last real host.
-: Хост, который проверка сертификата взяла из {$WEB_SERVICE.URL}, в нижнем регистре. Берётся только из успешных проверок, поэтому во время аварии остаётся последний настоящий хост.
+? Host the certificate check took from {$WEB_SERVICE.URL}, lowercase. Read from failed checks too, except when the URL cannot be parsed.
+: Хост, который проверка сертификата взяла из {$WEB_SERVICE.URL}, в нижнем регистре. Берётся и из неудачных проверок, кроме случая, когда URL не разбирается.
 Host macro does not match the URL host: Макрос имени хоста не совпадает с хостом URL
 URL host {ITEM.LASTVALUE1} differs from host macro "{$WEB_SERVICE.HOST}" — {HOST.NAME} ({HOST.HOST}): Хост URL {ITEM.LASTVALUE1} не совпадает с макросом имени хоста «{$WEB_SERVICE.HOST}» — {HOST.NAME} ({HOST.HOST})
-? The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address. Closes after 15m without a successful certificate check, so a site outage does not keep it open.
-: 'TCP-проверки идут на {$WEB_SERVICE.HOST}, а он пуст или не совпадает с хостом в {$WEB_SERVICE.URL}. С пустым макросом проверки идут на адрес интерфейса хоста, часто 127.0.0.1. Задайте на хосте {$WEB_SERVICE.HOST}, равный хосту URL, в нижнем регистре; для кириллических доменов — в форме xn--. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой адрес. Через 15 мин без успешной проверки сертификата проблема закрывается, чтобы авария сайта её не удерживала.'
+? 'The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address. The URL host is read from failed certificate checks as well, so a site outage does not hide the mismatch; fixing the macro closes it.'
+: 'TCP-проверки идут на {$WEB_SERVICE.HOST}, а он пуст или не совпадает с хостом в {$WEB_SERVICE.URL}. С пустым макросом проверки идут на адрес интерфейса хоста, часто 127.0.0.1. Задайте на хосте {$WEB_SERVICE.HOST}, равный хосту URL, в нижнем регистре; для кириллических доменов — в форме xn--. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой адрес. Хост URL берётся и из неудачных проверок сертификата, поэтому авария сайта не скрывает несовпадение; исправленный макрос закрывает проблему.'
 URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST}): Порт URL {ITEM.LASTVALUE1} не совпадает с макросом https-порта {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})
-? 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port. Closes after 15m without a successful certificate check, so a site outage does not keep it open.'
-: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт. Через 15 мин без успешной проверки сертификата проблема закрывается, чтобы авария сайта её не удерживала.'
+? 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port. The URL port is read from failed certificate checks as well, so a site outage does not hide the mismatch; fixing the macro closes it.'
+: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт. Порт URL берётся и из неудачных проверок сертификата, поэтому авария сайта не скрывает несовпадение; исправленный макрос закрывает проблему.'
 'Diag: TCP {$WEB_SERVICE.HTTPS.PORT} performance': 'Диагностика: время соединения TCP {$WEB_SERVICE.HTTPS.PORT}'
 TCP {$WEB_SERVICE.HTTPS.PORT} connect failed: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
 ? TCP/{$WEB_SERVICE.HTTPS.PORT} to the monitored host is refused or unreachable on two consecutive checks. Silent while a fresh certificate check shows that the port or host macro differs from the URL; the mismatch WARNING reports that instead.
@@ -346,28 +323,32 @@ TCP {$WEB_SERVICE.HTTPS.PORT} connect failed: Нет соединения TCP {$
 TCP/{$WEB_SERVICE.HTTPS.PORT} connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST}): Нет соединения TCP/{$WEB_SERVICE.HTTPS.PORT} с {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
 TCP {$WEB_SERVICE.HTTPS.PORT} connect slow: Медленное соединение TCP {$WEB_SERVICE.HTTPS.PORT}
 TCP check no data received: Нет данных TCP-проверки
-'TCP check to {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: no value for 15m — {HOST.NAME} ({HOST.HOST})': 'TCP-проверка {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: нет значений 15 мин — {HOST.NAME} ({HOST.HOST})'
-no value for 15m — item NOTSUPPORTED or not polled: нет значений 15 мин — элемент NOTSUPPORTED или не опрашивается
+'TCP check to {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: no value for {$WEB_SERVICE.DIAG.NODATA.PERIOD} — {HOST.NAME} ({HOST.HOST})': 'TCP-проверка {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: нет значений {$WEB_SERVICE.DIAG.NODATA.PERIOD} — {HOST.NAME} ({HOST.HOST})'
+no value for {$WEB_SERVICE.DIAG.NODATA.PERIOD} — item NOTSUPPORTED or not polled: нет значений {$WEB_SERVICE.DIAG.NODATA.PERIOD} — элемент NOTSUPPORTED или не опрашивается
 ? |
-  The https TCP diagnostic item has not received a value for 15m
-  (3x its default 5m interval). The TCP triggers and the TCP condition
-  of the certificate trigger cannot evaluate meanwhile. Causes:
+  The https TCP diagnostic item has not received a value for
+  {$WEB_SERVICE.DIAG.NODATA.PERIOD}. The TCP triggers and the TCP
+  condition of the certificate trigger cannot evaluate meanwhile. Causes:
   - the item is NOTSUPPORTED: read its error, usually an empty
     {$WEB_SERVICE.HOST} on a host without an interface, or a
     non-numeric {$WEB_SERVICE.HTTPS.PORT} (digits only, no spaces);
-  - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} was raised to 15m or more.
-  Silent while the web scenario has no data either: then the whole
-  collector is quiet and "Web service no data received" reports it.
+  - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} was raised above a third of
+    {$WEB_SERVICE.DIAG.NODATA.PERIOD}.
+  Silent while the certificate check has no data either: then the
+  whole collector is quiet and "Cert externalscript no data received"
+  reports it. Works with the web scenario disabled.
 : |
-  Диагностический https-элемент TCP 15 мин не получает значений
-  (три интервала по 5 мин по умолчанию). TCP-триггеры и условие TCP
+  Диагностический https-элемент TCP не получает значений
+  {$WEB_SERVICE.DIAG.NODATA.PERIOD}. TCP-триггеры и условие TCP
   в триггере сертификата пока не вычисляются. Причины:
   - элемент NOTSUPPORTED: прочитайте его ошибку, обычно это пустой
     {$WEB_SERVICE.HOST} на хосте без интерфейса или нечисловой
     {$WEB_SERVICE.HTTPS.PORT} (только цифры, без пробелов);
-  - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} увеличен до 15 мин или больше.
-  Триггер молчит, пока нет данных и у веб-сценария: тогда молчит
-  весь сборщик, и об этом сообщает «Нет данных веб-сервиса».
+  - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} больше трети
+    {$WEB_SERVICE.DIAG.NODATA.PERIOD}.
+  Триггер молчит, пока нет данных и у проверки сертификата: тогда молчит
+  весь сборщик, и об этом сообщает «Нет данных внешнего скрипта
+  сертификата». Работает и с отключённым веб-сценарием.
 ? TCP/{$WEB_SERVICE.HTTPS.PORT} average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold via the macro on hosts behind a CDN with intentionally-distant POPs.
 : 'Среднее время соединения TCP/{$WEB_SERVICE.HTTPS.PORT} за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
 ? 'TCP/{$WEB_SERVICE.HTTPS.PORT} to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'

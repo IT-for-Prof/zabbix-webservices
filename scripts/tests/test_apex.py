@@ -53,6 +53,17 @@ def test_url_host_parsing(web_check_module):
     assert web_check_module.url_host("http://example.com") == ("example.com", 80)
 
 
+def test_url_host_drops_the_trailing_dot(web_check_module):
+    # A fully qualified "example.org." names the same host; certificates and
+    # {$WEB_SERVICE.HOST} use the form without the dot.
+    assert web_check_module.url_host("https://example.org./") == ("example.org", 443)
+    assert web_check_module.url_host("https://Example.org.:8443/", force_tls=True) == ("example.org", 8443)
+    host, _ = web_check_module.url_host("https://example.org./")
+    assert web_check_module._hostname_covered(host, ["example.org"]) is True
+    # Only the one root dot: "example.org.." is not a valid name and must not become another host.
+    assert web_check_module.url_host("https://example.org../")[0] == "example.org."
+
+
 def test_tld_of(web_check_module):
     assert web_check_module.tld_of("itforprof.com") == "com"
     assert web_check_module.tld_of("xn--80aac.xn--p1ai") == "xn--p1ai"

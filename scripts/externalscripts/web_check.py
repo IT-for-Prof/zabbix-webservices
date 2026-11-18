@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-__version__ = "2.2.3"
+__version__ = "2.2.4"
 SCHEMA_VERSION = 3
 
 # Layout assumed when deployed via scripts/deploy/install.sh.
@@ -198,7 +198,7 @@ def url_host(url: str, *, force_tls: bool = False) -> tuple[str | None, int]:
     if "://" not in url:
         url = "https://" + url
     p = urlparse(url)
-    host = p.hostname.lower() if p.hostname else None
+    host = (p.hostname or "").lower().removesuffix(".") or None
     if force_tls:
         port = p.port if (p.port and p.scheme == "https") else 443
     elif p.port:

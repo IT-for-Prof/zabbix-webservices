@@ -16,9 +16,13 @@ TCP_SLOW = "TCP {$WEB_SERVICE.HTTPS.PORT} connect slow"
 PORT_MISMATCH = "HTTPS port macro does not match the URL port"
 HOST_MISMATCH = "Host macro does not match the URL host"
 TCP_NODATA = "TCP check no data received"
-WEB_NODATA = "Web service no data received"
 # Dependents of the cert master that only the full profile has (the mismatch checks).
 FULL_ONLY_CERT_DEPENDENTS = {"web_check.cert.port", "web_check.cert.host"}
+URL_FIELDS_DISCARD = {
+    "type": "NOT_MATCHES_REGEX",
+    "parameters": ['"error_code":"(bad_url|internal_error)"'],
+    "error_handler": "DISCARD_VALUE",
+}
 
 
 def _template() -> dict:
@@ -217,13 +221,26 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.7.0"
+    assert _template()["vendor"]["version"] == "7.0-2.7.1"
+
+
+def test_cert_and_tcp_nodata_windows_follow_their_macros():
+    """A raised check interval needs a longer no-data window, or "no data" fires between polls."""
+    import re
+
+    macros = {m["macro"]: m.get("value") for m in _template()["macros"]}
+    assert macros["{$WEB_SERVICE.CERT.NODATA.PERIOD}"] == "15m"
+    # Longer than the cert window plus one 5m cert interval: a silent collector opens only the cert problem.
+    assert macros["{$WEB_SERVICE.DIAG.NODATA.PERIOD}"] == "20m"
+    keys = ('web_check.py["cert"', "web_check.cert.port", "web_check.cert.host", "net.tcp.service.perf[https,")
+    literal = [e for e in _all_expressions(_template()) for k in keys if re.search(re.escape(k) + r"[^)]*,15m\)", e)]
+    assert literal == []
 
 
 @pytest.mark.parametrize(
     "filename,nodata_period",
     [
-        ("template_web_service_by_itforprof_com.yaml", "15m"),
+        ("template_web_service_by_itforprof_com.yaml", "{$WEB_SERVICE.CERT.NODATA.PERIOD}"),
         ("template_web_service_by_itforprof_com_tls.yaml", "{$WEB_SERVICE.CERT.NODATA.PERIOD}"),
     ],
 )
@@ -441,6 +458,11 @@ def test_cert_dependents_discard_the_error_envelope(filename, web_check_module):
         if item["key"] == "web_check.cert.ok":
             assert first["type"] == "JSONPATH", first
             continue
+        if item["key"] in FULL_ONLY_CERT_DEPENDENTS:
+            # Port and host come from the URL, so they are real in failed probes too:
+            # see test_url_mismatch_items_read_failed_probes_too.
+            assert first == URL_FIELDS_DISCARD, item["key"]
+            continue
         assert first == {"type": "NOT_MATCHES_REGEX", "parameters": ['"ok":false'], "error_handler": "DISCARD_VALUE"}, (
             item["key"]
         )
@@ -528,6 +550,50 @@ def test_http3_description_names_the_url_port_not_443():
     assert "UDP/443" not in triggers["HTTP/3 advertised but unreachable"]["description"]
 
 
+def test_url_mismatch_items_read_failed_probes_too(web_check_module):
+    """A host whose site is down from the start still gets its port and host compared.
+
+    Every failed probe except bad_url carries the URL host and port; bad_url has stubs and
+    main()'s internal_error (e.g. an out-of-range URL port) has neither field, so only those
+    two are discarded before JSONPath.
+    """
+    import json
+    import re
+    import socket
+    import subprocess
+    import sys
+    from dataclasses import asdict
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        closed = s.getsockname()[1]
+
+    def compact(payload):
+        return json.dumps(payload, separators=(",", ":"), default=str)
+
+    down = compact(asdict(web_check_module.check_cert(f"https://127.0.0.1:{closed}/", timeout=1)))
+    bad_url = compact(asdict(web_check_module.check_cert("", timeout=1)))
+    internal = subprocess.run(
+        [sys.executable, web_check_module.__file__, "cert", "https://example.org:99999/"],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    ).stdout.strip()
+    assert json.loads(down)["ok"] is False
+    assert json.loads(bad_url)["error_code"] == "bad_url"
+    assert json.loads(internal)["error_code"] == "internal_error"
+
+    for key, field, want in (("web_check.cert.port", "port", closed), ("web_check.cert.host", "host", "127.0.0.1")):
+        first = _item_by_key(key)["preprocessing"][0]
+        assert first == URL_FIELDS_DISCARD, key
+        regex = first["parameters"][0]
+        assert not re.search(regex, down), key
+        assert json.loads(down)[field] == want
+        assert re.search(regex, bad_url), key
+        assert re.search(regex, internal), key
+
+
 def test_port_mismatch_warns_on_fresh_cert_port_only():
     """A forgotten {$WEB_SERVICE.HTTPS.PORT} on a host whose 443 answers would leave TCP diagnostics
     silently checking another service; the cert probe already reports the URL port, so compare them."""
@@ -546,7 +612,7 @@ def test_port_mismatch_warns_on_fresh_cert_port_only():
     # and nodata() puts it on the 30s timer, so a corrected macro clears it without a new value.
     assert trigger["expression"] == (
         "last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}"
-        " and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0"
+        " and nodata(/Web service by itforprof.com/web_check.cert.port,{$WEB_SERVICE.CERT.NODATA.PERIOD})=0"
     )
     assert trigger["priority"] == "WARNING"
     assert trigger["manual_close"] == "YES"
@@ -566,8 +632,8 @@ def test_tcp_failure_is_suppressed_while_a_macro_mismatches():
     t = "/Web service by itforprof.com/"
     assert _triggers_by_name()[TCP_FAILED]["expression"] == (
         f"max({t}{TCP_HTTPS_KEY},#2)=0"
-        f" and (last({t}web_check.cert.port)={{$WEB_SERVICE.HTTPS.PORT}} or nodata({t}web_check.cert.port,15m)=1)"
-        f' and (last({t}web_check.cert.host)="{{$WEB_SERVICE.HOST}}" or nodata({t}web_check.cert.host,15m)=1)'
+        f" and (last({t}web_check.cert.port)={{$WEB_SERVICE.HTTPS.PORT}} or nodata({t}web_check.cert.port,{{$WEB_SERVICE.CERT.NODATA.PERIOD}})=1)"
+        f' and (last({t}web_check.cert.host)="{{$WEB_SERVICE.HOST}}" or nodata({t}web_check.cert.host,{{$WEB_SERVICE.CERT.NODATA.PERIOD}})=1)'
     )
     assert not _triggers_by_name()[TCP_FAILED].get("dependencies")
 
@@ -593,7 +659,7 @@ def test_host_mismatch_warns_when_host_macro_differs_from_url_host():
     assert trigger["name"] == HOST_MISMATCH
     assert trigger["expression"] == (
         'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"'
-        " and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0"
+        " and nodata(/Web service by itforprof.com/web_check.cert.host,{$WEB_SERVICE.CERT.NODATA.PERIOD})=0"
     )
     assert trigger["priority"] == "WARNING"
     assert trigger["manual_close"] == "YES"
@@ -608,12 +674,14 @@ def test_silent_tcp_check_raises_no_data():
     trigger's TCP gate UNKNOWN; without this the host just goes quiet."""
     triggers = {t["name"]: t for t in _item_by_key(TCP_HTTPS_KEY)["triggers"]}
     nodata = triggers[TCP_NODATA]
-    web_silent = _triggers_by_name()[WEB_NODATA]["expression"]
-    assert web_silent.endswith("=1")
-    # One ticket per collector failure: gated in the expression, like the cert trigger (2.5.1).
-    # A dependency would freeze it, and a NOTSUPPORTED item never brings the value that unfreezes it.
+    cert = 'web_check.py["cert","{$WEB_SERVICE.URL}"]'
+    # One ticket per collector failure: gated in the expression on fresh cert data, like the cert
+    # trigger (2.5.1). A dependency would freeze it, and a NOTSUPPORTED item never brings the value
+    # that unfreezes it. The gate must not read the web scenario item: Zabbix does not evaluate a
+    # trigger whose item is disabled, so a disabled scenario would silence this trigger.
     assert nodata["expression"] == (
-        f"nodata(/Web service by itforprof.com/{TCP_HTTPS_KEY},15m)=1 and {web_silent.removesuffix('=1')}=0"
+        f"nodata(/Web service by itforprof.com/{TCP_HTTPS_KEY},{{$WEB_SERVICE.DIAG.NODATA.PERIOD}})=1"
+        f" and nodata(/Web service by itforprof.com/{cert},{{$WEB_SERVICE.CERT.NODATA.PERIOD}})=0"
     )
     assert not nodata.get("dependencies")
     assert nodata["priority"] == "AVERAGE"

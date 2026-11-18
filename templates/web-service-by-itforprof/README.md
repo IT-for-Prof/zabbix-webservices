@@ -5,7 +5,7 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.7.0`                              |
+| Version          | `7.0-2.7.1`                              |
 | TLS profile      | `7.0-1.2.0`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
@@ -110,7 +110,7 @@ longer matches them.
   venv layout (`/opt/web_check/venv`, Python 3.12 installed by `uv` — the host's system Python is not used; codebase floor is 3.11).
 - `fping` ≥ 3.10 on the monitor node (for Layer 4 ICMP items).
 
-## Macros (29)
+## Macros (31)
 
 Required:
 
@@ -130,10 +130,12 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.USER_AGENT}` | `Zabbix-WebService-by-itforprof/2.0` | UA header. |
 | `{$WEB_SERVICE.CHECK.INTERVAL}` | `1m` | Web scenario delay. |
 | `{$WEB_SERVICE.CERT.CHECK.INTERVAL}` | `5m` | Cert master delay. |
+| `{$WEB_SERVICE.CERT.NODATA.PERIOD}` | `15m` | Cert no-data window, also the freshness window of the port and host checks. Keep at least 3× the cert delay. |
 | `{$WEB_SERVICE.WHOIS.CHECK.INTERVAL}` | `1h` | WHOIS master delay (mostly cache hits). |
 | `{$WEB_SERVICE.WHOIS.CACHE.TTL}` | `86400` | WHOIS cache TTL (s). |
 | `{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}` | `1d` | Deep TLS scan delay. |
 | `{$WEB_SERVICE.DIAG.CHECK.INTERVAL}` | `5m` | Diag simple-check delay. |
+| `{$WEB_SERVICE.DIAG.NODATA.PERIOD}` | `20m` | https TCP no-data window. Keep at least 3× the diag delay and longer than the cert window plus one cert delay. |
 | `{$WEB_SERVICE.SLOW.WARN}` | `10` | Avg HTTP response > N (s, 10m) → WARNING. |
 | `{$WEB_SERVICE.NODATA.PERIOD}` | `10m` | Web scenario no-data trigger window. |
 | `{$WEB_SERVICE.CERT.WARN_DAYS}` | `30` | Cert expiry INFO threshold. |
@@ -154,7 +156,7 @@ With defaults (override per host as needed):
 ## Adding a host
 
 1. Set `{$WEB_SERVICE.URL}`.
-2. Set `{$WEB_SERVICE.HOST}` to the host of that URL, lowercase (`xn--` form for IDN domains). If it is left empty, the TCP checks probe the host interface address and nothing reports it until the first successful certificate check raises "Host macro does not match the URL host".
+2. Set `{$WEB_SERVICE.HOST}` to the host of that URL, lowercase (`xn--` form for IDN domains). If it is left empty, the TCP checks probe the host interface address and nothing reports it until the first certificate check raises "Host macro does not match the URL host".
 3. If the URL carries an explicit https port (`https://host:8448/`), set `{$WEB_SERVICE.HTTPS.PORT}` to it.
 4. Run `scripts/sync-domain-registry-owners.py --apply` on that server after adding or re-enabling a host, so only one host per registered domain keeps the WHOIS triggers.
 
@@ -239,8 +241,10 @@ stays silent.
 
 NODATA coverage:
 - Web scenario: `{$WEB_SERVICE.NODATA.PERIOD}` (default 10m).
-- Cert / WHOIS / TLS-scan / HTTP/3 externalscripts: 3× their own delay
-  (15m / 3h / 3d / 15m). Distinct from each script's own `ok=false` envelope;
+- Cert externalscript: `{$WEB_SERVICE.CERT.NODATA.PERIOD}` (default 15m).
+- https TCP check: `{$WEB_SERVICE.DIAG.NODATA.PERIOD}` (default 20m).
+- WHOIS / TLS-scan / HTTP/3 externalscripts: 3× their own delay
+  (3h / 3d / 15m). Distinct from each script's own `ok=false` envelope;
   the NODATA triggers fire when the externalscript wasn't invoked at all
   (binary missing, fork refused, etc).
 

@@ -4,6 +4,44 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.7.1] - 2026-11-18
+
+Full profile and `web_check.py` 2.2.4; Certificate-TLS is unchanged. Removes
+four limitations recorded for 7.0-2.7.0.
+
+### Fixed — mismatch checks work from the first certificate check
+
+`web_check.cert.port` and `web_check.cert.host` read every certificate check
+result except `bad_url` (stub host) and `internal_error` (no host or port, e.g.
+an out-of-range URL port). Before, they skipped every failed check, so a new
+host whose site was down was not compared until the first successful check.
+An open mismatch now stays open during a site outage while the macro is wrong,
+and closes as soon as the macro is fixed.
+
+### Fixed — no-data windows are set by macros
+
+New `{$WEB_SERVICE.CERT.NODATA.PERIOD}` (15m, as in Certificate-TLS) and
+`{$WEB_SERVICE.DIAG.NODATA.PERIOD}` (20m) replace the literal `15m` in the
+certificate and https TCP no-data conditions. When
+`{$WEB_SERVICE.CERT.CHECK.INTERVAL}` or `{$WEB_SERVICE.DIAG.CHECK.INTERVAL}`
+is raised to 15m or more, raise the matching period with it, and "no data"
+no longer fires between polls.
+
+### Fixed — "TCP check no data received" with the web scenario disabled
+
+The trigger required fresh web-scenario data. Zabbix does not evaluate a
+trigger whose item is disabled, so a disabled web scenario left it UNKNOWN
+(checked on a temporary host). It now requires fresh certificate data
+instead. The TCP window is 20m, longer than the certificate window plus one
+5m certificate interval, so a silent collector still opens one ticket
+("Cert externalscript no data received").
+
+### Fixed — trailing dot in the URL host (`web_check.py` 2.2.4)
+
+`https://example.org./` gave the host `example.org.`, which matched no SAN
+(HIGH "hostname not covered") and differed from `{$WEB_SERVICE.HOST}`.
+`url_host` drops the dot for every command.
+
 ## [7.0-2.7.0] - 2026-11-18
 
 Full profile only; Certificate-TLS and `web_check` are unchanged.
