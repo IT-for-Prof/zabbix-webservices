@@ -1,7 +1,7 @@
 # Architecture
 
 > Repository versions: full template `7.0-2.7.1`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
-> `web_check.py` 2.2.4 is installed on the second server and the four serving proxies; the production server still runs 2.2.3 until its SSH access is restored.
+> `web_check.py` 2.2.4 is installed on both servers and the four serving proxies.
 
 ## Goal
 
