@@ -83,7 +83,8 @@ How often the HTTP/3 master item runs.: Интервал основного эл
 : 'Интервал диагностических простых проверок. «Нет данных TCP-проверки» ждёт 15 мин: при интервале 15 мин и больше он срабатывает постоянно, от 5 до 15 мин — после одного пропущенного опроса.'
 ? Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
 : Среднее время ответа HTTP за 10 мин в секундах, выше которого срабатывает предупреждение. 10 с по умолчанию учитывают межконтинентальные задержки, для региональных сайтов — 5.
-Period of no-data before the No-data trigger fires (web scenario item).: Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных».
+? 'Period of no-data before the No-data trigger fires (web scenario item). Keep it under 15m: "TCP check no data received" depends on this trigger, which must open first.'
+: 'Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных». Держите меньше 15 мин: от этого триггера зависит «Нет данных TCP-проверки», и он должен открыться первым.'
 Cert expiry INFO trigger threshold (days).: Порог триггера уровня «Информация» по сроку сертификата, дни.
 Cert expiry WARNING trigger threshold (days).: Порог триггера уровня «Предупреждение» по сроку сертификата, дни.
 Cert expiry critical (AVERAGE) trigger threshold (days).: Критический порог по сроку сертификата (уровень «Средняя»), дни.

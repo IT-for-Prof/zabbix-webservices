@@ -89,7 +89,7 @@ zabbix_export:
       description: Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
     - macro: '{$WEB_SERVICE.NODATA.PERIOD}'
       value: 10m
-      description: Period of no-data before the No-data trigger fires (web scenario item).
+      description: 'Period of no-data before the No-data trigger fires (web scenario item). Keep it under 15m: "TCP check no data received" depends on this trigger, which must open first.'
     - macro: '{$WEB_SERVICE.CERT.WARN_DAYS}'
       value: '30'
       description: Cert expiry INFO trigger threshold (days).
