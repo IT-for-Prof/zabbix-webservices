@@ -95,6 +95,10 @@ Domain expires within N days AVERAGE trigger threshold.: 'Порог тригг�
 Domain expires within N days critical (AVERAGE) trigger threshold.: 'Критический порог по сроку домена (уровень «Средняя»): домен истекает через N дней.'
 ? Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
 : Хост или IP для диагностических простых проверок (net.dns.record, net.tcp.service.perf). По умолчанию — хост из {$WEB_SERVICE.URL}, при необходимости переопределяется на хосте.
+? Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port; keep 443 for http:// URLs, whose certificate check also uses 443. A mismatch with the certificate check port raises a WARNING.
+: 'Порт https-проверки TCP. Если в {$WEB_SERVICE.URL} адрес https:// с явным портом, укажите этот порт. Для адресов http:// оставьте 443: проверка сертификата у них тоже идёт на 443. Если порт не совпадает с портом проверки сертификата, срабатывает предупреждение.'
+? Port of the http TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is http:// with an explicit port; otherwise keep 80.
+: Порт http-проверки TCP. Если в {$WEB_SERVICE.URL} адрес http:// с явным портом, укажите этот порт, иначе оставьте 80.
 ? net.tcp.service.perf WARNING threshold in seconds. Default 3s tolerates intercontinental TCP+TLS handshake (~300-800ms typical) plus headroom. Drop to 1 for LAN/regional monitoring.
 : Порог предупреждения для net.tcp.service.perf в секундах. 3 с по умолчанию покрывают межконтинентальное соединение TCP и TLS (обычно 300–800 мс) с запасом. Для локальной сети и проверок внутри региона — 1.
 'Cert: probe (master JSON)': 'Сертификат: проверка (основной JSON)'
@@ -319,16 +323,23 @@ web_check.py whois reports ok=false. Likely a transient registry hiccup or a TLD
 'web_check.py whois reports {ITEM.LASTVALUE2}: {ITEM.LASTVALUE3} — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py whois вернул {ITEM.LASTVALUE2}: {ITEM.LASTVALUE3} — {$WEB_SERVICE.URL} на {HOST.HOST}'
 'WHOIS: provider has no expiry data': 'WHOIS: реестр не отдаёт срок'
 True for ccTLDs like .hu where the registry intentionally omits expiry. Used to gate the WHOIS-expiry triggers.: Истина для национальных доменов вроде .hu, где реестр намеренно не отдаёт срок регистрации. Отключает триггеры срока WHOIS.
-'Diag: TCP 443 performance': 'Диагностика: время соединения TCP 443'
-TCP 443 connect failed: Нет соединения TCP 443
-TCP/443 to the monitored host is refused or unreachable on two consecutive checks.: Две проверки подряд соединение TCP/443 с хостом отклонено, или хост недоступен.
-TCP/443 connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST}): Нет соединения TCP/443 с {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
-TCP 443 connect slow: Медленное соединение TCP 443
-? TCP/443 average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold via the macro on hosts behind a CDN with intentionally-distant POPs.
-: 'Среднее время соединения TCP/443 за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
-? 'TCP/443 to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
-: 'Медленное соединение TCP/443 с {$WEB_SERVICE.HOST}: в среднем {ITEM.LASTVALUE1} за 30 мин (порог {$WEB_SERVICE.TCP.SLOW_SEC} с) — {HOST.NAME} ({HOST.HOST})'
-'Diag: TCP 80 performance': 'Диагностика: время соединения TCP 80'
+'Diag: certificate check port': 'Диагностика: порт проверки сертификата'
+? 'Port the certificate check used: the port of an https:// {$WEB_SERVICE.URL}, otherwise 443. Read only from successful checks, so an outage keeps the last real port.'
+: 'Порт, по которому шла проверка сертификата: порт из {$WEB_SERVICE.URL} с https://, иначе 443. Берётся только из успешных проверок, поэтому во время аварии остаётся последний настоящий порт.'
+HTTPS port macro does not match the URL port: Макрос https-порта не совпадает с портом URL
+URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST}): Порт URL {ITEM.LASTVALUE1} не совпадает с макросом https-порта {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})
+? 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed: it reports the wrong port.'
+: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт.'
+'Diag: TCP {$WEB_SERVICE.HTTPS.PORT} performance': 'Диагностика: время соединения TCP {$WEB_SERVICE.HTTPS.PORT}'
+TCP {$WEB_SERVICE.HTTPS.PORT} connect failed: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
+TCP/{$WEB_SERVICE.HTTPS.PORT} to the monitored host is refused or unreachable on two consecutive checks.: Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен.
+TCP/{$WEB_SERVICE.HTTPS.PORT} connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST}): Нет соединения TCP/{$WEB_SERVICE.HTTPS.PORT} с {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
+TCP {$WEB_SERVICE.HTTPS.PORT} connect slow: Медленное соединение TCP {$WEB_SERVICE.HTTPS.PORT}
+? TCP/{$WEB_SERVICE.HTTPS.PORT} average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold via the macro on hosts behind a CDN with intentionally-distant POPs.
+: 'Среднее время соединения TCP/{$WEB_SERVICE.HTTPS.PORT} за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
+? 'TCP/{$WEB_SERVICE.HTTPS.PORT} to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
+: 'Медленное соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с {$WEB_SERVICE.HOST}: в среднем {ITEM.LASTVALUE1} за 30 мин (порог {$WEB_SERVICE.TCP.SLOW_SEC} с) — {HOST.NAME} ({HOST.HOST})'
+'Diag: TCP {$WEB_SERVICE.HTTP.PORT} performance': 'Диагностика: время соединения TCP {$WEB_SERVICE.HTTP.PORT}'
 'TLS scan: matrix (master JSON)': 'Скан TLS: матрица (основной JSON)'
 ? |
   Runs `web_check.py tls-scan <url>` daily. Returns supported
@@ -379,14 +390,14 @@ HTTP/3 advertised but unreachable: HTTP/3 объявлен, но недосту�
 ? |-
   The server advertises HTTP/3 in its Alt-Svc header but the QUIC
   handshake from this proxy failed on 3 consecutive checks (~10-15 min).
-  The site still answers over HTTP/2. Causes: UDP/443 dropped on the
+  The site still answers over HTTP/2. Causes: UDP to the https port of the URL dropped on the
   path, server-side QUIC stack misconfigured, or CDN regression. Checks
   that failed on DNS (error_code=dns_error) are not counted. Cross-check
   with the network-diagnostic items.
 : |-
   Сервер объявляет HTTP/3 в заголовке Alt-Svc, но рукопожатие QUIC
   с этого прокси не прошло на трёх проверках подряд (около 10–15 мин).
-  Сайт продолжает отвечать по HTTP/2. Причины: UDP/443 режется по пути,
+  Сайт продолжает отвечать по HTTP/2. Причины: UDP на https-порт из URL режется по пути,
   стек QUIC на сервере настроен неверно или регрессия CDN. Проверки,
   упавшие на DNS (error_code=dns_error), не учитываются. Сверьтесь
   с диагностическими элементами сети.
@@ -515,7 +526,7 @@ TLS scan does not finish within its time limit: Скан TLS не укладыв
   server answers too slowly for the protocol and weak-cipher probes to
   finish within 25s (Zabbix stops external checks at 30s). Supported
   protocols and weak-cipher findings are not updated meanwhile; the LLD
-  rule keeps the findings it already has. Suppressed while TCP 443 to the
+  rule keeps the findings it already has. Suppressed while the https TCP check to the
   host fails, which already reports an unreachable target.
 : |
   Два последних ежедневных скана TLS вернули error_code=tls_scan_timeout.
@@ -523,9 +534,10 @@ TLS scan does not finish within its time limit: Скан TLS не укладыв
   не успевают за 25 с (Zabbix останавливает внешние проверки на 30 с).
   Поддерживаемые протоколы и находки по слабым шифрам пока не обновляются,
   правило LLD сохраняет уже найденное. Триггер молчит, пока не проходит
-  соединение TCP 443: о недоступной цели уже сообщает другой триггер.
+  https-проверка TCP: о недоступной цели уже сообщает другой триггер.
 
 Cert check failing on 3 consecutive checks: Проверка сертификата не работает 3 раза подряд
 'web_check.py cert failed on 3 consecutive checks — {$WEB_SERVICE.URL} on {HOST.HOST}': 'web_check.py cert: ошибка 3 раза подряд — {$WEB_SERVICE.URL} на {HOST.HOST}'
 Three consecutive certificate checks returned ok=false. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.: Три проверки сертификата подряд вернули ok=false. Событие закрывается после первой успешной проверки или при прекращении поступления данных в основной элемент; отсутствие данных отслеживает отдельный триггер.
-Three consecutive certificate checks returned ok=false while the last three TCP 443 checks succeeded. When TCP 443 fails, "TCP 443 connect failed" reports it instead. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.: Три проверки сертификата подряд вернули ok=false, а три последние проверки TCP 443 прошли. Если TCP 443 не отвечает, об этом сообщает триггер «Нет соединения TCP 443». Событие закрывается после первой успешной проверки или при прекращении поступления данных в основной элемент; отсутствие данных отслеживает отдельный триггер.
+? Three consecutive certificate checks returned ok=false while the last three TCP {$WEB_SERVICE.HTTPS.PORT} checks succeeded. When that TCP check fails, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" reports it instead. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.
+: Три проверки сертификата подряд вернули ok=false, а три последние проверки TCP {$WEB_SERVICE.HTTPS.PORT} прошли. Если эта проверка TCP не отвечает, об этом сообщает триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}». Событие закрывается после первой успешной проверки или при прекращении поступления данных в основной элемент; отсутствие данных отслеживает отдельный триггер.

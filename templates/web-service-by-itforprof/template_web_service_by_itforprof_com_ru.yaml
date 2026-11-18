@@ -121,6 +121,12 @@ zabbix_export:
       description: 'Критический порог по сроку домена (уровень «Средняя»): домен истекает через N дней.'
     - macro: '{$WEB_SERVICE.HOST}'
       description: Хост или IP для диагностических простых проверок (net.dns.record, net.tcp.service.perf). По умолчанию — хост из {$WEB_SERVICE.URL}, при необходимости переопределяется на хосте.
+    - macro: '{$WEB_SERVICE.HTTPS.PORT}'
+      value: '443'
+      description: 'Порт https-проверки TCP. Если в {$WEB_SERVICE.URL} адрес https:// с явным портом, укажите этот порт. Для адресов http:// оставьте 443: проверка сертификата у них тоже идёт на 443. Если порт не совпадает с портом проверки сертификата, срабатывает предупреждение.'
+    - macro: '{$WEB_SERVICE.HTTP.PORT}'
+      value: '80'
+      description: Порт http-проверки TCP. Если в {$WEB_SERVICE.URL} адрес http:// с явным портом, укажите этот порт, иначе оставьте 80.
     - macro: '{$WEB_SERVICE.TCP.SLOW_SEC}'
       value: '3'
       description: Порог предупреждения для net.tcp.service.perf в секундах. 3 с по умолчанию покрывают межконтинентальное соединение TCP и TLS (обычно 300–800 мс) с запасом. Для локальной сети и проверок внутри региона — 1.
@@ -727,13 +733,13 @@ zabbix_export:
         value: tls
       triggers:
       - uuid: 5d78ff44eacc4d638fa10a87dacd44fe
-        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0 and min(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#3)>0
+        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0 and min(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#3)>0
         recovery_mode: RECOVERY_EXPRESSION
         recovery_expression: last(/Web service by itforprof.com/web_check.cert.ok)=1 or nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
         name: Проверка сертификата не работает 3 раза подряд
         event_name: 'web_check.py cert: ошибка 3 раза подряд — {$WEB_SERVICE.URL} на {HOST.HOST}'
         priority: AVERAGE
-        description: Три проверки сертификата подряд вернули ok=false, а три последние проверки TCP 443 прошли. Если TCP 443 не отвечает, об этом сообщает триггер «Нет соединения TCP 443». Событие закрывается после первой успешной проверки или при прекращении поступления данных в основной элемент; отсутствие данных отслеживает отдельный триггер.
+        description: Три проверки сертификата подряд вернули ok=false, а три последние проверки TCP {$WEB_SERVICE.HTTPS.PORT} прошли. Если эта проверка TCP не отвечает, об этом сообщает триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}». Событие закрывается после первой успешной проверки или при прекращении поступления данных в основной элемент; отсутствие данных отслеживает отдельный триггер.
         tags:
         - tag: scope
           value: data-collection
@@ -1265,10 +1271,42 @@ zabbix_export:
       tags:
       - tag: scope
         value: whois
+    - uuid: cc28c77e70e644798b37de7ca7bafa50
+      name: 'Диагностика: порт проверки сертификата'
+      type: DEPENDENT
+      key: web_check.cert.port
+      value_type: UNSIGNED
+      description: 'Порт, по которому шла проверка сертификата: порт из {$WEB_SERVICE.URL} с https://, иначе 443. Берётся только из успешных проверок, поэтому во время аварии остаётся последний настоящий порт.'
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
+      - type: JSONPATH
+        parameters:
+        - $.port
+      tags:
+      - tag: scope
+        value: diag
+      triggers:
+      - uuid: 58012d94be264a73bcce6a6d58003c2d
+        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+        name: Макрос https-порта не совпадает с портом URL
+        event_name: Порт URL {ITEM.LASTVALUE1} не совпадает с макросом https-порта {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})
+        priority: WARNING
+        manual_close: 'YES'
+        description: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт.'
+        tags:
+        - tag: scope
+          value: diag
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
     - uuid: 117107c9c4c0479aa9825347cea751b9
-      name: 'Диагностика: время соединения TCP 443'
+      name: 'Диагностика: время соединения TCP {$WEB_SERVICE.HTTPS.PORT}'
       type: SIMPLE
-      key: net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443]
+      key: net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}]
       delay: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
       value_type: FLOAT
       units: s
@@ -1277,36 +1315,39 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: fd0ada034a644ca3bf0086101c92395a
-        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0
-        name: Нет соединения TCP 443
+        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+        name: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
         priority: AVERAGE
-        description: Две проверки подряд соединение TCP/443 с хостом отклонено, или хост недоступен.
+        description: Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен.
+        dependencies:
+        - name: Макрос https-порта не совпадает с портом URL
+          expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
         tags:
         - tag: scope
           value: diag
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        event_name: Нет соединения TCP/443 с {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
+        event_name: Нет соединения TCP/{$WEB_SERVICE.HTTPS.PORT} с {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
         manual_close: 'YES'
       - uuid: ff15f34c63b247c8a7334a465c45bd73
-        expression: avg(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],30m)>{$WEB_SERVICE.TCP.SLOW_SEC}
-        name: Медленное соединение TCP 443
+        expression: avg(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],30m)>{$WEB_SERVICE.TCP.SLOW_SEC}
+        name: Медленное соединение TCP {$WEB_SERVICE.HTTPS.PORT}
         priority: WARNING
-        description: 'Среднее время соединения TCP/443 за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
+        description: 'Среднее время соединения TCP/{$WEB_SERVICE.HTTPS.PORT} за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
         dependencies:
-        - name: Нет соединения TCP 443
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0
+        - name: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
         tags:
         - tag: scope
           value: diag
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        event_name: 'Медленное соединение TCP/443 с {$WEB_SERVICE.HOST}: в среднем {ITEM.LASTVALUE1} за 30 мин (порог {$WEB_SERVICE.TCP.SLOW_SEC} с) — {HOST.NAME} ({HOST.HOST})'
+        event_name: 'Медленное соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с {$WEB_SERVICE.HOST}: в среднем {ITEM.LASTVALUE1} за 30 мин (порог {$WEB_SERVICE.TCP.SLOW_SEC} с) — {HOST.NAME} ({HOST.HOST})'
         manual_close: 'YES'
     - uuid: ccec84b433b442b7a9a94f9f409248c3
-      name: 'Диагностика: время соединения TCP 80'
+      name: 'Диагностика: время соединения TCP {$WEB_SERVICE.HTTP.PORT}'
       type: SIMPLE
-      key: net.tcp.service.perf[http,{$WEB_SERVICE.HOST},80]
+      key: net.tcp.service.perf[http,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTP.PORT}]
       delay: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
       value_type: FLOAT
       units: s
@@ -1364,15 +1405,15 @@ zabbix_export:
           не успевают за 25 с (Zabbix останавливает внешние проверки на 30 с).
           Поддерживаемые протоколы и находки по слабым шифрам пока не обновляются,
           правило LLD сохраняет уже найденное. Триггер молчит, пока не проходит
-          соединение TCP 443: о недоступной цели уже сообщает другой триггер.
+          https-проверка TCP: о недоступной цели уже сообщает другой триггер.
         tags:
         - tag: scope
           value: tls-scan
         - tag: url
           value: '{$WEB_SERVICE.URL}'
         dependencies:
-        - name: Нет соединения TCP 443
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0
+        - name: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
     - uuid: 4ff2ca946d4844e9a030b157dc5e16c7
       name: 'Скан TLS: поддерживаемые протоколы'
       type: DEPENDENT
@@ -1447,7 +1488,7 @@ zabbix_export:
         description: |-
           Сервер объявляет HTTP/3 в заголовке Alt-Svc, но рукопожатие QUIC
           с этого прокси не прошло на трёх проверках подряд (около 10–15 мин).
-          Сайт продолжает отвечать по HTTP/2. Причины: UDP/443 режется по пути,
+          Сайт продолжает отвечать по HTTP/2. Причины: UDP на https-порт из URL режется по пути,
           стек QUIC на сервере настроен неверно или регрессия CDN. Проверки,
           упавшие на DNS (error_code=dns_error), не учитываются. Сверьтесь
           с диагностическими элементами сети.
