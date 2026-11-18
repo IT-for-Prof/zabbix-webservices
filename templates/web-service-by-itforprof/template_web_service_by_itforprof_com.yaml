@@ -89,7 +89,7 @@ zabbix_export:
       description: How often diagnostic simple-check items run.
     - macro: '{$WEB_SERVICE.DIAG.NODATA.PERIOD}'
       value: 20m
-      description: No-data period for the https TCP diagnostic item. Keep at least three diagnostic check intervals, and longer than {$WEB_SERVICE.CERT.NODATA.PERIOD} plus one certificate check interval, so a silent collector opens only the certificate no-data problem.
+      description: No-data period for the https TCP diagnostic item. Keep at least three diagnostic check intervals. It must also exceed {$WEB_SERVICE.CERT.NODATA.PERIOD} plus one certificate check interval, so a silent collector opens only the certificate no-data problem.
     - macro: '{$WEB_SERVICE.SLOW.WARN}'
       value: '10'
       description: Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
@@ -1400,7 +1400,7 @@ zabbix_export:
         event_name: 'URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
         manual_close: 'YES'
-        description: 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port. Works while the site is down too: the URL port comes from failed certificate checks as well, and fixing the macro closes it.'
+        description: 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port. The URL port is read from failed certificate checks as well, so a site outage does not hide the mismatch; fixing the macro closes it.'
         tags:
         - tag: scope
           value: diag
@@ -1433,7 +1433,7 @@ zabbix_export:
         event_name: 'URL host {ITEM.LASTVALUE1} differs from host macro "{$WEB_SERVICE.HOST}" — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
         manual_close: 'YES'
-        description: 'The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address. Works while the site is down too: the URL host comes from failed certificate checks as well, and fixing the macro closes it.'
+        description: 'The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address. The URL host is read from failed certificate checks as well, so a site outage does not hide the mismatch; fixing the macro closes it.'
         tags:
         - tag: scope
           value: diag

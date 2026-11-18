@@ -18,14 +18,14 @@ host whose site was down was not compared until the first successful check.
 An open mismatch now stays open during a site outage while the macro is wrong,
 and closes as soon as the macro is fixed.
 
-### Fixed — no-data windows follow the check intervals
+### Fixed — no-data windows are set by macros
 
 New `{$WEB_SERVICE.CERT.NODATA.PERIOD}` (15m, as in Certificate-TLS) and
 `{$WEB_SERVICE.DIAG.NODATA.PERIOD}` (20m) replace the literal `15m` in the
-certificate and https TCP no-data conditions. Raising
+certificate and https TCP no-data conditions. When
 `{$WEB_SERVICE.CERT.CHECK.INTERVAL}` or `{$WEB_SERVICE.DIAG.CHECK.INTERVAL}`
-to 15m or more no longer fires "no data" between polls; raise the matching
-period with it.
+is raised to 15m or more, raise the matching period with it, and "no data"
+no longer fires between polls.
 
 ### Fixed — "TCP check no data received" with the web scenario disabled
 

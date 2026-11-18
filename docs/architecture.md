@@ -559,7 +559,7 @@ in the legacy template, N = new.
 
 Full list of user macros declared by the full template.
 
-All 28 user macros the template declares:
+All 31 user macros the template declares:
 
 | Macro | Default | Purpose |
 |---|---|---|
