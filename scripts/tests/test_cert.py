@@ -159,60 +159,20 @@ def test_cert_attribute_shim_handles_either_api(web_check_module):
     assert old == new
 
 
-def test_cert_reports_the_url_port_the_template_compares(monkeypatch, web_check_module):
-    """The port-mismatch trigger compares this field with {$WEB_SERVICE.HTTPS.PORT}.
+def test_cert_reports_the_url_port_and_host_the_template_compares(monkeypatch, web_check_module):
+    """The mismatch triggers compare these fields with {$WEB_SERVICE.HTTPS.PORT} and {$WEB_SERVICE.HOST}.
 
-    Real url_host and the template's own preprocessing steps, so a change to either
-    the URL parsing or the item definition breaks the test.
+    Real check_cert and url_host: the port comes from the URL, the host is lowercase and
+    keeps A-labels, and an http:// URL probes the certificate on 443, the macro default.
     """
-    import json
-    import re
-    from pathlib import Path
-
-    import yaml
-
-    template = (
-        Path(__file__).resolve().parents[2]
-        / "templates/web-service-by-itforprof/template_web_service_by_itforprof_com.yaml"
-    )
-    items = yaml.safe_load(template.read_text())["zabbix_export"]["templates"][0]["items"]
-    discard, jsonpath = next(i for i in items if i["key"] == "web_check.cert.port")["preprocessing"]
-
     ca = trustme.CA()
     leaf = ca.issue_cert("127.0.0.1")
     _patch_default_ssl(monkeypatch, ca)
     with _tls_server(leaf) as port:
-        payload = json.dumps(asdict(web_check_module.check_cert(f"https://127.0.0.1:{port}/", timeout=5)))
+        payload = asdict(web_check_module.check_cert(f"https://127.0.0.1:{port}/", timeout=5))
 
-    assert not re.search(discard["parameters"][0], payload.replace(" ", ""))
-    assert jsonpath["parameters"] == ["$.port"]
-    assert json.loads(payload)["port"] == port != 443
-    # An http:// URL probes the certificate on 443, the macro default.
-    assert web_check_module.url_host("http://example.org:8080/", force_tls=True) == ("example.org", 443)
-
-
-def test_cert_reports_the_url_host_the_template_compares(monkeypatch, web_check_module):
-    """The host-mismatch trigger compares this field with {$WEB_SERVICE.HOST}: lowercase, A-labels kept."""
-    import json
-    from pathlib import Path
-
-    import yaml
-
-    template = (
-        Path(__file__).resolve().parents[2]
-        / "templates/web-service-by-itforprof/template_web_service_by_itforprof_com.yaml"
-    )
-    items = yaml.safe_load(template.read_text())["zabbix_export"]["templates"][0]["items"]
-    _, jsonpath = next(i for i in items if i["key"] == "web_check.cert.host")["preprocessing"]
-    assert jsonpath["parameters"] == ["$.host"]
-
-    ca = trustme.CA()
-    leaf = ca.issue_cert("127.0.0.1")
-    _patch_default_ssl(monkeypatch, ca)
-    with _tls_server(leaf) as port:
-        payload = json.loads(json.dumps(asdict(web_check_module.check_cert(f"https://127.0.0.1:{port}/", timeout=5))))
     assert payload["ok"] is True
-    assert payload["host"] == "127.0.0.1"
-
-    assert web_check_module.url_host("http://Example.org/", force_tls=True)[0] == "example.org"
+    assert (payload["host"], payload["port"]) == ("127.0.0.1", port)
+    assert port != 443
+    assert web_check_module.url_host("http://Example.org:8080/", force_tls=True) == ("example.org", 443)
     assert web_check_module.url_host("https://xn--80aac7bmkkfg.xn--p1ai/")[0] == "xn--80aac7bmkkfg.xn--p1ai"

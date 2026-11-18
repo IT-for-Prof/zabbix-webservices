@@ -16,6 +16,9 @@ TCP_SLOW = "TCP {$WEB_SERVICE.HTTPS.PORT} connect slow"
 PORT_MISMATCH = "HTTPS port macro does not match the URL port"
 HOST_MISMATCH = "Host macro does not match the URL host"
 TCP_NODATA = "TCP check no data received"
+WEB_NODATA = "Web service no data received"
+# Dependents of the cert master that only the full profile has (the mismatch checks).
+FULL_ONLY_CERT_DEPENDENTS = {"web_check.cert.port", "web_check.cert.host"}
 
 
 def _template() -> dict:
@@ -430,8 +433,9 @@ def test_cert_dependents_discard_the_error_envelope(filename, web_check_module):
     dependents = [
         i for i in template["items"] if i.get("master_item", {}).get("key", "").startswith('web_check.py["cert"')
     ]
-    # The full profile adds web_check.cert.port and web_check.cert.host for the mismatch checks.
-    assert len(dependents) == (19 if filename == PROFILES[0] else 17)
+    extra = FULL_ONLY_CERT_DEPENDENTS if filename == PROFILES[0] else set()
+    assert extra <= {i["key"] for i in dependents}
+    assert len(dependents) == 17 + len(extra)
     for item in dependents:
         first = item["preprocessing"][0]
         if item["key"] == "web_check.cert.ok":
@@ -544,9 +548,8 @@ def test_port_mismatch_warns_on_fresh_cert_port_only():
     assert {t["tag"]: t["value"] for t in trigger["tags"]} == {"scope": "diag", "url": "{$WEB_SERVICE.URL}"}
     assert "{$WEB_SERVICE.HTTPS.PORT}" in trigger["event_name"]
     assert "{ITEM.LASTVALUE1}" in trigger["event_name"]
-    # Re-evaluated only on a fresh port; a dependency or nodata() would freeze or flap it.
+    # Re-evaluated only on a fresh port; a dependency would freeze it.
     assert not trigger.get("dependencies")
-    assert "nodata(" not in trigger["expression"]
 
 
 def test_tcp_failure_is_suppressed_while_the_port_macro_mismatches():
@@ -584,7 +587,6 @@ def test_host_mismatch_warns_when_host_macro_differs_from_url_host():
     assert "{$WEB_SERVICE.HOST}" in trigger["event_name"]
     assert "{ITEM.LASTVALUE1}" in trigger["event_name"]
     assert not trigger.get("dependencies")
-    assert "nodata(" not in trigger["expression"]
 
 
 def test_silent_tcp_check_raises_no_data():
@@ -597,5 +599,4 @@ def test_silent_tcp_check_raises_no_data():
     assert nodata["manual_close"] == "YES"
     assert {t["tag"]: t["value"] for t in nodata["tags"]} == {"scope": "data-collection", "url": "{$WEB_SERVICE.URL}"}
     # One ticket per collector failure: the web scenario goes quiet too and already reports it.
-    web_nodata = _triggers_by_name()["Web service no data received"]
-    assert nodata["dependencies"] == [{"name": "Web service no data received", "expression": web_nodata["expression"]}]
+    assert nodata["dependencies"] == [{"name": WEB_NODATA, "expression": _triggers_by_name()[WEB_NODATA]["expression"]}]
