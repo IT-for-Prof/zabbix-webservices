@@ -1317,7 +1317,6 @@ def _query_whois_port43(apex: str, deadline: float) -> dict[str, Any]:
 
 
 def _dnssec_state(value: Any) -> str:
-    """Map a parser's DNSSEC field to signed / unsigned / unknown."""
     if value is None:
         return "unknown"
     if not isinstance(value, str):
@@ -1331,7 +1330,6 @@ def _dnssec_state(value: Any) -> str:
 
 
 def _faitid_whois(apex: str, extractor: Any) -> tuple[str, Any]:
-    """Ask the FAITID registry directly; its answer is in the ICANN format."""
     from asyncwhois.client import DomainClient
 
     client = DomainClient(find_authoritative_server=False, tldextract_obj=extractor)
