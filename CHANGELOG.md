@@ -27,6 +27,16 @@ triggers and the certificate trigger's TCP condition stayed UNKNOWN.
   would freeze it, and a NOTSUPPORTED item never brings the value that
   unfreezes it.
 
+### Changed — mismatch checks expire without fresh certificate data
+
+Both mismatch checks (port from 7.0-2.6.0, host from this release) add
+`nodata(<item>,15m)=0`. A check opened before an HTTPS outage used to stay
+open on its last value while every certificate check failed, and kept "TCP
+connect failed" suppressed during a real outage of the https port. It now
+closes after 15m without a successful certificate check. `nodata()` also puts
+it on the 30s timer, so a corrected macro clears it without waiting for the
+next certificate check.
+
 ### Fixed
 
 - The `{$WEB_SERVICE.HOST}` description said it defaults to the URL host. It

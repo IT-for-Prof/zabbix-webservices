@@ -1389,12 +1389,12 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: 58012d94be264a73bcce6a6d58003c2d
-        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT} and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0
         name: HTTPS port macro does not match the URL port
         event_name: 'URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
         manual_close: 'YES'
-        description: 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port.'
+        description: 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port. Closes after 15m without a successful certificate check, so a site outage does not keep it open.'
         tags:
         - tag: scope
           value: diag
@@ -1422,12 +1422,12 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: 2dcf146a3f0a426781602b8cf56faab0
-        expression: 'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"'
+        expression: 'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}" and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0'
         name: Host macro does not match the URL host
         event_name: 'URL host {ITEM.LASTVALUE1} differs from host macro "{$WEB_SERVICE.HOST}" — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
         manual_close: 'YES'
-        description: 'The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address.'
+        description: 'The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address. Closes after 15m without a successful certificate check, so a site outage does not keep it open.'
         tags:
         - tag: scope
           value: diag
@@ -1451,9 +1451,9 @@ zabbix_export:
         description: TCP/{$WEB_SERVICE.HTTPS.PORT} to the monitored host is refused or unreachable on two consecutive checks.
         dependencies:
         - name: HTTPS port macro does not match the URL port
-          expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+          expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT} and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0
         - name: Host macro does not match the URL host
-          expression: 'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"'
+          expression: 'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}" and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0'
         tags:
         - tag: scope
           value: diag

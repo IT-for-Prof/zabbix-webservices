@@ -420,8 +420,8 @@ ops cost).
 
 | Name | Severity | Expression |
 |---|---|---|
-| HTTPS port macro does not match the URL port | WARNING | `last(.../web_check.cert.port) <> {$WEB_SERVICE.HTTPS.PORT}` |
-| Host macro does not match the URL host | WARNING | `last(.../web_check.cert.host) <> "{$WEB_SERVICE.HOST}"` |
+| HTTPS port macro does not match the URL port | WARNING | `last(.../web_check.cert.port) <> {$WEB_SERVICE.HTTPS.PORT} and nodata(.../web_check.cert.port,15m) = 0` |
+| Host macro does not match the URL host | WARNING | `last(.../web_check.cert.host) <> "{$WEB_SERVICE.HOST}" and nodata(.../web_check.cert.host,15m) = 0` |
 | TCP check no data received | AVERAGE | `nodata(.../net.tcp.service.perf[https,…],15m) = 1 and nodata(.../web.test.fail[…],{$WEB_SERVICE.NODATA.PERIOD}) = 0` |
 | TCP {$WEB_SERVICE.HTTPS.PORT} connect failed | AVERAGE | `max(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2) = 0` (two consecutive failed checks); depends on the port and host mismatch triggers |
 | TCP {$WEB_SERVICE.HTTPS.PORT} connect slow | WARNING | `avg(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],30m) > {$WEB_SERVICE.TCP.SLOW_SEC}` (3s) |

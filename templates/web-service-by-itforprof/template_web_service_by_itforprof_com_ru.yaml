@@ -1294,12 +1294,12 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: 58012d94be264a73bcce6a6d58003c2d
-        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT} and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0
         name: Макрос https-порта не совпадает с портом URL
         event_name: Порт URL {ITEM.LASTVALUE1} не совпадает с макросом https-порта {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})
         priority: WARNING
         manual_close: 'YES'
-        description: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт.'
+        description: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт. Через 15 мин без успешной проверки сертификата проблема закрывается, чтобы авария сайта её не удерживала.'
         tags:
         - tag: scope
           value: diag
@@ -1327,12 +1327,12 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: 2dcf146a3f0a426781602b8cf56faab0
-        expression: last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"
+        expression: last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}" and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0
         name: Макрос имени хоста не совпадает с хостом URL
         event_name: Хост URL {ITEM.LASTVALUE1} не совпадает с макросом имени хоста «{$WEB_SERVICE.HOST}» — {HOST.NAME} ({HOST.HOST})
         priority: WARNING
         manual_close: 'YES'
-        description: 'TCP-проверки идут на {$WEB_SERVICE.HOST}, а он пуст или не совпадает с хостом в {$WEB_SERVICE.URL}. С пустым макросом проверки идут на адрес интерфейса хоста, часто 127.0.0.1. Задайте на хосте {$WEB_SERVICE.HOST}, равный хосту URL, в нижнем регистре; для кириллических доменов — в форме xn--. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой адрес.'
+        description: 'TCP-проверки идут на {$WEB_SERVICE.HOST}, а он пуст или не совпадает с хостом в {$WEB_SERVICE.URL}. С пустым макросом проверки идут на адрес интерфейса хоста, часто 127.0.0.1. Задайте на хосте {$WEB_SERVICE.HOST}, равный хосту URL, в нижнем регистре; для кириллических доменов — в форме xn--. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой адрес. Через 15 мин без успешной проверки сертификата проблема закрывается, чтобы авария сайта её не удерживала.'
         tags:
         - tag: scope
           value: diag
@@ -1356,9 +1356,9 @@ zabbix_export:
         description: Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен.
         dependencies:
         - name: Макрос https-порта не совпадает с портом URL
-          expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+          expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT} and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0
         - name: Макрос имени хоста не совпадает с хостом URL
-          expression: last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"
+          expression: last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}" and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0
         tags:
         - tag: scope
           value: diag

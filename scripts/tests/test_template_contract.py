@@ -540,15 +540,17 @@ def test_port_mismatch_warns_on_fresh_cert_port_only():
 
     [trigger] = item["triggers"]
     assert trigger["name"] == PORT_MISMATCH
+    # Fresh-bounded: a cert outage closes it, so a stale mismatch cannot hide a real TCP failure,
+    # and nodata() puts it on the 30s timer, so a corrected macro clears it without a new value.
     assert trigger["expression"] == (
         "last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}"
+        " and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0"
     )
     assert trigger["priority"] == "WARNING"
     assert trigger["manual_close"] == "YES"
     assert {t["tag"]: t["value"] for t in trigger["tags"]} == {"scope": "diag", "url": "{$WEB_SERVICE.URL}"}
     assert "{$WEB_SERVICE.HTTPS.PORT}" in trigger["event_name"]
     assert "{ITEM.LASTVALUE1}" in trigger["event_name"]
-    # Re-evaluated only on a fresh port; a dependency would freeze it.
     assert not trigger.get("dependencies")
 
 
@@ -580,7 +582,10 @@ def test_host_mismatch_warns_when_host_macro_differs_from_url_host():
 
     [trigger] = item["triggers"]
     assert trigger["name"] == HOST_MISMATCH
-    assert trigger["expression"] == ('last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"')
+    assert trigger["expression"] == (
+        'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"'
+        " and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0"
+    )
     assert trigger["priority"] == "WARNING"
     assert trigger["manual_close"] == "YES"
     assert {t["tag"]: t["value"] for t in trigger["tags"]} == {"scope": "diag", "url": "{$WEB_SERVICE.URL}"}
