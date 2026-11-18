@@ -90,7 +90,11 @@ def render(source: Path, catalog: dict[str, str]) -> str:
 
 def load_catalog() -> dict[str, str]:
     data = yaml.safe_load(CATALOG.read_text(encoding="utf-8")) or {}
-    return {str(k): str(v) for k, v in data.items()}
+    # An unquoted ": " turns a translation into a mapping; str() would ship its repr to Zabbix.
+    bad = [str(k)[:80] for k, v in data.items() if not isinstance(v, str)]
+    if bad:
+        raise SystemExit(f"{CATALOG.name}: translation is not a string (quote it): {bad}")
+    return {str(k): v for k, v in data.items()}
 
 
 def problems(catalog: dict[str, str]) -> list[str]:

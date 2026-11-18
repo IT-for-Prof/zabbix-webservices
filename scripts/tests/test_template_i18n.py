@@ -35,6 +35,16 @@ def test_russian_templates_are_in_sync_with_english_and_catalog(i18n):
     assert i18n.problems(i18n.load_catalog()) == []
 
 
+def test_catalog_rejects_a_translation_that_is_not_a_string(i18n, tmp_path, monkeypatch):
+    """An unquoted ': ' in a translation makes YAML read it as a mapping; the generated template
+    would then show a dict literal in Zabbix instead of the text."""
+    bad = tmp_path / "ru.yaml"
+    bad.write_text("? Key text.\n: Перевод с двоеточием: и хвостом.\n", encoding="utf-8")
+    monkeypatch.setattr(i18n, "CATALOG", bad)
+    with pytest.raises(SystemExit, match="not a string"):
+        i18n.load_catalog()
+
+
 def test_identifiers_stay_english(i18n):
     """Technical names, web scenario/step names and value map names are identifiers, not display text."""
     for source in i18n.SOURCES:

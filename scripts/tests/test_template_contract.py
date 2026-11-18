@@ -14,6 +14,11 @@ TCP_HTTP_KEY = "net.tcp.service.perf[http,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTP
 TCP_FAILED = "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed"
 TCP_SLOW = "TCP {$WEB_SERVICE.HTTPS.PORT} connect slow"
 PORT_MISMATCH = "HTTPS port macro does not match the URL port"
+HOST_MISMATCH = "Host macro does not match the URL host"
+TCP_NODATA = "TCP check no data received"
+WEB_NODATA = "Web service no data received"
+# Dependents of the cert master that only the full profile has (the mismatch checks).
+FULL_ONLY_CERT_DEPENDENTS = {"web_check.cert.port", "web_check.cert.host"}
 
 
 def _template() -> dict:
@@ -212,7 +217,7 @@ def test_cert_rotated_late_is_warning_not_high():
 
 
 def test_template_vendor_version_was_bumped_for_contract_change():
-    assert _template()["vendor"]["version"] == "7.0-2.6.0"
+    assert _template()["vendor"]["version"] == "7.0-2.7.0"
 
 
 @pytest.mark.parametrize(
@@ -428,8 +433,9 @@ def test_cert_dependents_discard_the_error_envelope(filename, web_check_module):
     dependents = [
         i for i in template["items"] if i.get("master_item", {}).get("key", "").startswith('web_check.py["cert"')
     ]
-    # The full profile adds web_check.cert.port for the port-mismatch check.
-    assert len(dependents) == (18 if filename == PROFILES[0] else 17)
+    extra = FULL_ONLY_CERT_DEPENDENTS if filename == PROFILES[0] else set()
+    assert extra <= {i["key"] for i in dependents}
+    assert len(dependents) == 17 + len(extra)
     for item in dependents:
         first = item["preprocessing"][0]
         if item["key"] == "web_check.cert.ok":
@@ -478,7 +484,9 @@ def test_availability_triggers_need_two_consecutive_failed_checks():
     assert triggers["Web service is failing"]["expression"] == (
         "min(/Web service by itforprof.com/web.test.fail[Web service],#2)>0"
     )
-    assert triggers[TCP_FAILED]["expression"] == f"max(/Web service by itforprof.com/{TCP_HTTPS_KEY},#2)=0"
+    assert triggers[TCP_FAILED]["expression"].startswith(
+        f"max(/Web service by itforprof.com/{TCP_HTTPS_KEY},#2)=0 and "
+    )
 
 
 def _all_expressions(template: dict) -> list[str]:
@@ -510,7 +518,7 @@ def test_tcp_objects_keep_identity_and_tags():
     triggers = {t["name"]: t for t in https["triggers"]}
     assert triggers[TCP_FAILED]["uuid"] == "fd0ada034a644ca3bf0086101c92395a"
     assert triggers[TCP_SLOW]["uuid"] == "ff15f34c63b247c8a7334a465c45bd73"
-    for trigger in triggers.values():
+    for trigger in (triggers[TCP_FAILED], triggers[TCP_SLOW]):
         assert {t["tag"]: t["value"] for t in trigger["tags"]} == {"scope": "diag", "url": "{$WEB_SERVICE.URL}"}
         assert "443" not in trigger["event_name"] + trigger["description"]
 
@@ -534,28 +542,80 @@ def test_port_mismatch_warns_on_fresh_cert_port_only():
 
     [trigger] = item["triggers"]
     assert trigger["name"] == PORT_MISMATCH
+    # Fresh-bounded: a cert outage closes it, so a stale mismatch cannot hide a real TCP failure,
+    # and nodata() puts it on the 30s timer, so a corrected macro clears it without a new value.
     assert trigger["expression"] == (
         "last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}"
+        " and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0"
     )
     assert trigger["priority"] == "WARNING"
     assert trigger["manual_close"] == "YES"
     assert {t["tag"]: t["value"] for t in trigger["tags"]} == {"scope": "diag", "url": "{$WEB_SERVICE.URL}"}
     assert "{$WEB_SERVICE.HTTPS.PORT}" in trigger["event_name"]
     assert "{ITEM.LASTVALUE1}" in trigger["event_name"]
-    # Re-evaluated only on a fresh port; a dependency or nodata() would freeze or flap it.
     assert not trigger.get("dependencies")
-    assert "nodata(" not in trigger["expression"]
 
 
-def test_tcp_failure_is_suppressed_while_the_port_macro_mismatches():
-    """A TCP check on the wrong port must not page; the mismatch WARNING names the real cause."""
-    triggers = _triggers_by_name()
-    assert triggers[TCP_FAILED]["dependencies"] == [
-        {"name": PORT_MISMATCH, "expression": triggers[PORT_MISMATCH]["expression"]}
-    ]
+def test_tcp_failure_is_suppressed_while_a_macro_mismatches():
+    """A TCP check on the wrong port or host must not page; the mismatch WARNING names the real cause.
+
+    The guard sits in the expression, not in a dependency: a dependency cannot close a TCP problem
+    that opened before the mismatch was known, and it freezes the trigger while the parent is open.
+    Without fresh certificate data (nodata) the guard lets the TCP failure through as before.
+    """
+    t = "/Web service by itforprof.com/"
+    assert _triggers_by_name()[TCP_FAILED]["expression"] == (
+        f"max({t}{TCP_HTTPS_KEY},#2)=0"
+        f" and (last({t}web_check.cert.port)={{$WEB_SERVICE.HTTPS.PORT}} or nodata({t}web_check.cert.port,15m)=1)"
+        f' and (last({t}web_check.cert.host)="{{$WEB_SERVICE.HOST}}" or nodata({t}web_check.cert.host,15m)=1)'
+    )
+    assert not _triggers_by_name()[TCP_FAILED].get("dependencies")
 
 
 def test_tls_profile_has_no_tcp_port_objects():
     tls = _profile(PROFILES[1])
     assert all(not item["key"].startswith("net.tcp.") and item["key"] != "web_check.cert.port" for item in tls["items"])
     assert not {"{$WEB_SERVICE.HTTPS.PORT}", "{$WEB_SERVICE.HTTP.PORT}"} & {m["macro"] for m in tls.get("macros", [])}
+
+
+def test_host_mismatch_warns_when_host_macro_differs_from_url_host():
+    """An empty, misspelt or copied {$WEB_SERVICE.HOST} sends the TCP checks to another machine
+    (or to the host interface, often 127.0.0.1) without any error; compare it with the URL host."""
+    item = _item_by_key("web_check.cert.host")
+    assert item["master_item"]["key"] == 'web_check.py["cert","{$WEB_SERVICE.URL}"]'
+    assert item["value_type"] == "CHAR"
+    assert item["history"] == "7d"
+    assert [step["type"] for step in item["preprocessing"]] == ["NOT_MATCHES_REGEX", "JSONPATH"]
+    assert item["preprocessing"][1]["parameters"] == ["$.host"]
+    assert {t["tag"]: t["value"] for t in item["tags"]} == {"scope": "diag"}
+
+    [trigger] = item["triggers"]
+    assert trigger["name"] == HOST_MISMATCH
+    assert trigger["expression"] == (
+        'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}"'
+        " and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0"
+    )
+    assert trigger["priority"] == "WARNING"
+    assert trigger["manual_close"] == "YES"
+    assert {t["tag"]: t["value"] for t in trigger["tags"]} == {"scope": "diag", "url": "{$WEB_SERVICE.URL}"}
+    assert "{$WEB_SERVICE.HOST}" in trigger["event_name"]
+    assert "{ITEM.LASTVALUE1}" in trigger["event_name"]
+    assert not trigger.get("dependencies")
+
+
+def test_silent_tcp_check_raises_no_data():
+    """A NOTSUPPORTED https TCP item (bad port, no address) leaves the TCP triggers and the cert
+    trigger's TCP gate UNKNOWN; without this the host just goes quiet."""
+    triggers = {t["name"]: t for t in _item_by_key(TCP_HTTPS_KEY)["triggers"]}
+    nodata = triggers[TCP_NODATA]
+    web_silent = _triggers_by_name()[WEB_NODATA]["expression"]
+    assert web_silent.endswith("=1")
+    # One ticket per collector failure: gated in the expression, like the cert trigger (2.5.1).
+    # A dependency would freeze it, and a NOTSUPPORTED item never brings the value that unfreezes it.
+    assert nodata["expression"] == (
+        f"nodata(/Web service by itforprof.com/{TCP_HTTPS_KEY},15m)=1 and {web_silent.removesuffix('=1')}=0"
+    )
+    assert not nodata.get("dependencies")
+    assert nodata["priority"] == "AVERAGE"
+    assert nodata["manual_close"] == "YES"
+    assert {t["tag"]: t["value"] for t in nodata["tags"]} == {"scope": "data-collection", "url": "{$WEB_SERVICE.URL}"}

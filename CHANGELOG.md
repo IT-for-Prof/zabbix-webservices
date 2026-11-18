@@ -4,6 +4,54 @@ All notable changes to this project will be documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning per template
 is documented in [README.md](README.md#versioning).
 
+## [7.0-2.7.0] - 2026-11-18
+
+Full profile only; Certificate-TLS and `web_check` are unchanged.
+
+### Added — the template reports a misconfigured host
+
+A host with an empty or wrong macro checked the wrong target or went quiet.
+An empty `{$WEB_SERVICE.HOST}` sent the TCP checks to the host interface
+address (on one server three hosts probed the monitoring server itself for
+months). Without an interface, or with a non-numeric or spaced
+`{$WEB_SERVICE.HTTPS.PORT}`, the TCP item went NOTSUPPORTED and the TCP
+triggers and the certificate trigger's TCP condition stayed UNKNOWN.
+
+- New `web_check.cert.host` (the host the certificate check took from the
+  URL) and WARNING "Host macro does not match the URL host". It covers an
+  empty, misspelt, spaced or copied `{$WEB_SERVICE.HOST}`.
+- New AVERAGE "TCP check no data received": the https TCP item got no value
+  for 15m. The expression also requires fresh web-scenario data, so a silent
+  collector opens one ticket ("Web service no data received"). A dependency
+  would freeze it, and a NOTSUPPORTED item never brings the value that
+  unfreezes it.
+
+### Changed — the TCP failure trigger carries the mismatch guards itself
+
+"TCP connect failed" no longer depends on the port mismatch trigger (2.6.0).
+Its expression requires, besides two failed polls, that a fresh certificate
+check shows no port or host mismatch (`last(...)` equal to the macro, or
+`nodata(...,15m)=1`). A dependency could not close a false AVERAGE that
+opened before the mismatch was known, and froze the trigger while the
+mismatch was open.
+
+### Changed — mismatch checks expire without fresh certificate data
+
+Both mismatch checks (port from 7.0-2.6.0, host from this release) add
+`nodata(<item>,15m)=0`. A check opened before an HTTPS outage used to stay
+open on its last value while every certificate check failed, and kept "TCP
+connect failed" suppressed during a real outage of the https port. It now
+closes after 15m without a successful certificate check. `nodata()` also puts
+it on the 30s timer, so a corrected macro clears it without waiting for the
+next certificate check.
+
+### Fixed
+
+- The `{$WEB_SERVICE.HOST}` description said it defaults to the URL host. It
+  has no default. The descriptions now say it is required, lowercase and in
+  `xn--` form for IDN domains, and that port macros take digits only.
+- README: trigger and macro counts, and an "Adding a host" checklist.
+
 ## [7.0-2.6.0] - 2026-11-18
 
 Full profile only; Certificate-TLS and `web_check` are unchanged.

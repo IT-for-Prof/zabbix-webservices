@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.6.0
+      version: 7.0-2.7.0
     groups:
     - name: Templates/Applications
     macros:
@@ -83,13 +83,13 @@ zabbix_export:
       description: QUIC handshake WARNING threshold in milliseconds. Default 1000ms tolerates intercontinental UDP+QUIC handshake. Drop to 250 for LAN.
     - macro: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
       value: 5m
-      description: How often diagnostic simple-check items run.
+      description: 'How often diagnostic simple-check items run. "TCP check no data received" waits 15m: at 15m or more it fires all the time, between 5m and 15m after one missed poll.'
     - macro: '{$WEB_SERVICE.SLOW.WARN}'
       value: '10'
       description: Avg HTTP response time over 10m (seconds) above which a WARNING trigger fires. Default 10s tolerates intercontinental traffic; drop to 5 for regional sites.
     - macro: '{$WEB_SERVICE.NODATA.PERIOD}'
       value: 10m
-      description: Period of no-data before the No-data trigger fires (web scenario item).
+      description: 'Period of no-data before the No-data trigger fires (web scenario item). Keep it under 15m: "TCP check no data received" stays silent while this trigger is open, and must not open first.'
     - macro: '{$WEB_SERVICE.CERT.WARN_DAYS}'
       value: '30'
       description: Cert expiry INFO trigger threshold (days).
@@ -125,13 +125,13 @@ zabbix_export:
       value: '1'
       description: Domain expires within N days critical (AVERAGE) trigger threshold.
     - macro: '{$WEB_SERVICE.HOST}'
-      description: Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
+      description: Required. Host of {$WEB_SERVICE.URL}, lowercase; for IDN domains write it and the URL in xn-- form. The TCP diagnostic checks use it; without it they probe the host interface address. A mismatch with the URL host raises a WARNING.
     - macro: '{$WEB_SERVICE.HTTPS.PORT}'
       value: '443'
-      description: Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port. Keep 443 for http:// URLs, whose certificate check also uses 443. A mismatch with the certificate check port raises a WARNING.
+      description: Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port. Keep 443 for http:// URLs, whose certificate check also uses 443. Digits only, no spaces. A mismatch with the certificate check port raises a WARNING.
     - macro: '{$WEB_SERVICE.HTTP.PORT}'
       value: '80'
-      description: Port of the http TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is http:// with an explicit port; otherwise keep 80.
+      description: Port of the http TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is http:// with an explicit port; otherwise keep 80. Digits only, no spaces.
     - macro: '{$WEB_SERVICE.TCP.SLOW_SEC}'
       value: '3'
       description: net.tcp.service.perf WARNING threshold in seconds. Default 3s tolerates intercontinental TCP+TLS handshake (~300-800ms typical) plus headroom. Drop to 1 for LAN/regional monitoring.
@@ -1389,12 +1389,45 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: 58012d94be264a73bcce6a6d58003c2d
-        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT} and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0
         name: HTTPS port macro does not match the URL port
         event_name: 'URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})'
         priority: WARNING
         manual_close: 'YES'
-        description: 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port.'
+        description: 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port. Closes after 15m without a successful certificate check, so a site outage does not keep it open.'
+        tags:
+        - tag: scope
+          value: diag
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+    - uuid: 5d40a2eb06fd46beb12f05f3b20abd59
+      name: 'Diag: certificate check host'
+      type: DEPENDENT
+      key: web_check.cert.host
+      history: 7d
+      value_type: CHAR
+      description: 'Host the certificate check took from {$WEB_SERVICE.URL}, lowercase. Read only from successful checks, so an outage keeps the last real host.'
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
+      - type: JSONPATH
+        parameters:
+        - $.host
+      tags:
+      - tag: scope
+        value: diag
+      triggers:
+      - uuid: 2dcf146a3f0a426781602b8cf56faab0
+        expression: 'last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}" and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0'
+        name: Host macro does not match the URL host
+        event_name: 'URL host {ITEM.LASTVALUE1} differs from host macro "{$WEB_SERVICE.HOST}" — {HOST.NAME} ({HOST.HOST})'
+        priority: WARNING
+        manual_close: 'YES'
+        description: 'The TCP diagnostic checks use {$WEB_SERVICE.HOST}, which differs from the host in {$WEB_SERVICE.URL} or is empty. An empty macro sends them to the host interface address, often 127.0.0.1. Set {$WEB_SERVICE.HOST} on the host to the URL host, lowercase, in xn-- form for IDN domains. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks another address. Closes after 15m without a successful certificate check, so a site outage does not keep it open.'
         tags:
         - tag: scope
           value: diag
@@ -1412,13 +1445,10 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: fd0ada034a644ca3bf0086101c92395a
-        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+        expression: 'max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)'
         name: TCP {$WEB_SERVICE.HTTPS.PORT} connect failed
         priority: AVERAGE
-        description: TCP/{$WEB_SERVICE.HTTPS.PORT} to the monitored host is refused or unreachable on two consecutive checks.
-        dependencies:
-        - name: HTTPS port macro does not match the URL port
-          expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+        description: TCP/{$WEB_SERVICE.HTTPS.PORT} to the monitored host is refused or unreachable on two consecutive checks. Silent while a fresh certificate check shows that the port or host macro differs from the URL; the mismatch WARNING reports that instead.
         tags:
         - tag: scope
           value: diag
@@ -1434,7 +1464,7 @@ zabbix_export:
           via the macro on hosts behind a CDN with intentionally-distant POPs.
         dependencies:
         - name: TCP {$WEB_SERVICE.HTTPS.PORT} connect failed
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+          expression: 'max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)'
         tags:
         - tag: scope
           value: diag
@@ -1442,6 +1472,28 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         event_name: 'TCP/{$WEB_SERVICE.HTTPS.PORT} to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
         manual_close: 'YES'
+      - uuid: a1dc2a8f8e9f4dc28e55764fd86b20ef
+        expression: nodata(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],15m)=1 and nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=0
+        name: TCP check no data received
+        event_name: 'TCP check to {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: no value for 15m — {HOST.NAME} ({HOST.HOST})'
+        opdata: 'no value for 15m — item NOTSUPPORTED or not polled'
+        priority: AVERAGE
+        manual_close: 'YES'
+        description: |
+          The https TCP diagnostic item has not received a value for 15m
+          (3x its default 5m interval). The TCP triggers and the TCP condition
+          of the certificate trigger cannot evaluate meanwhile. Causes:
+          - the item is NOTSUPPORTED: read its error, usually an empty
+            {$WEB_SERVICE.HOST} on a host without an interface, or a
+            non-numeric {$WEB_SERVICE.HTTPS.PORT} (digits only, no spaces);
+          - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} was raised to 15m or more.
+          Silent while the web scenario has no data either: then the whole
+          collector is quiet and "Web service no data received" reports it.
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
     - uuid: ccec84b433b442b7a9a94f9f409248c3
       name: 'Diag: TCP {$WEB_SERVICE.HTTP.PORT} performance'
       type: SIMPLE
@@ -1515,7 +1567,7 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: TCP {$WEB_SERVICE.HTTPS.PORT} connect failed
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+          expression: 'max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)'
     - uuid: 4ff2ca946d4844e9a030b157dc5e16c7
       name: 'TLS scan: supported protocols'
       type: DEPENDENT

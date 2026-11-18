@@ -42,7 +42,7 @@ zabbix_export:
       Лицензия:     MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.6.0
+      version: 7.0-2.7.0
     groups:
     - name: Templates/Applications
     macros:
@@ -85,13 +85,13 @@ zabbix_export:
       description: Порог предупреждения для рукопожатия QUIC в миллисекундах. 1000 мс по умолчанию учитывают межконтинентальные задержки. Для локальной сети — 250.
     - macro: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
       value: 5m
-      description: Интервал диагностических простых проверок.
+      description: 'Интервал диагностических простых проверок. «Нет данных TCP-проверки» ждёт 15 мин: при интервале 15 мин и больше он срабатывает постоянно, от 5 до 15 мин — после одного пропущенного опроса.'
     - macro: '{$WEB_SERVICE.SLOW.WARN}'
       value: '10'
       description: Среднее время ответа HTTP за 10 мин в секундах, выше которого срабатывает предупреждение. 10 с по умолчанию учитывают межконтинентальные задержки, для региональных сайтов — 5.
     - macro: '{$WEB_SERVICE.NODATA.PERIOD}'
       value: 10m
-      description: Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных».
+      description: 'Сколько времени веб-сценарий может не присылать данных, прежде чем сработает триггер «нет данных». Держите меньше 15 мин: пока открыт этот триггер, «Нет данных TCP-проверки» молчит и не должен открыться раньше него.'
     - macro: '{$WEB_SERVICE.CERT.WARN_DAYS}'
       value: '30'
       description: Порог триггера уровня «Информация» по сроку сертификата, дни.
@@ -120,13 +120,13 @@ zabbix_export:
       value: '1'
       description: 'Критический порог по сроку домена (уровень «Средняя»): домен истекает через N дней.'
     - macro: '{$WEB_SERVICE.HOST}'
-      description: Хост или IP для диагностических простых проверок (net.dns.record, net.tcp.service.perf). По умолчанию — хост из {$WEB_SERVICE.URL}, при необходимости переопределяется на хосте.
+      description: Обязателен. Хост из {$WEB_SERVICE.URL} в нижнем регистре; для кириллических доменов и он, и URL пишутся в форме xn--. По нему идут TCP-проверки; без него они проверяют адрес интерфейса хоста. Несовпадение с хостом URL даёт предупреждение.
     - macro: '{$WEB_SERVICE.HTTPS.PORT}'
       value: '443'
-      description: 'Порт https-проверки TCP. Если в {$WEB_SERVICE.URL} адрес https:// с явным портом, укажите этот порт. Для адресов http:// оставьте 443: проверка сертификата у них тоже идёт на 443. Если порт не совпадает с портом проверки сертификата, срабатывает предупреждение.'
+      description: 'Порт https-проверки TCP. Если в {$WEB_SERVICE.URL} адрес https:// с явным портом, укажите этот порт. Для адресов http:// оставьте 443: проверка сертификата у них тоже идёт на 443. Только цифры, без пробелов. Если порт не совпадает с портом проверки сертификата, срабатывает предупреждение.'
     - macro: '{$WEB_SERVICE.HTTP.PORT}'
       value: '80'
-      description: Порт http-проверки TCP. Если в {$WEB_SERVICE.URL} адрес http:// с явным портом, укажите этот порт, иначе оставьте 80.
+      description: Порт http-проверки TCP. Если в {$WEB_SERVICE.URL} адрес http:// с явным портом, укажите этот порт, иначе оставьте 80. Только цифры, без пробелов.
     - macro: '{$WEB_SERVICE.TCP.SLOW_SEC}'
       value: '3'
       description: Порог предупреждения для net.tcp.service.perf в секундах. 3 с по умолчанию покрывают межконтинентальное соединение TCP и TLS (обычно 300–800 мс) с запасом. Для локальной сети и проверок внутри региона — 1.
@@ -1294,12 +1294,45 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: 58012d94be264a73bcce6a6d58003c2d
-        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT} and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0
         name: Макрос https-порта не совпадает с портом URL
         event_name: Порт URL {ITEM.LASTVALUE1} не совпадает с макросом https-порта {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})
         priority: WARNING
         manual_close: 'YES'
-        description: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт.'
+        description: 'Проверка сертификата идёт на порт из {$WEB_SERVICE.URL}, а https-проверка TCP — на {$WEB_SERVICE.HTTPS.PORT}, то есть диагностика TCP проверяет другой сервис. Задайте на хосте {$WEB_SERVICE.HTTPS.PORT}, равный порту URL. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой порт. Через 15 мин без успешной проверки сертификата проблема закрывается, чтобы авария сайта её не удерживала.'
+        tags:
+        - tag: scope
+          value: diag
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
+    - uuid: 5d40a2eb06fd46beb12f05f3b20abd59
+      name: 'Диагностика: хост проверки сертификата'
+      type: DEPENDENT
+      key: web_check.cert.host
+      history: 7d
+      value_type: CHAR
+      description: Хост, который проверка сертификата взяла из {$WEB_SERVICE.URL}, в нижнем регистре. Берётся только из успешных проверок, поэтому во время аварии остаётся последний настоящий хост.
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
+      - type: JSONPATH
+        parameters:
+        - $.host
+      tags:
+      - tag: scope
+        value: diag
+      triggers:
+      - uuid: 2dcf146a3f0a426781602b8cf56faab0
+        expression: last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}" and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0
+        name: Макрос имени хоста не совпадает с хостом URL
+        event_name: Хост URL {ITEM.LASTVALUE1} не совпадает с макросом имени хоста «{$WEB_SERVICE.HOST}» — {HOST.NAME} ({HOST.HOST})
+        priority: WARNING
+        manual_close: 'YES'
+        description: 'TCP-проверки идут на {$WEB_SERVICE.HOST}, а он пуст или не совпадает с хостом в {$WEB_SERVICE.URL}. С пустым макросом проверки идут на адрес интерфейса хоста, часто 127.0.0.1. Задайте на хосте {$WEB_SERVICE.HOST}, равный хосту URL, в нижнем регистре; для кириллических доменов — в форме xn--. Пока проблема открыта, триггер «Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}» подавлен: он проверяет чужой адрес. Через 15 мин без успешной проверки сертификата проблема закрывается, чтобы авария сайта её не удерживала.'
         tags:
         - tag: scope
           value: diag
@@ -1317,13 +1350,10 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: fd0ada034a644ca3bf0086101c92395a
-        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)
         name: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
         priority: AVERAGE
-        description: Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен.
-        dependencies:
-        - name: Макрос https-порта не совпадает с портом URL
-          expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+        description: 'Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен. Триггер молчит, пока свежая проверка сертификата показывает, что макрос порта или имени хоста не совпадает с URL: об этом сообщает предупреждение о расхождении.'
         tags:
         - tag: scope
           value: diag
@@ -1338,7 +1368,7 @@ zabbix_export:
         description: 'Среднее время соединения TCP/{$WEB_SERVICE.HTTPS.PORT} за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
         dependencies:
         - name: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)
         tags:
         - tag: scope
           value: diag
@@ -1346,6 +1376,28 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         event_name: 'Медленное соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с {$WEB_SERVICE.HOST}: в среднем {ITEM.LASTVALUE1} за 30 мин (порог {$WEB_SERVICE.TCP.SLOW_SEC} с) — {HOST.NAME} ({HOST.HOST})'
         manual_close: 'YES'
+      - uuid: a1dc2a8f8e9f4dc28e55764fd86b20ef
+        expression: nodata(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],15m)=1 and nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=0
+        name: Нет данных TCP-проверки
+        event_name: 'TCP-проверка {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: нет значений 15 мин — {HOST.NAME} ({HOST.HOST})'
+        opdata: нет значений 15 мин — элемент NOTSUPPORTED или не опрашивается
+        priority: AVERAGE
+        manual_close: 'YES'
+        description: |
+          Диагностический https-элемент TCP 15 мин не получает значений
+          (три интервала по 5 мин по умолчанию). TCP-триггеры и условие TCP
+          в триггере сертификата пока не вычисляются. Причины:
+          - элемент NOTSUPPORTED: прочитайте его ошибку, обычно это пустой
+            {$WEB_SERVICE.HOST} на хосте без интерфейса или нечисловой
+            {$WEB_SERVICE.HTTPS.PORT} (только цифры, без пробелов);
+          - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} увеличен до 15 мин или больше.
+          Триггер молчит, пока нет данных и у веб-сценария: тогда молчит
+          весь сборщик, и об этом сообщает «Нет данных веб-сервиса».
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
     - uuid: ccec84b433b442b7a9a94f9f409248c3
       name: 'Диагностика: время соединения TCP {$WEB_SERVICE.HTTP.PORT}'
       type: SIMPLE
@@ -1415,7 +1467,7 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)
     - uuid: 4ff2ca946d4844e9a030b157dc5e16c7
       name: 'Скан TLS: поддерживаемые протоколы'
       type: DEPENDENT
