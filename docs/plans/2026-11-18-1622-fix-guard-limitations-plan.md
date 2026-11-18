@@ -209,3 +209,15 @@ execution: code
 - **Why the afternoon experiments did not fire:** every `history.push` was rejected with "Client IP is not in item's allowed hosts list" (the helper ignored the per-item errors), so the trapper items had no data at all. `nodata()` itself behaved as documented: with no data it counts from when the item entered the configuration cache.
 - **Experiment with `trapper_hosts` set (two temporary hosts, 2m windows):** with the web item enabled both gates fired 2 min after TCP went silent; with the web item disabled the web gate stayed UNKNOWN ("Cannot evaluate function nodata(...): item is disabled") and the certificate gate fired. KTD4 is confirmed; R4 is done.
 - **Race the candidate adds:** when the whole collector stops, the TCP item can go stale up to one certificate interval before the certificate item. `{$WEB_SERVICE.DIAG.NODATA.PERIOD}` defaults to 20m (certificate window 15m + one 5m interval) so only the certificate no-data problem opens.
+
+## Deployment Record
+
+Выкладка 2026-11-18: main `5da4f70`.
+
+- Живая проверка AE2 на временном хосте production (trapper с ответами настоящего `web_check.py`, хост удалён): ответ `tcp_error` для порта 20443 записан в элементы порта и имени; ответы `bad_url` и `internal_error` отброшены, элементы остались поддерживаемыми.
+- `web_check.py` 2.2.4 через `install.sh` (REF `5da4f70`) установлен на втором сервере и четырёх прокси production; `self-test` везде чистый. Сервер production не обновлён: SSH сообщил о смене ключа хоста и отклонил вход, ключ не трогали. Шаблон 7.0-2.7.1 работает и с 2.2.3: изменение `web_check` касается только URL с точкой на конце, таких хостов нет.
+- Пробное сравнение: удалений и новых элементов нет; 16 «добавленных» триггеров уже есть на серверах с тем же uuid (шум сравнения для триггеров на нескольких элементах), 6 триггеров обновлены.
+- Импорт RU-шаблона (`createMissing` + `updateExisting`, без `deleteMissing`) включил обратно отключённые на хостах триггеры (180 и 27); статусы возвращены по снимку, элементы не тронуты. Дедупликация WHOIS: 0 действий на обоих серверах. `check-template-preprocessing.py`: совпадает с файлами; `recovery_mode` триггера сертификата сохранён; новая предобработка порта и имени стоит на всех хостах (49 и 6), условие «нет данных TCP» на всех хостах опирается на основной элемент сертификата.
+- Через 20 минут: новых сверок, «нет данных» и TCP-аварий нет; `web_check.cert.port` свежий на всех хостах (45 из 45 и 6 из 6). Новые события на хостах шаблона (смена ОС на одном хосте из шаблона Linux) и неподдерживаемый `web_check.whois.dnssec` на одном хосте к выкладке не относятся: последнее значение WHOIS пришло до импорта, элементы импорт не менял.
+
+Сравнения, снимки и результаты проверки сохранены в `~/.local/state/zabbix-webservices/deployments/2026-11-18-guard-limitations/`.
