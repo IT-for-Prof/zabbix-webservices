@@ -1381,6 +1381,31 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         event_name: 'Медленное соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с {$WEB_SERVICE.HOST}: в среднем {ITEM.LASTVALUE1} за 30 мин (порог {$WEB_SERVICE.TCP.SLOW_SEC} с) — {HOST.NAME} ({HOST.HOST})'
         manual_close: 'YES'
+      - uuid: a1dc2a8f8e9f4dc28e55764fd86b20ef
+        expression: nodata(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],15m)=1
+        name: Нет данных TCP-проверки
+        event_name: 'TCP-проверка {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: нет значений 15 мин — {HOST.NAME} ({HOST.HOST})'
+        opdata: нет значений 15 мин — элемент NOTSUPPORTED или не опрашивается
+        priority: AVERAGE
+        manual_close: 'YES'
+        description: |
+          Диагностический https-элемент TCP 15 мин не получает значений
+          (три интервала по 5 мин по умолчанию). TCP-триггеры и условие TCP
+          в триггере сертификата пока не вычисляются. Причины:
+          - элемент NOTSUPPORTED: прочитайте его ошибку, обычно это пустой
+            {$WEB_SERVICE.HOST} на хосте без интерфейса или нечисловой
+            {$WEB_SERVICE.HTTPS.PORT} (только цифры, без пробелов);
+          - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} увеличен до 15 мин или больше.
+          Триггер молчит, пока открыт «Нет данных веб-сервиса»: тогда молчит
+          весь сборщик, и об этом уже сообщает тот триггер.
+        dependencies:
+        - name: Нет данных веб-сервиса
+          expression: nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=1
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
     - uuid: ccec84b433b442b7a9a94f9f409248c3
       name: 'Диагностика: время соединения TCP {$WEB_SERVICE.HTTP.PORT}'
       type: SIMPLE

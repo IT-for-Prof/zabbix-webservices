@@ -342,6 +342,29 @@ TCP {$WEB_SERVICE.HTTPS.PORT} connect failed: Нет соединения TCP {$
 TCP/{$WEB_SERVICE.HTTPS.PORT} to the monitored host is refused or unreachable on two consecutive checks.: Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен.
 TCP/{$WEB_SERVICE.HTTPS.PORT} connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST}): Нет соединения TCP/{$WEB_SERVICE.HTTPS.PORT} с {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
 TCP {$WEB_SERVICE.HTTPS.PORT} connect slow: Медленное соединение TCP {$WEB_SERVICE.HTTPS.PORT}
+TCP check no data received: Нет данных TCP-проверки
+'TCP check to {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: no value for 15m — {HOST.NAME} ({HOST.HOST})': 'TCP-проверка {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: нет значений 15 мин — {HOST.NAME} ({HOST.HOST})'
+no value for 15m — item NOTSUPPORTED or not polled: нет значений 15 мин — элемент NOTSUPPORTED или не опрашивается
+? |
+  The https TCP diagnostic item has not received a value for 15m
+  (3x its default 5m interval). The TCP triggers and the TCP condition
+  of the certificate trigger cannot evaluate meanwhile. Causes:
+  - the item is NOTSUPPORTED: read its error, usually an empty
+    {$WEB_SERVICE.HOST} on a host without an interface, or a
+    non-numeric {$WEB_SERVICE.HTTPS.PORT} (digits only, no spaces);
+  - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} was raised to 15m or more.
+  Suppressed while "Web service no data received" is open: then the
+  whole collector is silent and that trigger already reports it.
+: |
+  Диагностический https-элемент TCP 15 мин не получает значений
+  (три интервала по 5 мин по умолчанию). TCP-триггеры и условие TCP
+  в триггере сертификата пока не вычисляются. Причины:
+  - элемент NOTSUPPORTED: прочитайте его ошибку, обычно это пустой
+    {$WEB_SERVICE.HOST} на хосте без интерфейса или нечисловой
+    {$WEB_SERVICE.HTTPS.PORT} (только цифры, без пробелов);
+  - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} увеличен до 15 мин или больше.
+  Триггер молчит, пока открыт «Нет данных веб-сервиса»: тогда молчит
+  весь сборщик, и об этом уже сообщает тот триггер.
 ? TCP/{$WEB_SERVICE.HTTPS.PORT} average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold via the macro on hosts behind a CDN with intentionally-distant POPs.
 : 'Среднее время соединения TCP/{$WEB_SERVICE.HTTPS.PORT} за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
 ? 'TCP/{$WEB_SERVICE.HTTPS.PORT} to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'

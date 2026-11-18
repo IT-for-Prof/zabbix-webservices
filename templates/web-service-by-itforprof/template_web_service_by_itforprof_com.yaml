@@ -1477,6 +1477,31 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         event_name: 'TCP/{$WEB_SERVICE.HTTPS.PORT} to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
         manual_close: 'YES'
+      - uuid: a1dc2a8f8e9f4dc28e55764fd86b20ef
+        expression: nodata(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],15m)=1
+        name: TCP check no data received
+        event_name: 'TCP check to {$WEB_SERVICE.HOST}:{$WEB_SERVICE.HTTPS.PORT}: no value for 15m — {HOST.NAME} ({HOST.HOST})'
+        opdata: 'no value for 15m — item NOTSUPPORTED or not polled'
+        priority: AVERAGE
+        manual_close: 'YES'
+        description: |
+          The https TCP diagnostic item has not received a value for 15m
+          (3x its default 5m interval). The TCP triggers and the TCP condition
+          of the certificate trigger cannot evaluate meanwhile. Causes:
+          - the item is NOTSUPPORTED: read its error, usually an empty
+            {$WEB_SERVICE.HOST} on a host without an interface, or a
+            non-numeric {$WEB_SERVICE.HTTPS.PORT} (digits only, no spaces);
+          - {$WEB_SERVICE.DIAG.CHECK.INTERVAL} was raised to 15m or more.
+          Suppressed while "Web service no data received" is open: then the
+          whole collector is silent and that trigger already reports it.
+        dependencies:
+        - name: Web service no data received
+          expression: nodata(/Web service by itforprof.com/web.test.fail[Web service],{$WEB_SERVICE.NODATA.PERIOD})=1
+        tags:
+        - tag: scope
+          value: data-collection
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
     - uuid: ccec84b433b442b7a9a94f9f409248c3
       name: 'Diag: TCP {$WEB_SERVICE.HTTP.PORT} performance'
       type: SIMPLE

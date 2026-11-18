@@ -15,6 +15,7 @@ TCP_FAILED = "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed"
 TCP_SLOW = "TCP {$WEB_SERVICE.HTTPS.PORT} connect slow"
 PORT_MISMATCH = "HTTPS port macro does not match the URL port"
 HOST_MISMATCH = "Host macro does not match the URL host"
+TCP_NODATA = "TCP check no data received"
 
 
 def _template() -> dict:
@@ -511,7 +512,7 @@ def test_tcp_objects_keep_identity_and_tags():
     triggers = {t["name"]: t for t in https["triggers"]}
     assert triggers[TCP_FAILED]["uuid"] == "fd0ada034a644ca3bf0086101c92395a"
     assert triggers[TCP_SLOW]["uuid"] == "ff15f34c63b247c8a7334a465c45bd73"
-    for trigger in triggers.values():
+    for trigger in (triggers[TCP_FAILED], triggers[TCP_SLOW]):
         assert {t["tag"]: t["value"] for t in trigger["tags"]} == {"scope": "diag", "url": "{$WEB_SERVICE.URL}"}
         assert "443" not in trigger["event_name"] + trigger["description"]
 
@@ -584,3 +585,17 @@ def test_host_mismatch_warns_when_host_macro_differs_from_url_host():
     assert "{ITEM.LASTVALUE1}" in trigger["event_name"]
     assert not trigger.get("dependencies")
     assert "nodata(" not in trigger["expression"]
+
+
+def test_silent_tcp_check_raises_no_data():
+    """A NOTSUPPORTED https TCP item (bad port, no address) leaves the TCP triggers and the cert
+    trigger's TCP gate UNKNOWN; without this the host just goes quiet."""
+    triggers = {t["name"]: t for t in _item_by_key(TCP_HTTPS_KEY)["triggers"]}
+    nodata = triggers[TCP_NODATA]
+    assert nodata["expression"] == f"nodata(/Web service by itforprof.com/{TCP_HTTPS_KEY},15m)=1"
+    assert nodata["priority"] == "AVERAGE"
+    assert nodata["manual_close"] == "YES"
+    assert {t["tag"]: t["value"] for t in nodata["tags"]} == {"scope": "data-collection", "url": "{$WEB_SERVICE.URL}"}
+    # One ticket per collector failure: the web scenario goes quiet too and already reports it.
+    web_nodata = _triggers_by_name()["Web service no data received"]
+    assert nodata["dependencies"] == [{"name": "Web service no data received", "expression": web_nodata["expression"]}]
