@@ -365,7 +365,14 @@ class WhoisCache:
         lp = self._lock_path(apex)
         with contextlib.suppress(OSError):
             lp.touch(mode=0o600, exist_ok=True)
-        with open(lp, "w") as fh:
+        try:
+            fh = open(lp, "w")  # noqa: SIM115 — closed by the with-block below
+        except PermissionError:
+            # shortcut: a lock file owned by another user disables stampede protection
+            # for this apex; the lookup itself still runs. Fix the file owner to restore it.
+            yield True
+            return
+        with fh:
             try:
                 if blocking:
                     fcntl.flock(fh, fcntl.LOCK_EX)
@@ -1212,6 +1219,20 @@ def _query_whois_port43(apex: str, deadline: float) -> dict[str, Any]:
     return _normalize_whois(parsed or {}, raw or "", tld_of(apex))
 
 
+def _dnssec_state(value: Any) -> str:
+    """Map a parser's DNSSEC field to signed / unsigned / unknown."""
+    if value is None:
+        return "unknown"
+    if not isinstance(value, str):
+        return "signed" if value else "unsigned"
+    v = value.strip().lower()
+    if v.startswith("unsigned") or v in ("", "none", "no"):
+        return "unsigned"
+    if v.startswith("signed") or v == "yes":
+        return "signed"
+    return "unknown"
+
+
 def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, Any]:  # noqa: C901 — flat dict shaping, not a real branchy function
     """Convert asyncwhois `parsed` (per-TLD shape) into our stable envelope."""
 
@@ -1234,19 +1255,7 @@ def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, An
         statuses = [statuses]
     if isinstance(ns, str):
         ns = [ns]
-    dnssec = parsed.get("dnssec")
-    if isinstance(dnssec, str):
-        d = dnssec.strip().lower()
-        if d.startswith("unsigned") or d in ("", "none", "no"):
-            dnssec_s = "unsigned"
-        elif d.startswith("signed") or d == "yes":
-            dnssec_s = "signed"
-        else:
-            dnssec_s = "unknown"
-    elif dnssec is None:
-        dnssec_s = "unknown"
-    else:
-        dnssec_s = "signed" if bool(dnssec) else "unsigned"
+    dnssec_s = _dnssec_state(parsed.get("dnssec"))
 
     # Augmenters for TLDs where asyncwhois parser has gaps.
     if expires is None and tld in TCI_TLDS:

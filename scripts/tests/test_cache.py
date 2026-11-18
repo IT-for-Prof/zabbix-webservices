@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import time
+
+import pytest
 
 
 def test_roundtrip(tmp_cache):
@@ -96,3 +99,12 @@ def test_old_whois_cache_schema_is_ignored(tmp_cache, web_check_module):
 
 def test_schema_version_is_3(web_check_module):
     assert web_check_module.SCHEMA_VERSION == 3
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+def test_unwritable_lock_file_does_not_break_whois(tmp_cache, web_check_module, monkeypatch):
+    """A lock file left by another user (Permission denied) must not turn into internal_error."""
+    tmp_cache._lock_path("example.com").touch(mode=0o000)
+    monkeypatch.setattr(web_check_module, "_query_registration", lambda apex: {"ok": True, "apex": apex})
+    out = web_check_module.check_whois("https://www.example.com/", cache=tmp_cache)
+    assert out == {"ok": True, "apex": "example.com"}
