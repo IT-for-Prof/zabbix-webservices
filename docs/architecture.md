@@ -333,7 +333,7 @@ web_check.py["whois", "{$WEB_SERVICE.URL}"]
 1. Extract apex from URL via PSL (`tldextract`, ICANN section). Names
    under the 72 FAITID suffixes from the PSL private section (`msk.ru`,
    `spb.ru`, `com.ru`, `ru.net`, geo `.su` ...) resolve to the third-level
-   domain (`example.msk.ru`), skip RDAP and are asked at the registry,
+   domain (`example.msk.ru`), skip RDAP and go to the registry WHOIS,
    `whois.flexireg.net`.
 2. Read cache. If present and `now - mtime < TTL`, return cached JSON
    plus `cache_age_seconds`.
@@ -379,8 +379,8 @@ carries no nulls — see web_check 2.1.8), and the "domain expires" triggers
 are suppressed for the host (gated on `provider_no_expiry=0` and
 `length(expires_at)>0`). `dnssec` is a tri-state string —
 `"signed"`/`"unsigned"`/`"unknown"` — not a boolean. Registry spellings
-such as `unsignedDelegation` map by prefix; anything unrecognised is
-`"unknown"`.
+such as `unsignedDelegation` map by prefix (`unsigned...` → `"unsigned"`,
+`signed...` → `"signed"`); anything unrecognised is `"unknown"`.
 
 **Dependent items:** `whois.days_to_expire`, `whois.expires_at`,
 `whois.registrar`, `whois.name_servers` (joined), `whois.dnssec`,

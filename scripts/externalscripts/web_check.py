@@ -262,8 +262,8 @@ def _get_psl_extractor() -> Any:
 
 # FAITID registers third-level names under these PSL private-section suffixes
 # (PSL block "FAITID", https://www.flexireg.net/stat_info). The registered domain
-# is example.msk.ru, not msk.ru, and only the registry's WHOIS knows it: TCI and
-# RDAP answer for the suffix itself.
+# is example.msk.ru, not msk.ru. Only the registry's WHOIS has its record; TCI
+# and RDAP answer for the suffix itself.
 FAITID_SUFFIXES = frozenset(
     {
         "ru.net",
@@ -344,7 +344,10 @@ FAITID_WHOIS_SERVER = "whois.flexireg.net"
 
 
 def _faitid_apex(host: str) -> str | None:
-    """example.msk.ru for any name under a FAITID suffix (all are two labels)."""
+    """Return the third-level domain (example.msk.ru) under a FAITID suffix, else None.
+
+    Every FAITID suffix has exactly two labels.
+    """
     labels = host.lower().split(".")
     if len(labels) >= 3 and ".".join(labels[-2:]) in FAITID_SUFFIXES:
         return ".".join(labels[-3:])

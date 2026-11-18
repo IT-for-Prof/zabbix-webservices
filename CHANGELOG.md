@@ -12,25 +12,28 @@ Full profile and `web_check.py` 2.2.5; Certificate-TLS is unchanged.
 
 FAITID registers third-level names under 72 suffixes from the private
 section of the Public Suffix List (`msk.ru`, `spb.ru`, `com.ru`, `ru.net`,
-geo `.su` and others). WHOIS took `example.msk.ru` for `msk.ru` and reported
-the suffix's expiry, not the domain's. Such names now resolve to the
-third-level domain, skip RDAP and ask `whois.flexireg.net`. After the
-rollout the owner host of an affected domain shows one "Domain registrar
-changed" and one "Domain name servers changed": the values now belong to
-the domain itself. Re-run `sync-domain-registry-owners.py`: the apex key of
+geo `.su` and others). The WHOIS check resolved `example.msk.ru` to `msk.ru`
+and reported the suffix's expiry, not the domain's. Such names now resolve
+to the third-level domain, skip RDAP and ask the FAITID registry,
+`whois.flexireg.net`. After the rollout the owner host of an affected domain
+shows one "Domain registrar changed" and one "Domain name servers changed",
+because the registrar and name servers now come from the domain's own
+record. Re-run `sync-domain-registry-owners.py`, because the apex key of
 those hosts changes.
 
 ### Fixed — DNSSEC spellings (`web_check.py` 2.2.5)
 
 `unsignedDelegation` and "Unsigned delegation" read as `unsigned`, not
-`signed`; unrecognised values are `unknown`. A port-43 fallback could
-otherwise open a false "Domain DNSSEC removed" once RDAP answered again.
+`signed`; unrecognised values are `unknown`. Before the fix, a port-43
+fallback that read `signed` could open a false "Domain DNSSEC removed" once
+RDAP answered `unsigned` again.
 
 ### Fixed — the DNSSEC item no longer sticks in NOTSUPPORTED
 
 An answer without the `dnssec` field (`internal_error` from `main()`) made
-`web_check.whois.dnssec` NOTSUPPORTED, and the `unknown` values that follow
-are discarded, so they never cleared it. The item now drops such an answer.
+`web_check.whois.dnssec` NOTSUPPORTED. The `unknown` values that followed
+are discarded, and a discarded value never clears NOTSUPPORTED. The item now
+drops such an answer.
 `web_check.py` also keeps WHOIS running when a lock file in its cache is
 not writable (`PermissionError`), instead of failing with `internal_error`.
 

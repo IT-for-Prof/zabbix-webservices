@@ -1172,9 +1172,9 @@ zabbix_export:
       master_item:
         key: web_check.py["whois","{$WEB_SERVICE.URL}","--ttl","{$WEB_SERVICE.WHOIS.CACHE.TTL}"]
       preprocessing:
-      # An answer without the field (main()'s internal_error) is dropped like
-      # "unknown" below: a discarded value never clears NOTSUPPORTED, so an error
-      # here would stick for good on a domain whose DNSSEC is never reported.
+      # An answer without the field (main()'s internal_error) is dropped, like
+      # "unknown" below. A discarded value never clears NOTSUPPORTED, so an error
+      # here would never clear on a domain whose DNSSEC is never reported.
       - type: JSONPATH
         parameters:
         - $.dnssec

@@ -12,7 +12,7 @@ execution: code
 
 ## Goal Capsule
 
-- **Objective:** WHOIS-проверки шаблона «Web service by itforprof.com» отслеживают настоящий зарегистрированный домен, верно читают DNSSEC и не застревают в NOTSUPPORTED после разовой ошибки скрипта.
+- **Objective:** WHOIS-проверки шаблона «Web service by itforprof.com» отслеживают зарегистрированный домен, верно читают DNSSEC и не застревают в NOTSUPPORTED после разовой ошибки скрипта.
 - **Means:** `web_check.py` 2.2.5 (домены FAITID через реестр `whois.flexireg.net`, разбор DNSSEC, кеш без блокировки при отказе в правах), шаблон 7.0-2.7.2 (элемент DNSSEC отбрасывает ответ без поля, а не уходит в NOTSUPPORTED), две мелочи в тестах и типах.
 - **Product authority:** владелец репозитория. Выкладка только после его «да».
 - **Open blockers:** нет.
