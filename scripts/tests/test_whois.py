@@ -226,3 +226,45 @@ def test_query_whois_threads_offline_extractor_into_asyncwhois(monkeypatch, web_
         "re-introduces the cache-write/network-fetch hazard."
     )
     assert captured["kwargs"]["tldextract_obj"] is web_check_module._get_psl_extractor()
+
+
+FAITID_RAW = """\
+Domain Name: example.msk.ru
+Registry Domain ID: 1a2b3c4d-fir
+Registrar WHOIS Server: whois.example-registrar.ru
+Updated Date: 2026-04-01T10:00:00Z
+Creation Date: 2013-03-09T20:00:00Z
+Registry Expiry Date: 2030-03-09T21:00:00Z
+Registrar: Example Registrar LLC
+Domain Status: clientTransferProhibited https://icann.org/epp#clientTransferProhibited
+Name Server: ns1.example.net
+Name Server: ns2.example.net
+DNSSEC: unsignedDelegation
+"""
+
+
+def test_faitid_domain_asks_the_registry_without_rdap(monkeypatch, web_check_module):
+    """Third-level FAITID names live in whois.flexireg.net; TCI and RDAP only know the suffix."""
+    import asyncwhois
+    from asyncwhois.query import DomainQuery
+
+    asked = []
+
+    def fake_run(self, search_term, server=None):
+        asked.append((search_term, server))
+        return [FAITID_RAW]
+
+    def no_rdap(*args, **kwargs):
+        raise AssertionError("RDAP must not be called for a FAITID domain")
+
+    monkeypatch.setattr(DomainQuery, "run", fake_run)
+    monkeypatch.setattr(asyncwhois, "rdap", no_rdap)
+
+    out = web_check_module._query_registration("example.msk.ru")
+
+    assert asked == [("example.msk.ru", "whois.flexireg.net")]
+    assert out["ok"] is True
+    assert out["apex"] == "example.msk.ru"
+    assert out["expires_at"] == "2030-03-09T21:00:00+00:00"
+    assert out["dnssec"] == "unsigned"
+    assert out["name_servers"] == ["ns1.example.net", "ns2.example.net"]

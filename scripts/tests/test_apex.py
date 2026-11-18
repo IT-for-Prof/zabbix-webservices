@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 
@@ -113,3 +115,30 @@ def test_psl_extractor_cache_disabled(web_check_module, capfd, caplog, monkeypat
     # Structural intent: tldextract's DiskCache must be disabled.
     assert web_check_module._PSL_EXTRACTOR is not None
     assert web_check_module._PSL_EXTRACTOR._cache.enabled is False
+
+
+@pytest.mark.parametrize(
+    ("host", "want"),
+    [
+        ("chat.example.msk.ru", "example.msk.ru"),
+        ("example.msk.ru", "example.msk.ru"),
+        ("www.example.com.ru", "example.com.ru"),
+        ("a.b.example.spb.su", "example.spb.su"),
+        ("msk.ru", "msk.ru"),
+        ("www.telecom.ru", "telecom.ru"),
+        ("foo.github.io", "github.io"),
+        ("mail.itforprof.com", "itforprof.com"),
+    ],
+)
+def test_faitid_third_level_domains_are_the_registered_domain(web_check_module, host, want):
+    """FAITID registers names under msk.ru, com.ru, ru.net and other PSL private suffixes."""
+    assert web_check_module.registered_apex(host) == want
+
+
+def test_faitid_suffixes_are_psl_private_suffixes(web_check_module):
+    import tldextract
+
+    snapshot = (Path(tldextract.__file__).parent / ".tld_set_snapshot").read_text().splitlines()
+    private = set(snapshot[snapshot.index("// ===BEGIN PRIVATE DOMAINS===") :])
+    assert len(web_check_module.FAITID_SUFFIXES) == 72
+    assert private >= web_check_module.FAITID_SUFFIXES

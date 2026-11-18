@@ -260,6 +260,97 @@ def _get_psl_extractor() -> Any:
     return _PSL_EXTRACTOR
 
 
+# FAITID registers third-level names under these PSL private-section suffixes
+# (PSL block "FAITID", https://www.flexireg.net/stat_info). The registered domain
+# is example.msk.ru, not msk.ru, and only the registry's WHOIS knows it: TCI and
+# RDAP answer for the suffix itself.
+FAITID_SUFFIXES = frozenset(
+    {
+        "ru.net",
+        "adygeya.ru",
+        "bashkiria.ru",
+        "bir.ru",
+        "cbg.ru",
+        "com.ru",
+        "dagestan.ru",
+        "grozny.ru",
+        "kalmykia.ru",
+        "kustanai.ru",
+        "marine.ru",
+        "mordovia.ru",
+        "msk.ru",
+        "mytis.ru",
+        "nalchik.ru",
+        "nov.ru",
+        "pyatigorsk.ru",
+        "spb.ru",
+        "vladikavkaz.ru",
+        "vladimir.ru",
+        "abkhazia.su",
+        "adygeya.su",
+        "aktyubinsk.su",
+        "arkhangelsk.su",
+        "armenia.su",
+        "ashgabad.su",
+        "azerbaijan.su",
+        "balashov.su",
+        "bashkiria.su",
+        "bryansk.su",
+        "bukhara.su",
+        "chimkent.su",
+        "dagestan.su",
+        "east-kazakhstan.su",
+        "exnet.su",
+        "georgia.su",
+        "grozny.su",
+        "ivanovo.su",
+        "jambyl.su",
+        "kalmykia.su",
+        "kaluga.su",
+        "karacol.su",
+        "karaganda.su",
+        "karelia.su",
+        "khakassia.su",
+        "krasnodar.su",
+        "kurgan.su",
+        "kustanai.su",
+        "lenug.su",
+        "mangyshlak.su",
+        "mordovia.su",
+        "msk.su",
+        "murmansk.su",
+        "nalchik.su",
+        "navoi.su",
+        "north-kazakhstan.su",
+        "nov.su",
+        "obninsk.su",
+        "penza.su",
+        "pokrovsk.su",
+        "sochi.su",
+        "spb.su",
+        "tashkent.su",
+        "termez.su",
+        "togliatti.su",
+        "troitsk.su",
+        "tselinograd.su",
+        "tula.su",
+        "tuva.su",
+        "vladikavkaz.su",
+        "vladimir.su",
+        "vologda.su",
+    }
+)
+FAITID_WHOIS_SERVER = "whois.flexireg.net"
+
+
+def _faitid_apex(host: str) -> str | None:
+    """example.msk.ru for any name under a FAITID suffix (all are two labels)."""
+    labels = host.lower().split(".")
+    if len(labels) >= 3 and ".".join(labels[-2:]) in FAITID_SUFFIXES:
+        return ".".join(labels[-3:])
+    return None
+
+
 def registered_apex(host: str) -> str | None:
     """Extract the registered apex (e.g. mon.itforprof.com → itforprof.com).
 
@@ -269,6 +360,9 @@ def registered_apex(host: str) -> str | None:
     not installed — callers should distinguish "missing dependency" from
     "unresolved apex" envelopes.
     """
+    faitid = _faitid_apex(host)
+    if faitid:
+        return faitid
     parts = _get_psl_extractor()(host)
     if not parts.domain or not parts.suffix:
         return None
@@ -1073,7 +1167,7 @@ def _query_registration(apex: str) -> dict[str, Any]:
     timeout, well under the server Timeout).
     """
     deadline = time.monotonic() + 10.0
-    rdap_norm = _query_rdap(apex, deadline)
+    rdap_norm = None if _faitid_apex(apex) else _query_rdap(apex, deadline)
     if rdap_norm is not None:
         return _finalize_registration(rdap_norm, apex)
 
@@ -1204,7 +1298,10 @@ def _query_whois_port43(apex: str, deadline: float) -> dict[str, Any]:
                 "whois_timeout", f"deadline exceeded after {attempt} attempts: {last_err}", apex=apex
             )
         try:
-            raw, parsed = asyncwhois.whois(apex, tldextract_obj=extractor)
+            if _faitid_apex(apex):
+                raw, parsed = _faitid_whois(apex, extractor)
+            else:
+                raw, parsed = asyncwhois.whois(apex, tldextract_obj=extractor)
             break
         except Exception as e:  # noqa: BLE001 — asyncwhois surfaces a wide error variety
             last_err = f"{type(e).__name__}: {e}"
@@ -1231,6 +1328,16 @@ def _dnssec_state(value: Any) -> str:
     if v.startswith("signed") or v == "yes":
         return "signed"
     return "unknown"
+
+
+def _faitid_whois(apex: str, extractor: Any) -> tuple[str, dict[str, Any]]:
+    """Ask the FAITID registry directly; its answer is in the ICANN format."""
+    from asyncwhois.client import DomainClient
+
+    client = DomainClient(find_authoritative_server=False, tldextract_obj=extractor)
+    raw: str = client.query_obj.run(apex, server=FAITID_WHOIS_SERVER)[-1]
+    # The .ru parser reads only TCI's format; the generic ICANN parser reads this one.
+    return raw, dict(client.parse_obj.parse(raw, "com"))
 
 
 def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, Any]:  # noqa: C901 — flat dict shaping, not a real branchy function
