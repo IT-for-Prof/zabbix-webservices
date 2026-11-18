@@ -5,7 +5,7 @@ Full-stack web-service monitoring template for Zabbix 7.0.
 |                  |                                          |
 | ---------------- | ---------------------------------------- |
 | Vendor           | `itforprof.com`                          |
-| Version          | `7.0-2.5.1`                              |
+| Version          | `7.0-2.6.0`                              |
 | TLS profile      | `7.0-1.2.0`                              |
 | Template group   | `Templates/Applications`                 |
 | Wizard-ready     | Yes                                      |
@@ -35,7 +35,7 @@ and link only **Web service by itforprof.com - Certificate-TLS**. It contains th
 certificate master item, certificate metadata, expiry/rotation checks, and live
 TLS protocol/cipher/handshake items. The URL keeps its port, so SQL Server can
 use `https://ifp-vps03.itforprof.com:1433`; HTTP, WHOIS, HTTP/3, TLS scan, and
-TCP 80/443 checks are absent from this profile.
+TCP checks are absent from this profile.
 
 The profile watches the certificate, not the service. It has no availability
 alert: a probe that cannot reach the endpoint only raises AVERAGE "Cert check
@@ -146,6 +146,8 @@ With defaults (override per host as needed):
 | `{$WEB_SERVICE.WHOIS.NOTICE_DAYS}` | `7` | Domain expiry AVERAGE threshold (days). |
 | `{$WEB_SERVICE.WHOIS.CRIT_DAYS}` | `1` | Domain expiry AVERAGE threshold (days). HIGH fires on `days_to_expire < 0` (already expired). |
 | `{$WEB_SERVICE.TCP.SLOW_SEC}` | `3` | `net.tcp.service.perf` WARNING threshold. |
+| `{$WEB_SERVICE.HTTPS.PORT}` | `443` | Port of the https TCP check. Set it to the port of an `https://host:port` URL. Keep `443` for `http://` URLs. A mismatch with the certificate check port raises a WARNING and suppresses the TCP failure trigger. |
+| `{$WEB_SERVICE.HTTP.PORT}` | `80` | Port of the http TCP check. Set it to the port of an `http://host:port` URL. |
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | `5m` | HTTP/3 master item delay. |
 | `{$WEB_SERVICE.HTTP3.SLOW_MS}` | `1000` | QUIC handshake time WARNING threshold (ms). |
 
@@ -160,7 +162,7 @@ By scope:
 | data-collection | 6   | AVERAGE          |
 | tls (cert + handshake) | 12 | HIGH           |
 | whois         | 8     | HIGH             |
-| diag          | 2     | AVERAGE          |
+| diag          | 3     | AVERAGE          |
 | http3         | 3     | AVERAGE          |
 | tls-scan      | 1     | INFO             |
 | tls-scan (LLD trigger prototype) | 1 per finding | WARNING |
@@ -168,7 +170,7 @@ By scope:
 Severity rule: HIGH means the service is already broken for users (site down,
 cert or domain expired, hostname not covered, chain untrusted); AVERAGE means it
 still works but needs action. No trigger is DISASTER. **Web service is failing**
-and **TCP 443 connect failed** (AVERAGE) need two consecutive failed checks, so a
+and **TCP {$WEB_SERVICE.HTTPS.PORT} connect failed** (AVERAGE) need two consecutive failed checks, so a
 single failed poll does not open a problem.
 
 Cert-expiry triggers cascade HIGH (expired) → AVERAGE (<7d) → WARNING (<14d)
@@ -213,8 +215,8 @@ over. The new trigger uses a freshness condition rather than a dependency so
 an existing problem can recover while no-data is active.
 
 In the full profile the sustained-failure trigger also requires the last three
-TCP 443 checks to have succeeded, so a network outage raises only **TCP 443
-connect failed**. The `https` TCP check is a curl HEAD request without
+TCP {$WEB_SERVICE.HTTPS.PORT} checks to have succeeded, so a network outage raises only **TCP
+{$WEB_SERVICE.HTTPS.PORT} connect failed**. The `https` TCP check is a curl HEAD request without
 certificate verification: a broken TLS handshake fails it too and is reported
 the same way. The TCP condition sits in the problem expression, not in a
 dependency. Closing moves to a recovery expression: the first successful check
@@ -239,7 +241,7 @@ HTTP/3 layer is silent by design on hosts whose servers don't advertise
 `h3` in their `Alt-Svc` response header — no triggers fire on `advertised=false`.
 `HTTP/3 advertised but unreachable` (AVERAGE) catches the case where the
 server claims h3 support but the proxy can't complete the QUIC handshake on
-3 consecutive checks (UDP/443 dropped on the path, CDN regression, etc). The
+3 consecutive checks (UDP to the https port of the URL dropped on the path, CDN regression, etc). The
 site still answers over HTTP/2, so it is not HIGH. Checks that failed on DNS
 (`error_code: dns_error`) are not counted.
 

@@ -40,7 +40,7 @@ zabbix_export:
       License: MIT (c) 2025-2026 Konstantin Tyutyunnik
     vendor:
       name: itforprof.com
-      version: 7.0-2.5.1
+      version: 7.0-2.6.0
     groups:
     - name: Templates/Applications
     macros:
@@ -126,6 +126,12 @@ zabbix_export:
       description: Domain expires within N days critical (AVERAGE) trigger threshold.
     - macro: '{$WEB_SERVICE.HOST}'
       description: Host or IP for diagnostic simple checks (net.dns.record / net.tcp.service.perf). Defaults to {$WEB_SERVICE.URL} host; override per host if needed.
+    - macro: '{$WEB_SERVICE.HTTPS.PORT}'
+      value: '443'
+      description: Port of the https TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is https:// with an explicit port. Keep 443 for http:// URLs, whose certificate check also uses 443. A mismatch with the certificate check port raises a WARNING.
+    - macro: '{$WEB_SERVICE.HTTP.PORT}'
+      value: '80'
+      description: Port of the http TCP diagnostic check. Set it to the port in {$WEB_SERVICE.URL} when the URL is http:// with an explicit port; otherwise keep 80.
     - macro: '{$WEB_SERVICE.TCP.SLOW_SEC}'
       value: '3'
       description: net.tcp.service.perf WARNING threshold in seconds. Default 3s tolerates intercontinental TCP+TLS handshake (~300-800ms typical) plus headroom. Drop to 1 for LAN/regional monitoring.
@@ -785,13 +791,13 @@ zabbix_export:
         value: tls
       triggers:
       - uuid: 5d78ff44eacc4d638fa10a87dacd44fe
-        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0 and min(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#3)>0
+        expression: count(/Web service by itforprof.com/web_check.cert.ok,#3,"eq",0)=3 and nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=0 and min(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#3)>0
         recovery_mode: RECOVERY_EXPRESSION
         recovery_expression: last(/Web service by itforprof.com/web_check.cert.ok)=1 or nodata(/Web service by itforprof.com/web_check.py["cert","{$WEB_SERVICE.URL}"],15m)=1
         name: Cert check failing on 3 consecutive checks
         event_name: 'web_check.py cert failed on 3 consecutive checks — {$WEB_SERVICE.URL} on {HOST.HOST}'
         priority: AVERAGE
-        description: Three consecutive certificate checks returned ok=false while the last three TCP 443 checks succeeded. When TCP 443 fails, "TCP 443 connect failed" reports it instead. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.
+        description: Three consecutive certificate checks returned ok=false while the last three TCP {$WEB_SERVICE.HTTPS.PORT} checks succeeded. When that TCP check fails, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" reports it instead. Recovers on the first successful check or when the master item stops receiving data; the separate no-data trigger covers missing output.
         tags:
         - tag: scope
           value: data-collection
@@ -1360,10 +1366,44 @@ zabbix_export:
       tags:
       - tag: scope
         value: whois
+    - uuid: cc28c77e70e644798b37de7ca7bafa50
+      name: 'Diag: certificate check port'
+      type: DEPENDENT
+      key: web_check.cert.port
+      history: 7d
+      trends: '0'
+      value_type: UNSIGNED
+      description: 'Port the certificate check used: the port of an https:// {$WEB_SERVICE.URL}, otherwise 443. Read only from successful checks, so an outage keeps the last real port.'
+      master_item:
+        key: web_check.py["cert","{$WEB_SERVICE.URL}"]
+      preprocessing:
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - '"ok":false'
+        error_handler: DISCARD_VALUE
+      - type: JSONPATH
+        parameters:
+        - $.port
+      tags:
+      - tag: scope
+        value: diag
+      triggers:
+      - uuid: 58012d94be264a73bcce6a6d58003c2d
+        expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
+        name: HTTPS port macro does not match the URL port
+        event_name: 'URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.PORT} — {HOST.NAME} ({HOST.HOST})'
+        priority: WARNING
+        manual_close: 'YES'
+        description: 'The certificate check uses the port from {$WEB_SERVICE.URL}, but the https TCP check uses {$WEB_SERVICE.HTTPS.PORT}, so the TCP diagnostics probe a different service. Set {$WEB_SERVICE.HTTPS.PORT} on the host to the URL port. While this is open, "TCP {$WEB_SERVICE.HTTPS.PORT} connect failed" is suppressed because it checks the wrong port.'
+        tags:
+        - tag: scope
+          value: diag
+        - tag: url
+          value: '{$WEB_SERVICE.URL}'
     - uuid: 117107c9c4c0479aa9825347cea751b9
-      name: 'Diag: TCP 443 performance'
+      name: 'Diag: TCP {$WEB_SERVICE.HTTPS.PORT} performance'
       type: SIMPLE
-      key: net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443]
+      key: net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}]
       delay: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
       value_type: FLOAT
       units: s
@@ -1372,37 +1412,40 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: fd0ada034a644ca3bf0086101c92395a
-        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0
-        name: TCP 443 connect failed
+        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+        name: TCP {$WEB_SERVICE.HTTPS.PORT} connect failed
         priority: AVERAGE
-        description: TCP/443 to the monitored host is refused or unreachable on two consecutive checks.
+        description: TCP/{$WEB_SERVICE.HTTPS.PORT} to the monitored host is refused or unreachable on two consecutive checks.
+        dependencies:
+        - name: HTTPS port macro does not match the URL port
+          expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT}
         tags:
         - tag: scope
           value: diag
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        event_name: TCP/443 connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
+        event_name: TCP/{$WEB_SERVICE.HTTPS.PORT} connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
         manual_close: 'YES'
       - uuid: ff15f34c63b247c8a7334a465c45bd73
-        expression: avg(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],30m)>{$WEB_SERVICE.TCP.SLOW_SEC}
-        name: TCP 443 connect slow
+        expression: avg(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],30m)>{$WEB_SERVICE.TCP.SLOW_SEC}
+        name: TCP {$WEB_SERVICE.HTTPS.PORT} connect slow
         priority: WARNING
-        description: TCP/443 average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold
+        description: TCP/{$WEB_SERVICE.HTTPS.PORT} average connect time over 30m exceeds {$WEB_SERVICE.TCP.SLOW_SEC}s. Using avg (not last) so single network blips do not page; only sustained slowness fires. Bump the threshold
           via the macro on hosts behind a CDN with intentionally-distant POPs.
         dependencies:
-        - name: TCP 443 connect failed
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0
+        - name: TCP {$WEB_SERVICE.HTTPS.PORT} connect failed
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
         tags:
         - tag: scope
           value: diag
         - tag: url
           value: '{$WEB_SERVICE.URL}'
-        event_name: 'TCP/443 to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
+        event_name: 'TCP/{$WEB_SERVICE.HTTPS.PORT} to {$WEB_SERVICE.HOST} slow: avg {ITEM.LASTVALUE1} over 30m (threshold {$WEB_SERVICE.TCP.SLOW_SEC}s) — {HOST.NAME} ({HOST.HOST})'
         manual_close: 'YES'
     - uuid: ccec84b433b442b7a9a94f9f409248c3
-      name: 'Diag: TCP 80 performance'
+      name: 'Diag: TCP {$WEB_SERVICE.HTTP.PORT} performance'
       type: SIMPLE
-      key: net.tcp.service.perf[http,{$WEB_SERVICE.HOST},80]
+      key: net.tcp.service.perf[http,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTP.PORT}]
       delay: '{$WEB_SERVICE.DIAG.CHECK.INTERVAL}'
       value_type: FLOAT
       units: s
@@ -1463,7 +1506,7 @@ zabbix_export:
           server answers too slowly for the protocol and weak-cipher probes to
           finish within 25s (Zabbix stops external checks at 30s). Supported
           protocols and weak-cipher findings are not updated meanwhile; the LLD
-          rule keeps the findings it already has. Suppressed while TCP 443 to the
+          rule keeps the findings it already has. Suppressed while the https TCP check to the
           host fails, which already reports an unreachable target.
         tags:
         - tag: scope
@@ -1471,8 +1514,8 @@ zabbix_export:
         - tag: url
           value: '{$WEB_SERVICE.URL}'
         dependencies:
-        - name: TCP 443 connect failed
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},443],#2)=0
+        - name: TCP {$WEB_SERVICE.HTTPS.PORT} connect failed
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
     - uuid: 4ff2ca946d4844e9a030b157dc5e16c7
       name: 'TLS scan: supported protocols'
       type: DEPENDENT
@@ -1551,7 +1594,7 @@ zabbix_export:
 
           handshake from this proxy failed on 3 consecutive checks (~10-15 min).
 
-          The site still answers over HTTP/2. Causes: UDP/443 dropped on the
+          The site still answers over HTTP/2. Causes: UDP to the https port of the URL dropped on the
 
           path, server-side QUIC stack misconfigured, or CDN regression. Checks
 
