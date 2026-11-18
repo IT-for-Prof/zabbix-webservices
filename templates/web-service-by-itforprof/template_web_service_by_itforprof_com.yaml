@@ -1370,6 +1370,8 @@ zabbix_export:
       name: 'Diag: certificate check port'
       type: DEPENDENT
       key: web_check.cert.port
+      history: 7d
+      trends: '0'
       value_type: UNSIGNED
       description: 'Port the certificate check used: the port of an https:// {$WEB_SERVICE.URL}, otherwise 443. Read only from successful checks, so an outage keeps the last real port.'
       master_item:

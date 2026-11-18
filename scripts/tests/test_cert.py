@@ -157,3 +157,35 @@ def test_cert_attribute_shim_handles_either_api(web_check_module):
     assert old.tzinfo is UTC
     assert new.tzinfo is UTC
     assert old == new
+
+
+def test_cert_reports_the_url_port_the_template_compares(monkeypatch, web_check_module):
+    """The port-mismatch trigger compares this field with {$WEB_SERVICE.HTTPS.PORT}.
+
+    Real url_host and the template's own preprocessing steps, so a change to either
+    the URL parsing or the item definition breaks the test.
+    """
+    import json
+    import re
+    from pathlib import Path
+
+    import yaml
+
+    template = (
+        Path(__file__).resolve().parents[2]
+        / "templates/web-service-by-itforprof/template_web_service_by_itforprof_com.yaml"
+    )
+    items = yaml.safe_load(template.read_text())["zabbix_export"]["templates"][0]["items"]
+    discard, jsonpath = next(i for i in items if i["key"] == "web_check.cert.port")["preprocessing"]
+
+    ca = trustme.CA()
+    leaf = ca.issue_cert("127.0.0.1")
+    _patch_default_ssl(monkeypatch, ca)
+    with _tls_server(leaf) as port:
+        payload = json.dumps(asdict(web_check_module.check_cert(f"https://127.0.0.1:{port}/", timeout=5)))
+
+    assert not re.search(discard["parameters"][0], payload.replace(" ", ""))
+    assert jsonpath["parameters"] == ["$.port"]
+    assert json.loads(payload)["port"] == port != 443
+    # An http:// URL probes the certificate on 443, the macro default.
+    assert web_check_module.url_host("http://example.org:8080/", force_tls=True) == ("example.org", 443)

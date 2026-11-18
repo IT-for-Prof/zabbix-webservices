@@ -154,6 +154,11 @@ def test_cert_change_triggers_are_clean_change_detectors():
         assert "web_check.cert.ok)=1" not in expression, name
 
 
+def _triggers_by_name(template: dict | None = None) -> dict:
+    template = template or _template()
+    return {t["name"]: t for item in template["items"] for t in item.get("triggers", []) or []}
+
+
 def _item_by_key(key: str) -> dict:
     return next(item for item in _template()["items"] if item["key"] == key)
 
@@ -446,7 +451,7 @@ def test_cert_dependents_discard_the_error_envelope(filename, web_check_module):
 @pytest.mark.parametrize("filename", PROFILES)
 def test_severity_high_means_broken_for_users(filename):
     """HIGH = already broken for users, AVERAGE = still works but needs action; no DISASTER."""
-    triggers = {t["name"]: t for item in _profile(filename)["items"] for t in item.get("triggers", []) or []}
+    triggers = _triggers_by_name(_profile(filename))
     assert all(t["priority"] != "DISASTER" for t in triggers.values())
     expected = {
         "Cert expired": "HIGH",
@@ -469,7 +474,7 @@ def test_severity_high_means_broken_for_users(filename):
 
 def test_availability_triggers_need_two_consecutive_failed_checks():
     """A single failed poll (median 45 s for the web scenario) must not open a problem."""
-    triggers = {t["name"]: t for item in _template()["items"] for t in item.get("triggers", []) or []}
+    triggers = _triggers_by_name()
     assert triggers["Web service is failing"]["expression"] == (
         "min(/Web service by itforprof.com/web.test.fail[Web service],#2)>0"
     )
@@ -498,8 +503,7 @@ def test_tcp_ports_come_from_template_macros():
 
 def test_tcp_objects_keep_identity_and_tags():
     """Import matches by uuid: the key change must update the existing items and keep their history."""
-    items = {item["key"]: item for item in _template()["items"]}
-    https, http = items[TCP_HTTPS_KEY], items[TCP_HTTP_KEY]
+    https, http = _item_by_key(TCP_HTTPS_KEY), _item_by_key(TCP_HTTP_KEY)
     assert (https["uuid"], http["uuid"]) == ("117107c9c4c0479aa9825347cea751b9", "ccec84b433b442b7a9a94f9f409248c3")
     assert https["name"] == "Diag: TCP {$WEB_SERVICE.HTTPS.PORT} performance"
     assert http["name"] == "Diag: TCP {$WEB_SERVICE.HTTP.PORT} performance"
@@ -512,20 +516,18 @@ def test_tcp_objects_keep_identity_and_tags():
 
 
 def test_http3_description_names_the_url_port_not_443():
-    triggers = {t["name"]: t for item in _template()["items"] for t in item.get("triggers", []) or []}
+    triggers = _triggers_by_name()
     assert "UDP/443" not in triggers["HTTP/3 advertised but unreachable"]["description"]
-
-
-def _port_item() -> dict:
-    return {item["key"]: item for item in _template()["items"]}["web_check.cert.port"]
 
 
 def test_port_mismatch_warns_on_fresh_cert_port_only():
     """A forgotten {$WEB_SERVICE.HTTPS.PORT} on a host whose 443 answers would leave TCP diagnostics
     silently checking another service; the cert probe already reports the URL port, so compare them."""
-    item = _port_item()
+    item = _item_by_key("web_check.cert.port")
     assert item["master_item"]["key"] == 'web_check.py["cert","{$WEB_SERVICE.URL}"]'
     assert item["value_type"] == "UNSIGNED"
+    # Stored every poll (no heartbeat discard), read only by last(): keep it short.
+    assert (item["history"], item["trends"]) == ("7d", "0")
     assert [step["type"] for step in item["preprocessing"]] == ["NOT_MATCHES_REGEX", "JSONPATH"]
     assert item["preprocessing"][1]["parameters"] == ["$.port"]
     assert {t["tag"]: t["value"] for t in item["tags"]} == {"scope": "diag"}
@@ -545,20 +547,9 @@ def test_port_mismatch_warns_on_fresh_cert_port_only():
     assert "nodata(" not in trigger["expression"]
 
 
-def test_port_item_reads_the_port_the_cert_probe_used(web_check_module):
-    import json
-    from dataclasses import asdict
-
-    payload = json.loads(json.dumps(asdict(web_check_module.CertResult(port=20443))))
-    assert _port_item()["preprocessing"][1]["parameters"] == ["$.port"]
-    assert payload["port"] == 20443
-    # http:// URLs probe the certificate on 443, which is the macro default.
-    assert web_check_module.url_host("http://example.org/", force_tls=True) == ("example.org", 443)
-
-
 def test_tcp_failure_is_suppressed_while_the_port_macro_mismatches():
     """A TCP check on the wrong port must not page; the mismatch WARNING names the real cause."""
-    triggers = {t["name"]: t for item in _template()["items"] for t in item.get("triggers", []) or []}
+    triggers = _triggers_by_name()
     assert triggers[TCP_FAILED]["dependencies"] == [
         {"name": PORT_MISMATCH, "expression": triggers[PORT_MISMATCH]["expression"]}
     ]

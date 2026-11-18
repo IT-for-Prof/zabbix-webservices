@@ -1275,6 +1275,8 @@ zabbix_export:
       name: 'Диагностика: порт проверки сертификата'
       type: DEPENDENT
       key: web_check.cert.port
+      history: 7d
+      trends: '0'
       value_type: UNSIGNED
       description: 'Порт, по которому шла проверка сертификата: порт из {$WEB_SERVICE.URL} с https://, иначе 443. Берётся только из успешных проверок, поэтому во время аварии остаётся последний настоящий порт.'
       master_item:
