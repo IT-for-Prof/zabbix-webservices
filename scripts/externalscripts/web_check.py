@@ -1236,7 +1236,13 @@ def _normalize_whois(parsed: dict[str, Any], raw: str, tld: str) -> dict[str, An
         ns = [ns]
     dnssec = parsed.get("dnssec")
     if isinstance(dnssec, str):
-        dnssec_s = "unsigned" if dnssec.lower() in ("unsigned", "", "none", "no") else "signed"
+        d = dnssec.strip().lower()
+        if d.startswith("unsigned") or d in ("", "none", "no"):
+            dnssec_s = "unsigned"
+        elif d.startswith("signed") or d == "yes":
+            dnssec_s = "signed"
+        else:
+            dnssec_s = "unknown"
     elif dnssec is None:
         dnssec_s = "unknown"
     else:

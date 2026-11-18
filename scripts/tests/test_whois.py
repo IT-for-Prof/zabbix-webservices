@@ -11,6 +11,8 @@ import sys
 import types
 from datetime import UTC, datetime
 
+import pytest
+
 TCI_RAW = """\
 % TCI Whois Service. Terms of use:
 % https://tcinet.ru/documents/whois_ru_rf.pdf (in Russian)
@@ -136,6 +138,26 @@ def test_normalise_dnssec_unsigned(web_check_module):
     parsed = {"dnssec": "unsigned"}
     out = web_check_module._normalize_whois(parsed, raw="", tld="com")
     assert out["dnssec"] == "unsigned"
+
+
+@pytest.mark.parametrize(
+    ("raw", "want"),
+    [
+        ("unsignedDelegation", "unsigned"),
+        ("Unsigned delegation", "unsigned"),
+        (" UNSIGNED ", "unsigned"),
+        ("signedDelegation", "signed"),
+        ("Signed delegation", "signed"),
+        ("yes", "signed"),
+        ("no", "unsigned"),
+        ("none", "unsigned"),
+        ("", "unsigned"),
+        ("inactive", "unknown"),
+    ],
+)
+def test_normalise_dnssec_strings(web_check_module, raw, want):
+    """Registries spell DNSSEC many ways; "unsignedDelegation" is not "signed"."""
+    assert web_check_module._normalize_whois({"dnssec": raw}, "", "com")["dnssec"] == want
 
 
 def test_check_whois_cache_hit(monkeypatch, web_check_module, tmp_cache):
