@@ -342,7 +342,7 @@ URL port {ITEM.LASTVALUE1} differs from HTTPS port macro {$WEB_SERVICE.HTTPS.POR
 'Diag: TCP {$WEB_SERVICE.HTTPS.PORT} performance': 'Диагностика: время соединения TCP {$WEB_SERVICE.HTTPS.PORT}'
 TCP {$WEB_SERVICE.HTTPS.PORT} connect failed: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
 ? TCP/{$WEB_SERVICE.HTTPS.PORT} to the monitored host is refused or unreachable on two consecutive checks. Silent while a fresh certificate check shows that the port or host macro differs from the URL; the mismatch WARNING reports that instead.
-: Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен. Триггер молчит, пока свежая проверка сертификата показывает, что макрос порта или имени хоста не совпадает с URL: об этом сообщает предупреждение о расхождении.
+: 'Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен. Триггер молчит, пока свежая проверка сертификата показывает, что макрос порта или имени хоста не совпадает с URL: об этом сообщает предупреждение о расхождении.'
 TCP/{$WEB_SERVICE.HTTPS.PORT} connect failed to {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST}): Нет соединения TCP/{$WEB_SERVICE.HTTPS.PORT} с {$WEB_SERVICE.HOST} — {HOST.NAME} ({HOST.HOST})
 TCP {$WEB_SERVICE.HTTPS.PORT} connect slow: Медленное соединение TCP {$WEB_SERVICE.HTTPS.PORT}
 TCP check no data received: Нет данных TCP-проверки
