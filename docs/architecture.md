@@ -1,6 +1,6 @@
 # Architecture
 
-> Repository versions: full template `7.0-2.7.0`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
+> Repository versions: full template `7.0-2.7.1`, Certificate-TLS profile `7.0-1.2.0`. Deployment evidence is recorded in the severity plan.
 > `web_check.py` 2.2.3 is installed on both servers and the four serving proxies.
 
 ## Goal
@@ -420,9 +420,9 @@ ops cost).
 
 | Name | Severity | Expression |
 |---|---|---|
-| HTTPS port macro does not match the URL port | WARNING | `last(.../web_check.cert.port) <> {$WEB_SERVICE.HTTPS.PORT} and nodata(.../web_check.cert.port,15m) = 0` |
-| Host macro does not match the URL host | WARNING | `last(.../web_check.cert.host) <> "{$WEB_SERVICE.HOST}" and nodata(.../web_check.cert.host,15m) = 0` |
-| TCP check no data received | AVERAGE | `nodata(.../net.tcp.service.perf[https,…],15m) = 1 and nodata(.../web.test.fail[…],{$WEB_SERVICE.NODATA.PERIOD}) = 0` |
+| HTTPS port macro does not match the URL port | WARNING | `last(.../web_check.cert.port) <> {$WEB_SERVICE.HTTPS.PORT} and nodata(.../web_check.cert.port,{$WEB_SERVICE.CERT.NODATA.PERIOD}) = 0` |
+| Host macro does not match the URL host | WARNING | `last(.../web_check.cert.host) <> "{$WEB_SERVICE.HOST}" and nodata(.../web_check.cert.host,{$WEB_SERVICE.CERT.NODATA.PERIOD}) = 0` |
+| TCP check no data received | AVERAGE | `nodata(.../net.tcp.service.perf[https,…],{$WEB_SERVICE.DIAG.NODATA.PERIOD}) = 1 and nodata(.../web_check.py["cert",…],{$WEB_SERVICE.CERT.NODATA.PERIOD}) = 0` |
 | TCP {$WEB_SERVICE.HTTPS.PORT} connect failed | AVERAGE | `max(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2) = 0` (two consecutive failed checks), unless a fresh cert check shows a port or host macro mismatch (guard in the expression) |
 | TCP {$WEB_SERVICE.HTTPS.PORT} connect slow | WARNING | `avg(.../net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],30m) > {$WEB_SERVICE.TCP.SLOW_SEC}` (3s) |
 
@@ -572,12 +572,14 @@ All 28 user macros the template declares:
 | `{$WEB_SERVICE.USER_AGENT}` | `Zabbix-WebService-by-itforprof/2.0` | HTTP User-Agent for the web scenario. |
 | `{$WEB_SERVICE.CHECK.INTERVAL}` | 1m | Web scenario `delay`. |
 | `{$WEB_SERVICE.CERT.CHECK.INTERVAL}` | 5m | Cert master-item delay. |
+| `{$WEB_SERVICE.CERT.NODATA.PERIOD}` | 15m | Cert no-data window and freshness window of the port and host checks. |
 | `{$WEB_SERVICE.WHOIS.CHECK.INTERVAL}` | 1h | Whois master-item delay (mostly cache hits). |
 | `{$WEB_SERVICE.WHOIS.CACHE.TTL}` | 86400 | Whois cache TTL in seconds. |
 | `{$WEB_SERVICE.TLS_SCAN.CHECK.INTERVAL}` | 1d | Daily deep TLS scan delay. |
 | `{$WEB_SERVICE.HTTP3.CHECK.INTERVAL}` | 5m | HTTP/3 master-item delay. |
 | `{$WEB_SERVICE.HTTP3.SLOW_MS}` | 1000 | QUIC handshake WARNING threshold (ms). |
 | `{$WEB_SERVICE.DIAG.CHECK.INTERVAL}` | 5m | Diag simple-check delay. |
+| `{$WEB_SERVICE.DIAG.NODATA.PERIOD}` | 20m | https TCP no-data window. |
 | `{$WEB_SERVICE.SLOW.WARN}` | 10 | Slow-response trigger threshold (seconds, avg over 10m). |
 | `{$WEB_SERVICE.NODATA.PERIOD}` | 10m | Web-scenario no-data trigger period. |
 | `{$WEB_SERVICE.CERT.WARN_DAYS}` | 30 | Cert expiry INFO threshold (days). |
