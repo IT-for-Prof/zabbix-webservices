@@ -484,7 +484,9 @@ def test_availability_triggers_need_two_consecutive_failed_checks():
     assert triggers["Web service is failing"]["expression"] == (
         "min(/Web service by itforprof.com/web.test.fail[Web service],#2)>0"
     )
-    assert triggers[TCP_FAILED]["expression"] == f"max(/Web service by itforprof.com/{TCP_HTTPS_KEY},#2)=0"
+    assert triggers[TCP_FAILED]["expression"].startswith(
+        f"max(/Web service by itforprof.com/{TCP_HTTPS_KEY},#2)=0 and "
+    )
 
 
 def _all_expressions(template: dict) -> list[str]:
@@ -554,13 +556,20 @@ def test_port_mismatch_warns_on_fresh_cert_port_only():
     assert not trigger.get("dependencies")
 
 
-def test_tcp_failure_is_suppressed_while_the_port_macro_mismatches():
-    """A TCP check on the wrong port must not page; the mismatch WARNING names the real cause."""
-    triggers = _triggers_by_name()
-    assert triggers[TCP_FAILED]["dependencies"] == [
-        {"name": PORT_MISMATCH, "expression": triggers[PORT_MISMATCH]["expression"]},
-        {"name": HOST_MISMATCH, "expression": triggers[HOST_MISMATCH]["expression"]},
-    ]
+def test_tcp_failure_is_suppressed_while_a_macro_mismatches():
+    """A TCP check on the wrong port or host must not page; the mismatch WARNING names the real cause.
+
+    The guard sits in the expression, not in a dependency: a dependency cannot close a TCP problem
+    that opened before the mismatch was known, and it freezes the trigger while the parent is open.
+    Without fresh certificate data (nodata) the guard lets the TCP failure through as before.
+    """
+    t = "/Web service by itforprof.com/"
+    assert _triggers_by_name()[TCP_FAILED]["expression"] == (
+        f"max({t}{TCP_HTTPS_KEY},#2)=0"
+        f" and (last({t}web_check.cert.port)={{$WEB_SERVICE.HTTPS.PORT}} or nodata({t}web_check.cert.port,15m)=1)"
+        f' and (last({t}web_check.cert.host)="{{$WEB_SERVICE.HOST}}" or nodata({t}web_check.cert.host,15m)=1)'
+    )
+    assert not _triggers_by_name()[TCP_FAILED].get("dependencies")
 
 
 def test_tls_profile_has_no_tcp_port_objects():

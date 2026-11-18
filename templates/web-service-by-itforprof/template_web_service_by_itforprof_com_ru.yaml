@@ -1350,15 +1350,10 @@ zabbix_export:
         value: diag
       triggers:
       - uuid: fd0ada034a644ca3bf0086101c92395a
-        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+        expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)
         name: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
         priority: AVERAGE
-        description: Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен.
-        dependencies:
-        - name: Макрос https-порта не совпадает с портом URL
-          expression: last(/Web service by itforprof.com/web_check.cert.port)<>{$WEB_SERVICE.HTTPS.PORT} and nodata(/Web service by itforprof.com/web_check.cert.port,15m)=0
-        - name: Макрос имени хоста не совпадает с хостом URL
-          expression: last(/Web service by itforprof.com/web_check.cert.host)<>"{$WEB_SERVICE.HOST}" and nodata(/Web service by itforprof.com/web_check.cert.host,15m)=0
+        description: '{''Две проверки подряд соединение TCP/{$WEB_SERVICE.HTTPS.PORT} с хостом отклонено, или хост недоступен. Триггер молчит, пока свежая проверка сертификата показывает, что макрос порта или имени хоста не совпадает с URL'': ''об этом сообщает предупреждение о расхождении.''}'
         tags:
         - tag: scope
           value: diag
@@ -1373,7 +1368,7 @@ zabbix_export:
         description: 'Среднее время соединения TCP/{$WEB_SERVICE.HTTPS.PORT} за 30 мин выше {$WEB_SERVICE.TCP.SLOW_SEC} с. Берётся среднее, поэтому разовые сетевые скачки не будят дежурного: срабатывает только устойчивое замедление. На хостах за CDN с намеренно далёкими точками присутствия поднимите порог макросом.'
         dependencies:
         - name: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)
         tags:
         - tag: scope
           value: diag
@@ -1472,7 +1467,7 @@ zabbix_export:
           value: '{$WEB_SERVICE.URL}'
         dependencies:
         - name: Нет соединения TCP {$WEB_SERVICE.HTTPS.PORT}
-          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0
+          expression: max(/Web service by itforprof.com/net.tcp.service.perf[https,{$WEB_SERVICE.HOST},{$WEB_SERVICE.HTTPS.PORT}],#2)=0 and (last(/Web service by itforprof.com/web_check.cert.port)={$WEB_SERVICE.HTTPS.PORT} or nodata(/Web service by itforprof.com/web_check.cert.port,15m)=1) and (last(/Web service by itforprof.com/web_check.cert.host)="{$WEB_SERVICE.HOST}" or nodata(/Web service by itforprof.com/web_check.cert.host,15m)=1)
     - uuid: 4ff2ca946d4844e9a030b157dc5e16c7
       name: 'Скан TLS: поддерживаемые протоколы'
       type: DEPENDENT

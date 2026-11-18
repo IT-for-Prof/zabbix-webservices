@@ -19,13 +19,21 @@ triggers and the certificate trigger's TCP condition stayed UNKNOWN.
 
 - New `web_check.cert.host` (the host the certificate check took from the
   URL) and WARNING "Host macro does not match the URL host". It covers an
-  empty, misspelt, spaced or copied `{$WEB_SERVICE.HOST}`. "TCP connect
-  failed" depends on it, as it does on the port check.
+  empty, misspelt, spaced or copied `{$WEB_SERVICE.HOST}`.
 - New AVERAGE "TCP check no data received": the https TCP item got no value
   for 15m. The expression also requires fresh web-scenario data, so a silent
   collector opens one ticket ("Web service no data received"). A dependency
   would freeze it, and a NOTSUPPORTED item never brings the value that
   unfreezes it.
+
+### Changed — the TCP failure trigger carries the mismatch guards itself
+
+"TCP connect failed" no longer depends on the port mismatch trigger (2.6.0).
+Its expression requires, besides two failed polls, that a fresh certificate
+check shows no port or host mismatch (`last(...)` equal to the macro, or
+`nodata(...,15m)=1`). A dependency could not close a false AVERAGE that
+opened before the mismatch was known, and froze the trigger while the
+mismatch was open.
 
 ### Changed — mismatch checks expire without fresh certificate data
 
